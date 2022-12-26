@@ -1,7 +1,8 @@
+import { IPositional } from './math/interfaces';
 import vec2 from './math/vec2';
 import vec3 from './math/vec3';
 
-export class Boid {
+export class Boid implements IPositional {
   public p: vec2;
   public v: vec2;
   public a: vec2;

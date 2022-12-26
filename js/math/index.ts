@@ -7,4 +7,4 @@ export * from './mat2';
 export * from './mat3';
 export * from './mat4';
 export * from './quat';
-
+export * from './interfaces';
