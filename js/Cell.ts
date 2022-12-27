@@ -1,6 +1,7 @@
+import { IPositional } from './math';
 import vec2, { Ivec2 } from './math/vec2';
 
-export class Cell<T> {
+export class Cell<T> implements IPositional {
   public items: T[] = [];
   public neighbors: Cell<T>[] = [];
   public p: Ivec2 = new vec2();
