@@ -3,10 +3,9 @@ import {
 } from 'chroma-js';
 import { Boid } from './Boid';
 import { HashGrid } from './HashGrid';
-import { clamp, Ivec2, map, wrap } from './math/index';
+import { clamp, IPositional, map, wrap } from './math/index';
 import vec2 from './math/vec2';
 import { makeNoise2D } from 'fast-simplex-noise';
-import vec3 from './math/vec3';
 
 const noise = makeNoise2D();
 
@@ -17,6 +16,7 @@ let width = canvas.width = Math.floor(window.innerWidth),
   width_d2 = Math.floor(width / 2),
   height_d2 = Math.floor(height / 2),
   celSize = 32,
+  boidCelSize: 256,
   gridXW = Math.ceil(width / celSize),
   gridYW = Math.ceil(height / celSize),
   currentMaxSpeed = 0.01,
@@ -38,7 +38,15 @@ const flowGrid = new HashGrid({
   width: width,
   height: height,
   celSize: celSize,
-  wrap: true
+  wrap: true,
+  computeNeighborRadius: 0
+});
+const boidGrid = new HashGrid<Boid>({
+  width: width,
+  height: height,
+  celSize: boidCelSize,
+  wrap: true,
+  computeNeighborRadius: 3
 });
 // const t=vec2.angle2Vec(Math.PI/2);
 // console.log(t.toString(), t.toAngle());
@@ -47,7 +55,6 @@ context.globalAlpha = 1;
 
 const drag = 0.75;
 const maxSpeed = 10;
-const tailLength = 2;
 const maxTime = 10000;
 const showField = true;
 const numParticles = 1000;
@@ -63,7 +70,15 @@ function resize() {
     width: width,
     height: height,
     celSize: celSize,
-    wrap: true
+    wrap: true,
+    computeNeighborRadius: 0
+  });
+  boidGrid.resize({
+    width: width,
+    height: height,
+    celSize: boidCelSize,
+    wrap: true,
+    computeNeighborRadius: 2
   });
   genField();
 }
@@ -141,10 +156,10 @@ function render() {
     const b = boids[i];
     const p = b.p;
     const v = b.v;
-    let d: Ivec2 = flowGrid.getCellValue(p.x, p.y, true);
+    const d: IPositional = flowGrid.getCellValue(p.x, p.y, true);
     if (!d) continue;
     // console.log(d)
-    v.add(d.copy().normalize().scale(1));
+    v.add(d.p.copy().normalize().scale(1));
 
     // p.v.add(vec2.rand.scale(0.1));
     // apply some friction so point doesn't speed up too much
@@ -167,7 +182,7 @@ function render() {
 
     // context.beginPath();
     context.moveTo(p.x, p.y);
-    context.lineTo(p.x - (v.x*10), p.y - (v.y * 10));
+    context.lineTo(p.x - (v.x * 10), p.y - (v.y * 10));
     // context.stroke();
   }
   context.stroke();
@@ -212,15 +227,15 @@ function renderField() {
       // context.stroke();
       cx += flowGrid.celSize * 0.5;
       cy += flowGrid.celSize * 0.5;
-      let d: Ivec2 = flowGrid.getCellValue(x, y);
+      let d: IPositional = flowGrid.getCellValue(x, y);
       if (!d) continue;
       context.beginPath();
 
-      let l = d.length();
-      d = d.copy().normalize().scale(flowGrid.celSize * 0.5);
+      let l = d.p.length();
+      let p = d.p.copy().normalize().scale(flowGrid.celSize * 0.5);
 
-      let tx = Math.floor(d.x);
-      let ty = Math.floor(d.y);
+      let tx = Math.floor(p.x);
+      let ty = Math.floor(p.y);
       context.moveTo(cx, cy);
       context.lineTo(cx + tx, cy + ty);
       context.stroke();
@@ -252,7 +267,7 @@ function getValue(x, y) {
   y = (y - height_d2) * scale;
   const rad = noise(x, y);
   // console.log(v);
-  return vec2.angle2Vec(rad * Math.PI).scale(map(rad, -1, 1, 0.01, 1));
+  return {p: vec2.angle2Vec(rad * Math.PI).scale(map(rad, -1, 1, 0.01, 1))};
 
 
   // attractor gives new x, y for old one.
