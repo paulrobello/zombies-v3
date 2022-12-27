@@ -13,7 +13,7 @@ export interface Ivec2 {
 
   reset(): Ivec2;
 
-  equals(vector: vec2, threshold): boolean;
+  equals(vector: Ivec2, threshold): boolean;
 
   length(): number;
 
@@ -35,9 +35,9 @@ export interface Ivec2 {
 
   normalize(dest?: vec2): Ivec2;
 
-  distanceTo(target: vec2): number;
+  distanceTo(target: Ivec2): number;
 
-  squaredDistanceTo(target: vec2): number;
+  squaredDistanceTo(target: Ivec2): number;
   copy(dest?: vec2):Ivec2;
   toString(): string;
 }
