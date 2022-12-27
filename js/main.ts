@@ -15,13 +15,13 @@ let width = canvas.width = Math.floor(window.innerWidth),
   height = canvas.height = Math.floor(window.innerHeight),
   width_d2 = Math.floor(width / 2),
   height_d2 = Math.floor(height / 2),
-  celSize = 32,
-  boidCelSize: 256,
-  gridXW = Math.ceil(width / celSize),
-  gridYW = Math.ceil(height / celSize),
+  cellSize = 32,
+  boidCellSize: 256,
+  gridXW = Math.ceil(width / cellSize),
+  gridYW = Math.ceil(height / cellSize),
   currentMaxSpeed = 0.01,
   timer = 0,
-  fieldScale = celSize * 0.005,
+  fieldScale = cellSize * 0.005,
   frameCount = 0,
   fps = 0;
 
@@ -37,14 +37,14 @@ setInterval(() => {
 const flowGrid = new HashGrid({
   width: width,
   height: height,
-  celSize: celSize,
+  celSize: cellSize,
   wrap: true,
   computeNeighborRadius: 0
 });
 const boidGrid = new HashGrid<Boid>({
   width: width,
   height: height,
-  celSize: boidCelSize,
+  celSize: boidCellSize,
   wrap: true,
   computeNeighborRadius: 3
 });
@@ -65,18 +65,18 @@ function resize() {
   height = canvas.height = Math.floor(window.innerHeight);
   width_d2 = Math.floor(width / 2);
   height_d2 = Math.floor(height / 2);
-  gridXW = Math.ceil(width / celSize);
+  gridXW = Math.ceil(width / cellSize);
   flowGrid.resize({
     width: width,
     height: height,
-    celSize: celSize,
+    celSize: cellSize,
     wrap: true,
     computeNeighborRadius: 0
   });
   boidGrid.resize({
     width: width,
     height: height,
-    celSize: boidCelSize,
+    celSize: boidCellSize,
     wrap: true,
     computeNeighborRadius: 2
   });
@@ -150,7 +150,6 @@ function render() {
   if (showField) renderField();
   timer--;
 
-  // console.log(points);
   for (let i = 0; i < boids.length; i++) {
     // get each point and do what we did before with a single point
     const b = boids[i];
@@ -220,19 +219,19 @@ function renderField() {
   // context.beginPath();
   for (let x = 0; x < gridXW; x += 1) {
     for (let y = 0; y < gridYW; y += 1) {
-      let cx = Math.floor(x * flowGrid.celSize);
-      let cy = Math.floor(y * flowGrid.celSize);
+      let cx = Math.floor(x * flowGrid.cellSize);
+      let cy = Math.floor(y * flowGrid.cellSize);
       // context.beginPath();
       // context.rect(cx, cy, flowGrid.celSize,flowGrid.celSize);
       // context.stroke();
-      cx += flowGrid.celSize * 0.5;
-      cy += flowGrid.celSize * 0.5;
+      cx += flowGrid.cellSize * 0.5;
+      cy += flowGrid.cellSize * 0.5;
       let d: IPositional = flowGrid.getCellValue(x, y);
       if (!d) continue;
       context.beginPath();
 
       let l = d.p.length();
-      let p = d.p.copy().normalize().scale(flowGrid.celSize * 0.5);
+      let p = d.p.copy().normalize().scale(flowGrid.cellSize * 0.5);
 
       let tx = Math.floor(p.x);
       let ty = Math.floor(p.y);

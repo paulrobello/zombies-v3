@@ -30,7 +30,7 @@ export class HashGrid<T extends IPositional> {
     return this.options.height || 0;
   }
 
-  get celSize(): number {
+  get cellSize(): number {
     return this.options.celSize || 0;
   }
 
