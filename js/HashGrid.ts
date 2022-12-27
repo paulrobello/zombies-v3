@@ -1,5 +1,5 @@
 import { Cell } from './Cell';
-import { Ivec2, Ivec3, wrap } from './math/index';
+import { IPositional, wrap } from './math/index';
 import vec2 from './math/vec2';
 
 
@@ -8,9 +8,10 @@ export interface HashGridOptions {
   height: number;
   celSize: number;
   wrap: boolean;
+  computeNeighborRadius: number;
 }
 
-export class HashGrid<T extends Ivec2> {
+export class HashGrid<T extends IPositional> {
   public options: HashGridOptions;
   private cells: Cell<T>[];
 
@@ -33,23 +34,25 @@ export class HashGrid<T extends Ivec2> {
     return this.options.celSize || 0;
   }
 
-  resize(options: HashGridOptions) {
+  resize(options: HashGridOptions): void {
     this.options = {...options};
     this.cells = new Array(options.width * options.height);
     for (let i = 0; i < this.cells.length; i++) {
       this.cells[i] = new Cell<T>();
     }
-    this.computeNeighbors();
+    this.computeNeighbors(this.options.computeNeighborRadius);
   }
 
-  computeNeighbors() {
+  computeNeighbors(radius: number) {
     for (let x = 0; x < this.options.width; x++) {
       for (let y = 0; y < this.options.height; y++) {
         let c = this.getCell(x, y);
         c.p.set_xy(x, y);
-        for (let xc = -1; xc < -2; xc++) {
-          for (let yc = -1; yc < -2; yc++) {
+        c.neighbors.length = 0;
+        for (let xc = -radius; xc <= radius; xc++) {
+          for (let yc = -radius; yc <= radius; yc++) {
             if (xc === 0 && yc === 0) {
+              c.neighbors.push(c);
               continue;
             }
             let nx = x + xc;
@@ -63,32 +66,49 @@ export class HashGrid<T extends Ivec2> {
             c.neighbors.push(this.getCell(nx, ny));
           }
         }
+        c.neighbors.sort((a, b) => c.p.squaredDistanceTo(a.p) > c.p.squaredDistanceTo(b.p) ? 1 : -1);
       }
     }
   }
 
-  getDataRadius(x: number, y: number, radius: number, worldSpace: boolean = false) {
-    const data: { data: T, dist: number }[] = [];
+  getDataRadius(x: number, y: number, radius: number, worldSpace: boolean = false, self?: T, closest?: boolean) {
+    const data: { data: T, dist2: number }[] = [];
     const c = this.getCell(x, y, worldSpace);
     if (!c) return data;
     const v = new vec2(x * (worldSpace ? 1 : this.options.celSize), y * (worldSpace ? 1 : this.options.celSize));
-    let dist, nearest = Infinity;
-    for (const i of c.items) {
-      dist = i.squaredDistanceTo(v);
-      if (dist < nearest) nearest = dist;
-      data.push({data: i, dist});
+    let dist, nearest = Infinity, nearestData: T | undefined;
+    let blockRadius;
+    if (worldSpace) {
+      blockRadius = Math.min(Math.floor(radius / this.options.celSize), this.options.computeNeighborRadius);
+    } else {
+      radius = radius * this.options.celSize;
+      blockRadius = Math.min(radius, this.options.computeNeighborRadius);
     }
-    for (const n of c.neighbors) {
-      for (const i of c.items) {
-        dist = i.squaredDistanceTo(v);
-        if (dist < nearest) nearest = dist;
-        data.push({data: i, dist});
+    blockRadius += 3;
+    let numNeighbors = blockRadius * blockRadius;
+    if (numNeighbors > c.neighbors.length) {
+      numNeighbors = c.neighbors.length;
+    }
+    for (let ni = 0; ni < numNeighbors; ni++) {
+      const n = c.neighbors[ni];
+      for (const i of n.items) {
+        if (i === self) continue;
+        dist = i.p.squaredDistanceTo(v);
+        if (dist < nearest) {
+          nearest = dist;
+          nearestData = i;
+        }
+        data.push({data: i, dist2: dist});
       }
     }
-    radius *= radius;
+    if (closest) {
+      return [{data: nearestData, dist2: nearest}];
+    }
+
+    const radius2 = radius * radius;
     return data
-      .filter(i => i.dist <= radius)
-      .sort((a, b) => a.dist > b.dist ? 1 : -1);
+      .filter(i => i.dist2 <= radius2)
+      .sort((a, b) => a.dist2 > b.dist2 ? 1 : -1);
   }
 
   getCellIndex(x: number, y: number, worldSpace: boolean = false): number | undefined {
