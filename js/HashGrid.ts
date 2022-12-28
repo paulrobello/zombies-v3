@@ -6,7 +6,7 @@ import vec2 from './math/vec2';
 export interface HashGridOptions {
   width: number;
   height: number;
-  celSize: number;
+  cellSize: number;
   wrap: boolean;
   computeNeighborRadius: number;
 }
@@ -14,11 +14,12 @@ export interface HashGridOptions {
 export class HashGrid<T extends IPositional> {
   public options: HashGridOptions;
   private cells: Cell<T>[];
+  private allData: Set<T> = new Set<T>();
 
   constructor(options: HashGridOptions) {
     options.width = Math.floor(options.width);
     options.height = Math.floor(options.height);
-    options.celSize = Math.floor(options.celSize);
+    options.cellSize = Math.floor(options.cellSize);
     this.resize(options);
   }
 
@@ -31,23 +32,32 @@ export class HashGrid<T extends IPositional> {
   }
 
   get cellSize(): number {
-    return this.options.celSize || 0;
+    return this.options.cellSize || 0;
   }
 
   resize(options: HashGridOptions): void {
+    let recompute = (!this.options || this.options.width !== options.width || this.options.height !== options.height || this.options.cellSize !== options.cellSize || this.options.computeNeighborRadius !== options.computeNeighborRadius);
     this.options = {...options};
-    this.cells = new Array(options.width * options.height);
-    for (let i = 0; i < this.cells.length; i++) {
-      this.cells[i] = new Cell<T>();
+    if (recompute) {
+      this.cells = new Array(options.width * options.height);
+      for (let i = 0; i < this.cells.length; i++) {
+        this.cells[i] = new Cell<T>();
+      }
+      this.computeNeighbors(this.options.computeNeighborRadius);
     }
-    this.computeNeighbors(this.options.computeNeighborRadius);
   }
 
   computeNeighbors(radius: number) {
+    const cellSize = this.cellSize;
+    const cellSizeD2 = cellSize / 2;
+    const w = this.options.width;
+    const h = this.options.height;
     for (let x = 0; x < this.options.width; x++) {
       for (let y = 0; y < this.options.height; y++) {
         let c = this.getCell(x, y);
         c.p.set_xy(x, y);
+        c.wp.set_xy(x * cellSize, y * cellSize);
+        c.wc.set_xy(x * cellSize + cellSizeD2, y * cellSize + cellSizeD2);
         c.neighbors.length = 0;
         for (let xc = -radius; xc <= radius; xc++) {
           for (let yc = -radius; yc <= radius; yc++) {
@@ -56,11 +66,11 @@ export class HashGrid<T extends IPositional> {
               continue;
             }
             let nx = x + xc;
-            if (nx < 0 || nx >= this.options.width) {
+            if (nx < 0 || nx >= w) {
               continue;
             }
             let ny = y + yc;
-            if (ny < 0 || ny >= this.options.height) {
+            if (ny < 0 || ny >= h) {
               continue;
             }
             c.neighbors.push(this.getCell(nx, ny));
@@ -75,13 +85,14 @@ export class HashGrid<T extends IPositional> {
     const data: { data: T, dist2: number }[] = [];
     const c = this.getCell(x, y, worldSpace);
     if (!c) return data;
-    const v = new vec2(x * (worldSpace ? 1 : this.options.celSize), y * (worldSpace ? 1 : this.options.celSize));
+    const cellSize = this.cellSize;
+    const v = new vec2(x * (worldSpace ? 1 : cellSize), y * (worldSpace ? 1 : cellSize));
     let dist, nearest = Infinity, nearestData: T | undefined;
     let blockRadius;
     if (worldSpace) {
-      blockRadius = Math.min(Math.floor(radius / this.options.celSize), this.options.computeNeighborRadius);
+      blockRadius = Math.min(Math.floor(radius / cellSize), this.options.computeNeighborRadius);
     } else {
-      radius = radius * this.options.celSize;
+      radius = radius * cellSize;
       blockRadius = Math.min(radius, this.options.computeNeighborRadius);
     }
     blockRadius += 3;
@@ -113,8 +124,8 @@ export class HashGrid<T extends IPositional> {
 
   getCellIndex(x: number, y: number, worldSpace: boolean = false): number | undefined {
     if (worldSpace) {
-      x /= this.options.celSize;
-      y /= this.options.celSize;
+      x /= this.options.cellSize;
+      y /= this.options.cellSize;
     }
     x = Math.floor(x);
     y = Math.floor(y);
@@ -153,7 +164,11 @@ export class HashGrid<T extends IPositional> {
     if (cellIndex === undefined) {
       return;
     }
+    if (cellIndex>=this.cells.length){
+      throw new Error(`Cell index out of bounds ${cellIndex}, ${this.cells.length}`);
+    }
     this.cells[cellIndex].items.push(v);
+    this.allData.add(v);
   }
 
   removeCelData(x: number, y: number, worldSpace: boolean, v: T): boolean {
@@ -168,6 +183,7 @@ export class HashGrid<T extends IPositional> {
 
     }
     items.splice(i, 1);
+    this.allData.delete(v);
     return true;
   }
 
@@ -176,6 +192,25 @@ export class HashGrid<T extends IPositional> {
     if (cellIndex === undefined) {
       return;
     }
+    for (const d of this.cells[cellIndex].items) {
+      this.allData.delete(d);
+    }
     return this.cells[cellIndex].clear();
+  }
+
+  public clear() {
+    for (const c of this.cells) {
+      c.clear();
+    }
+    this.allData.clear();
+  }
+
+  public reposition() {
+    for (const c of this.cells) {
+      c.clear();
+    }
+    for (const d of this.allData) {
+      this.addCelData(d.p.x, d.p.y, true, d);
+    }
   }
 }

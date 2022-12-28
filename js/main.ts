@@ -1,6 +1,7 @@
 import {
   scale
 } from 'chroma-js';
+import { FlowBehavior } from './behaviours/flow';
 import { Boid } from './Boid';
 import { HashGrid } from './HashGrid';
 import { clamp, IPositional, map, wrap } from './math/index';
@@ -37,16 +38,16 @@ setInterval(() => {
 const flowGrid = new HashGrid({
   width: width,
   height: height,
-  celSize: cellSize,
+  cellSize: cellSize,
   wrap: true,
   computeNeighborRadius: 0
 });
 const boidGrid = new HashGrid<Boid>({
   width: width,
   height: height,
-  celSize: boidCellSize,
+  cellSize: boidCellSize,
   wrap: true,
-  computeNeighborRadius: 3
+  computeNeighborRadius: 1
 });
 // const t=vec2.angle2Vec(Math.PI/2);
 // console.log(t.toString(), t.toAngle());
@@ -57,7 +58,7 @@ const drag = 0.75;
 const maxSpeed = 10;
 const maxTime = 10000;
 const showField = true;
-const numParticles = 1000;
+const numParticles = 100;
 const wheelInc = 0.001;
 
 function resize() {
@@ -69,14 +70,14 @@ function resize() {
   flowGrid.resize({
     width: width,
     height: height,
-    celSize: cellSize,
+    cellSize: cellSize,
     wrap: true,
     computeNeighborRadius: 0
   });
   boidGrid.resize({
     width: width,
     height: height,
-    celSize: boidCellSize,
+    cellSize: boidCellSize,
     wrap: true,
     computeNeighborRadius: 2
   });
@@ -88,12 +89,12 @@ function randomizeParticles() {
     b.p.set_xy(Math.random() * width, Math.random() * height);
     b.v.random(maxSpeed);
   });
+  boidGrid.reposition();
   currentMaxSpeed = 0.01;
 }
 
 // attractor params
-let a, b, c, d;
-a = Math.random() * 0.0001;
+let a = Math.random() * 0.0001;
 
 canvas.addEventListener('wheel', (event: WheelEvent) => {
   fieldScale += event.deltaY > 0 ? wheelInc : -wheelInc;
@@ -112,12 +113,16 @@ resize();
 // spread out top to bottom.
 const boids: Boid[] = [];
 for (let i = 0; i < numParticles; i++) {
-  boids.push(new Boid(
-      new vec2(Math.random() * width, Math.random() * height),
-      vec2.zero,
-      1
-    )
+  let b = new Boid(
+    boidGrid,
+    new vec2(Math.random() * width, Math.random() * height),
+    vec2.zero,
+    1
   );
+  b.maxSpeed = maxSpeed;
+  b.behaviors.push(new FlowBehavior(b, flowGrid));
+  boids.push(b);
+
 }
 
 const gradient = scale(['#000000', '#00FF00', '#0000FF', '#FFFF00', '#FF8700', '#FF0000'])
@@ -127,12 +132,16 @@ const gradient = scale(['#000000', '#00FF00', '#0000FF', '#FFFF00', '#FF8700', '
 render();
 let deltaTime = 0;
 let lastTime = 0;
+let startTime = performance.now();
+let currentTime = 0;
 
 function render() {
+  const t = performance.now();
+  currentTime = t - startTime;
   if (lastTime) {
-    deltaTime = (performance.now() - lastTime) / 1000;
+    deltaTime = (t - lastTime) / 1000;
   }
-  lastTime = performance.now();
+  lastTime = t;
   deltaTime = clamp(deltaTime, 0.1, 1);
 
   context.clearRect(0, 0, width, height);
@@ -153,29 +162,35 @@ function render() {
   for (let i = 0; i < boids.length; i++) {
     // get each point and do what we did before with a single point
     const b = boids[i];
+    b.tick(currentTime, deltaTime);
     const p = b.p;
     const v = b.v;
-    const d: IPositional = flowGrid.getCellValue(p.x, p.y, true);
-    if (!d) continue;
-    // console.log(d)
-    v.add(d.p.copy().normalize().scale(1));
 
+    // const d: IPositional = flowGrid.getCellValue(p.x, p.y, true);
+    // if (!d) continue;
+    // // console.log(d)
+    // v.add(d.p.copy().normalize().scale(1));
+    //
+    // // p.v.add(vec2.rand.scale(0.1));
+    // // apply some friction so point doesn't speed up too much
+    // v.scale(drag);
+    // // add velocity to position and line to new position
+    // let l = v.length();
+    // if (l > maxSpeed) {
+    //   v.normalize().scale(maxSpeed);
+    //   l = maxSpeed;
+    // }
+    // if (!isFinite(l)) {
+    //   l = 0;
+    // }
+    // currentMaxSpeed = Math.max(currentMaxSpeed, l);
+    // p.add(v);
+    //
+    // // wrap around edges of screen
     // p.v.add(vec2.rand.scale(0.1));
     // apply some friction so point doesn't speed up too much
     v.scale(drag);
-    // add velocity to position and line to new position
-    let l = v.length();
-    if (l > maxSpeed) {
-      v.normalize().scale(maxSpeed);
-      l = maxSpeed;
-    }
-    if (!isFinite(l)) {
-      l = 0;
-    }
-    currentMaxSpeed = Math.max(currentMaxSpeed, l);
-    p.add(v);
 
-    // wrap around edges of screen
     p.x = wrap(p.x, width);
     p.y = wrap(p.y, height);
 
@@ -183,8 +198,10 @@ function render() {
     context.moveTo(p.x, p.y);
     context.lineTo(p.x - (v.x * 10), p.y - (v.y * 10));
     // context.stroke();
+
   }
   context.stroke();
+  // boidGrid.reposition();
   frameCount++;
   context.font = 'bold 36px serif';
   context.fillStyle = '#FFFFFF';
