@@ -1,4 +1,4 @@
-import { Cell } from './Cell';
+import { Cell, ICellIndexable } from './Cell';
 import { IPositional, wrap } from './math/index';
 import vec2 from './math/vec2';
 
@@ -11,7 +11,7 @@ export interface HashGridOptions {
   computeNeighborRadius: number;
 }
 
-export class HashGrid<T extends IPositional> {
+export class HashGrid<T extends IPositional & ICellIndexable> {
   public options: HashGridOptions;
   private cells: Cell<T>[];
   private allData: Set<T> = new Set<T>();
@@ -44,6 +44,7 @@ export class HashGrid<T extends IPositional> {
         this.cells[i] = new Cell<T>();
       }
       this.computeNeighbors(this.options.computeNeighborRadius);
+      this.reposition();
     }
   }
 
@@ -164,16 +165,32 @@ export class HashGrid<T extends IPositional> {
     if (cellIndex === undefined) {
       return;
     }
-    if (cellIndex>=this.cells.length){
-      throw new Error(`Cell index out of bounds ${cellIndex}, ${this.cells.length}`);
+    this.addCelDataByIndex(cellIndex, v);
+  }
+
+  addCelDataByIndex(cellIndex: number, v: T): void {
+    if (cellIndex >= this.cells.length) {
+      throw new Error(`Cell index out of bounds ${cellIndex} >=, ${this.cells.length}`);
     }
     this.cells[cellIndex].items.push(v);
     this.allData.add(v);
+    v.lastCellIndex = v.cellIndex;
+    v.cellIndex = cellIndex;
+    if (v.lastCellIndex < 0) {
+      v.lastCellIndex = v.cellIndex;
+    }
   }
 
   removeCelData(x: number, y: number, worldSpace: boolean, v: T): boolean {
     const cellIndex = this.getCellIndex(x, y, worldSpace);
     if (cellIndex === undefined) {
+      return false;
+    }
+    return this.removeCelDataByIndex(cellIndex, v);
+  }
+
+  removeCelDataByIndex(cellIndex: number, v: T): boolean {
+    if (cellIndex < 0 || cellIndex >= this.cells.length) {
       return false;
     }
     const items = this.cells[cellIndex].items;
@@ -184,6 +201,7 @@ export class HashGrid<T extends IPositional> {
     }
     items.splice(i, 1);
     this.allData.delete(v);
+    v.cellIndex = -1;
     return true;
   }
 
@@ -211,6 +229,7 @@ export class HashGrid<T extends IPositional> {
     }
     for (const d of this.allData) {
       this.addCelData(d.p.x, d.p.y, true, d);
+      d.lastCellIndex = d.cellIndex;
     }
   }
 }

@@ -3,7 +3,7 @@ import {
 } from 'chroma-js';
 import { FlowBehavior } from './behaviours/flow';
 import { Boid } from './Boid';
-import { HashGrid } from './HashGrid';
+import { HashGrid, HashGridOptions } from './HashGrid';
 import { clamp, IPositional, map, wrap } from './math/index';
 import vec2 from './math/vec2';
 import { makeNoise2D } from 'fast-simplex-noise';
@@ -17,14 +17,36 @@ let width = canvas.width = Math.floor(window.innerWidth),
   width_d2 = Math.floor(width / 2),
   height_d2 = Math.floor(height / 2),
   cellSize = 32,
-  boidCellSize: 256,
+  boidCellSize = 256,
   gridXW = Math.ceil(width / cellSize),
   gridYW = Math.ceil(height / cellSize),
-  currentMaxSpeed = 0.01,
   timer = 0,
   fieldScale = cellSize * 0.005,
   frameCount = 0,
   fps = 0;
+context.globalAlpha = 1;
+
+const drag = 0.75;
+const maxSpeed = 10;
+const maxTime = 10000;
+const showField = true;
+const numBoids = 1000;
+const wheelInc = 0.001;
+
+const flowGridOptions: HashGridOptions = {
+  width: width,
+  height: height,
+  cellSize: cellSize,
+  wrap: true,
+  computeNeighborRadius: 0
+};
+const boidGridOptions: HashGridOptions = {
+  width: width,
+  height: height,
+  cellSize: boidCellSize,
+  wrap: true,
+  computeNeighborRadius: 1
+};
 
 setInterval(() => {
   if (fps) {
@@ -35,31 +57,8 @@ setInterval(() => {
   frameCount = 0;
 }, 1000);
 
-const flowGrid = new HashGrid({
-  width: width,
-  height: height,
-  cellSize: cellSize,
-  wrap: true,
-  computeNeighborRadius: 0
-});
-const boidGrid = new HashGrid<Boid>({
-  width: width,
-  height: height,
-  cellSize: boidCellSize,
-  wrap: true,
-  computeNeighborRadius: 1
-});
-// const t=vec2.angle2Vec(Math.PI/2);
-// console.log(t.toString(), t.toAngle());
-
-context.globalAlpha = 1;
-
-const drag = 0.75;
-const maxSpeed = 10;
-const maxTime = 10000;
-const showField = true;
-const numParticles = 100;
-const wheelInc = 0.001;
+const flowGrid = new HashGrid(flowGridOptions);
+const boidGrid = new HashGrid<Boid>(boidGridOptions);
 
 function resize() {
   width = canvas.width = Math.floor(window.innerWidth);
@@ -67,30 +66,24 @@ function resize() {
   width_d2 = Math.floor(width / 2);
   height_d2 = Math.floor(height / 2);
   gridXW = Math.ceil(width / cellSize);
-  flowGrid.resize({
-    width: width,
-    height: height,
-    cellSize: cellSize,
-    wrap: true,
-    computeNeighborRadius: 0
-  });
-  boidGrid.resize({
-    width: width,
-    height: height,
-    cellSize: boidCellSize,
-    wrap: true,
-    computeNeighborRadius: 2
-  });
+
+  flowGridOptions.width = width;
+  flowGridOptions.height = height;
+  flowGrid.resize(flowGridOptions);
+
+  boidGridOptions.width = width;
+  boidGridOptions.height = height;
+  boidGrid.resize(boidGridOptions);
+
   genField();
 }
 
-function randomizeParticles() {
+function randomizeBoids() {
   boids.forEach(b => {
     b.p.set_xy(Math.random() * width, Math.random() * height);
     b.v.random(maxSpeed);
   });
   boidGrid.reposition();
-  currentMaxSpeed = 0.01;
 }
 
 // attractor params
@@ -103,7 +96,7 @@ canvas.addEventListener('wheel', (event: WheelEvent) => {
   console.log(fieldScale + a);
 });
 canvas.addEventListener('click', (event: MouseEvent) => {
-  randomizeParticles();
+  randomizeBoids();
 });
 window.addEventListener('resize', (event: UIEvent) => resize());
 resize();
@@ -112,7 +105,7 @@ resize();
 // create points. each aligned to left edge of screen,
 // spread out top to bottom.
 const boids: Boid[] = [];
-for (let i = 0; i < numParticles; i++) {
+for (let i = 0; i < numBoids; i++) {
   let b = new Boid(
     boidGrid,
     new vec2(Math.random() * width, Math.random() * height),
@@ -154,7 +147,7 @@ function render() {
     // genField();
     timer = maxTime;
     console.log('timer');
-    randomizeParticles();
+    randomizeBoids();
   }
   if (showField) renderField();
   timer--;
@@ -212,21 +205,11 @@ function render() {
 
 
 function genField() {
-  // a = Math.random() * 4 - 2;
-  // b = Math.random() * 4 - 2;
-  // c = Math.random() * 4 - 2;
-  // d = Math.random() * 4 - 2;
-
-  // a = 0.970
-  // b = -1.899
-  // c = 1.381
-  // d = -1.506
   for (let y = 0; y < gridYW; y += 1) {
     for (let x = 0; x < gridXW; x += 1) {
       flowGrid.addCelData(x, y, false, getValue(x, y));
     }
   }
-  // console.log(flowField)
 }
 
 function renderField() {
@@ -264,32 +247,14 @@ function renderField() {
 }
 
 function getValue(x, y) {
-  // scale down x and y
-  // const scale = 10 / Math.max(width, height);
-  // if (x < 1) {
-  //   return 0;
-  // }
-  // if (y < 1) {
-  //   return Math.PI / 2;
-  // }
-  // if (x >= gridXW - 2) {
-  //   return Math.PI;
-  // }
-  // if (y >= gridYW - 2) {
-  //   return Math.PI + Math.PI / 2;
-  // }
   const scale = fieldScale + a;
   x = (x - width_d2) * scale;
   y = (y - height_d2) * scale;
   const rad = noise(x, y);
   // console.log(v);
-  return {p: vec2.angle2Vec(rad * Math.PI).scale(map(rad, -1, 1, 0.01, 1))};
-
-
-  // attractor gives new x, y for old one.
-  // const x1 = Math.sin(a * y) + c * Math.cos(a * x);
-  // const y1 = Math.sin(b * x) + d * Math.cos(b * y);
-  //
-  // // find angle from old to new. that's the value.
-  // return Math.atan2(y1 - y, x1 - x);
+  return {
+    p: vec2.angle2Vec(rad * Math.PI).scale(map(rad, -1, 1, 0.01, 1)),
+    lastCellIndex: -1,
+    cellIndex: -1
+  };
 }
