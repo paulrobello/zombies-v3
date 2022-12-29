@@ -46,5 +46,14 @@ export class Boid implements IPositional, ICellIndexable, IProgressible {
       this.grid.removeCelDataByIndex(this.lastCellIndex, this);
       this.grid.addCelDataByIndex(newCellIndex, this);
     }
+    const v = this.v;
+    let l = v.length();
+    if (l > this.maxSpeed) {
+      v.normalize().scale(this.maxSpeed);
+      l = this.maxSpeed;
+    }
+    this.speed = l;
+    this.p.x += v.x * deltaTime;
+    this.p.y += v.y * deltaTime;
   }
 }

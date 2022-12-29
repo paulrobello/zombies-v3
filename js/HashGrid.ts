@@ -35,7 +35,7 @@ export class HashGrid<T extends IPositional & ICellIndexable> {
     return this.options.cellSize || 0;
   }
 
-  resize(options: HashGridOptions): void {
+  resize(options: HashGridOptions, doReposition: boolean = false): void {
     let recompute = (!this.options || this.options.width !== options.width || this.options.height !== options.height || this.options.cellSize !== options.cellSize || this.options.computeNeighborRadius !== options.computeNeighborRadius);
     this.options = {...options};
     if (recompute) {
@@ -44,7 +44,9 @@ export class HashGrid<T extends IPositional & ICellIndexable> {
         this.cells[i] = new Cell<T>();
       }
       this.computeNeighbors(this.options.computeNeighborRadius);
-      this.reposition();
+      if (doReposition) {
+        this.reposition();
+      }
     }
   }
 
@@ -143,12 +145,13 @@ export class HashGrid<T extends IPositional & ICellIndexable> {
 
   getCellValue(x: number, y: number, worldSpace: boolean = false): T | undefined {
     const c = this.getCell(x, y, worldSpace);
-    if (!c.items.length) return undefined;
+    if (!c || !c.items.length) return undefined;
     return c.items[0];
   }
 
   getCellValues(x: number, y: number, worldSpace: boolean = false): T[] | undefined {
     const c = this.getCell(x, y, worldSpace);
+    if (!c) return undefined;
     return c.items;
   }
 
@@ -169,10 +172,14 @@ export class HashGrid<T extends IPositional & ICellIndexable> {
   }
 
   addCelDataByIndex(cellIndex: number, v: T): void {
-    if (cellIndex >= this.cells.length) {
-      throw new Error(`Cell index out of bounds ${cellIndex} >=, ${this.cells.length}`);
+    if (!isFinite(cellIndex) || cellIndex<0 || cellIndex >= this.cells.length) {
+      throw new Error(`Cell index out of bounds ${cellIndex}, ${this.cells.length}`);
     }
-    this.cells[cellIndex].items.push(v);
+    try {
+      this.cells[cellIndex].items.push(v);
+    }catch(e){
+      debugger;
+    }
     this.allData.add(v);
     v.lastCellIndex = v.cellIndex;
     v.cellIndex = cellIndex;

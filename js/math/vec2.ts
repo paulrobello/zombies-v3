@@ -38,7 +38,9 @@ export interface Ivec2 {
   distanceTo(target: Ivec2): number;
 
   squaredDistanceTo(target: Ivec2): number;
-  copy(dest?: vec2):Ivec2;
+
+  copy(dest?: vec2): Ivec2;
+
   toString(): string;
 }
 
@@ -111,14 +113,14 @@ export default class vec2 implements Ivec2 {
     return dest;
   }
 
-  random(scale: number = 1, dest?: vec2): Ivec2 {
+  random(min: number = 0, max: number = 1, dest?: vec2): Ivec2 {
     if (!dest) {
       dest = this;
     }
     const r = Math.random() * Math.PI * 2;
-
-    dest.x = Math.cos(r) * scale;
-    dest.y = Math.sin(r) * scale;
+    const range = max - min;
+    dest.x = Math.cos(r) * range + min;
+    dest.y = Math.sin(r) * range + min;
     return dest;
   }
 

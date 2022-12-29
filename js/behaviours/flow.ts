@@ -1,11 +1,12 @@
 import { Boid, BoidBehavior } from '../Boid';
+import { ICellIndexable } from '../Cell';
 import { HashGrid } from '../HashGrid';
 import { IPositional } from '../math';
 
 export class FlowBehavior extends BoidBehavior {
-  public flowGrid: HashGrid<IPositional>;
+  public flowGrid: HashGrid<IPositional & ICellIndexable>;
 
-  constructor(boid: Boid, flowGrid: HashGrid<IPositional>) {
+  constructor(boid: Boid, flowGrid: HashGrid<IPositional & ICellIndexable>) {
     super(boid);
     this.flowGrid = flowGrid;
   }
@@ -18,14 +19,5 @@ export class FlowBehavior extends BoidBehavior {
     if (!d) return;
     // console.log(d)
     v.add(d.p.copy().normalize().scale(1));
-
-    // add velocity to position and line to new position
-    let l = v.length();
-    if (l > b.maxSpeed) {
-      v.normalize().scale(b.maxSpeed);
-      l = b.maxSpeed;
-    }
-    b.speed = l;
-    p.add(v);
   }
 }

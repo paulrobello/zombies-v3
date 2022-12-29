@@ -26,8 +26,8 @@ let width = canvas.width = Math.floor(window.innerWidth),
   fps = 0;
 context.globalAlpha = 1;
 
-const drag = 0.75;
-const maxSpeed = 10;
+const drag = 0.95;
+const maxSpeed = 10000;
 const maxTime = 10000;
 const showField = true;
 const numBoids = 1000;
@@ -69,11 +69,11 @@ function resize() {
 
   flowGridOptions.width = width;
   flowGridOptions.height = height;
-  flowGrid.resize(flowGridOptions);
+  flowGrid.resize(flowGridOptions, false);
 
   boidGridOptions.width = width;
   boidGridOptions.height = height;
-  boidGrid.resize(boidGridOptions);
+  boidGrid.resize(boidGridOptions, true);
 
   genField();
 }
@@ -81,7 +81,7 @@ function resize() {
 function randomizeBoids() {
   boids.forEach(b => {
     b.p.set_xy(Math.random() * width, Math.random() * height);
-    b.v.random(maxSpeed);
+    b.v.random(maxSpeed/2, maxSpeed);
   });
   boidGrid.reposition();
 }
@@ -89,12 +89,12 @@ function randomizeBoids() {
 // attractor params
 let a = Math.random() * 0.0001;
 
-canvas.addEventListener('wheel', (event: WheelEvent) => {
-  fieldScale += event.deltaY > 0 ? wheelInc : -wheelInc;
-  fieldScale = Math.max(Math.min(fieldScale, 1), wheelInc);
-  genField();
-  console.log(fieldScale + a);
-});
+// canvas.addEventListener('wheel', (event: WheelEvent) => {
+//   fieldScale += event.deltaY > 0 ? wheelInc : -wheelInc;
+//   fieldScale = Math.max(Math.min(fieldScale, 1), wheelInc);
+//   genField();
+//   console.log(fieldScale + a);
+// });
 canvas.addEventListener('click', (event: MouseEvent) => {
   randomizeBoids();
 });
@@ -122,20 +122,28 @@ const gradient = scale(['#000000', '#00FF00', '#0000FF', '#FFFF00', '#FF8700', '
   .domain([0, 0.2, 0.5, 0.6, 0.75, 1.0]);
 
 
-render();
-let deltaTime = 0;
-let lastTime = 0;
 let startTime = performance.now();
 let currentTime = 0;
+let lastTime = 0;
+let deltaTime = 0;
+
+render();
 
 function render() {
   const t = performance.now();
-  currentTime = t - startTime;
-  if (lastTime) {
-    deltaTime = (t - lastTime) / 1000;
+  currentTime = (t - startTime) / 1000;
+  if (isNaN(currentTime)) {
+    currentTime = 0;
   }
-  lastTime = t;
+  if (lastTime) {
+    deltaTime = (currentTime - lastTime);
+  }
+  lastTime = currentTime;
   deltaTime = clamp(deltaTime, 0.1, 1);
+
+  // if (Math.floor(currentTime)%5===0) {
+  // console.log({deltaTime, currentTime});
+  // }
 
   context.clearRect(0, 0, width, height);
   context.beginPath();
@@ -150,7 +158,7 @@ function render() {
     randomizeBoids();
   }
   if (showField) renderField();
-  timer--;
+  // timer--;
 
   for (let i = 0; i < boids.length; i++) {
     // get each point and do what we did before with a single point
@@ -207,7 +215,7 @@ function render() {
 function genField() {
   for (let y = 0; y < gridYW; y += 1) {
     for (let x = 0; x < gridXW; x += 1) {
-      flowGrid.addCelData(x, y, false, getValue(x, y));
+      flowGrid.addCelData(x, y, false, getFlowFieldValue(x, y));
     }
   }
 }
@@ -239,14 +247,13 @@ function renderField() {
       context.lineTo(cx + tx, cy + ty);
       context.stroke();
       context.fillStyle = gradient(l).toString();
-
       context.fillRect(cx - 1, cy - 1, 2, 2);
     }
   }
   // context.stroke();
 }
 
-function getValue(x, y) {
+function getFlowFieldValue(x, y) {
   const scale = fieldScale + a;
   x = (x - width_d2) * scale;
   y = (y - height_d2) * scale;
