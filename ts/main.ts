@@ -23,20 +23,6 @@ const showField = true;
 const numBoids = 1000;
 const wheelInc = 0.001;
 
-const flowGridOptions: HashGridOptions = {
-  width: width,
-  height: height,
-  cellSize: cellSize,
-  wrap: true,
-  computeNeighborRadius: 0
-};
-const boidGridOptions: HashGridOptions = {
-  width: width,
-  height: height,
-  cellSize: boidCellSize,
-  wrap: true,
-  computeNeighborRadius: 1
-};
 
 setInterval(() => {
   if (fps) {
@@ -47,26 +33,7 @@ setInterval(() => {
   frameCount = 0;
 }, 1000);
 
-const flowGrid = new HashGrid(flowGridOptions);
-const boidGrid = new HashGrid<Boid>(boidGridOptions);
 
-function resize() {
-  width = canvas.width = Math.floor(window.innerWidth);
-  height = canvas.height = Math.floor(window.innerHeight);
-  width_d2 = Math.floor(width / 2);
-  height_d2 = Math.floor(height / 2);
-  gridXW = Math.ceil(width / cellSize);
-
-  flowGridOptions.width = width;
-  flowGridOptions.height = height;
-  flowGrid.resize(flowGridOptions, false);
-
-  boidGridOptions.width = width;
-  boidGridOptions.height = height;
-  boidGrid.resize(boidGridOptions, true);
-
-  genField();
-}
 
 function randomizeBoids() {
   boids.forEach(b => {
