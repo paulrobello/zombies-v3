@@ -1,4 +1,5 @@
 import { ICellIndexable } from './Cell';
+import { IGameTime } from './GameClock';
 import { HashGrid } from './HashGrid';
 import { IDrawable, IPositional, IProgressible } from './interfaces';
 import vec2 from './math/vec2';
@@ -11,8 +12,7 @@ export class BoidBehavior implements IProgressible {
     this.boid = boid;
   }
 
-  tick(time: number, deltaTime: number): void {
-
+  tick(gameTime: IGameTime): void {
   }
 }
 
@@ -37,9 +37,9 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
     this.r = r || 1;
   }
 
-  tick(time: number, deltaTime: number): void {
+  tick(gameTime: IGameTime): void {
     for (const b of this.behaviors) {
-      b.tick(time, deltaTime);
+      b.tick(gameTime);
     }
     const newCellIndex = this.grid.getCellIndex(this.p.x, this.p.y, true);
     if (this.cellIndex !== newCellIndex) {
@@ -53,8 +53,8 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
       l = this.maxSpeed;
     }
     this.speed = l;
-    this.p.x += v.x * deltaTime;
-    this.p.y += v.y * deltaTime;
+    this.p.x += v.x * gameTime.deltaTime;
+    this.p.y += v.y * gameTime.deltaTime;
   }
 
   draw(ctx: CanvasRenderingContext2D): void {
@@ -66,6 +66,5 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
       s = 1;
     }
     ctx.lineTo(p.x - (v.x / s * 10), p.y - (v.y / s * 10));
-
   }
 }

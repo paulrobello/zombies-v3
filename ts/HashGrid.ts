@@ -1,5 +1,6 @@
+import { scale } from 'chroma-js';
 import { Cell, ICellIndexable } from './Cell';
-import { IPositional} from './interfaces';
+import { IDrawable, IPositional } from './interfaces';
 import { wrap } from './math';
 import vec2 from './math/vec2';
 
@@ -12,34 +13,76 @@ export interface HashGridOptions {
   computeNeighborRadius: number;
 }
 
-export class HashGrid<T extends IPositional & ICellIndexable> {
+export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawable {
   public options: HashGridOptions;
   private cells: Cell<T>[];
   private allData: Set<T> = new Set<T>();
+  private gridXW: number;
+  private gridYW: number;
+  gradient = scale(['#000000', '#00FF00', '#0000FF', '#FFFF00', '#FF8700', '#FF0000'])
+    .domain([0, 0.2, 0.5, 0.6, 0.75, 1.0]);
 
   constructor(options: HashGridOptions) {
     options.width = Math.floor(options.width);
     options.height = Math.floor(options.height);
     options.cellSize = Math.floor(options.cellSize);
+    this.gridXW = Math.ceil(options.width / options.cellSize);
+    this.gridYW = Math.ceil(options.height / options.cellSize);
     this.resize(options);
   }
 
+  draw(ctx: CanvasRenderingContext2D): void {
+    const cellSize = this.options.cellSize;
+    ctx.fillStyle = '#009900';
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 0.5;
+    // context.beginPath();
+    for (let x = 0; x < this.gridXW; x += 1) {
+      for (let y = 0; y < this.gridYW; y += 1) {
+        let cx = Math.floor(x * cellSize);
+        let cy = Math.floor(y * cellSize);
+        // context.beginPath();
+        // context.rect(cx, cy, flowGrid.celSize,flowGrid.celSize);
+        // context.stroke();
+        cx += cellSize * 0.5;
+        cy += cellSize * 0.5;
+        let d: IPositional = this.getCellValue(x, y);
+        if (!d) continue;
+        ctx.beginPath();
+
+        let l = d.p.length();
+        let p = d.p.copy().normalize().scale(cellSize * 0.5);
+
+        let tx = Math.floor(p.x);
+        let ty = Math.floor(p.y);
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + tx, cy + ty);
+        ctx.stroke();
+        ctx.fillStyle = this.gradient(l).toString();
+        ctx.fillRect(cx - 1, cy - 1, 2, 2);
+      }
+    }
+  }
+
   get width(): number {
-    return this.options.width || 0;
+    return this.options?.width || 0;
   }
 
   get height(): number {
-    return this.options.height || 0;
+    return this.options?.height || 0;
   }
 
   get cellSize(): number {
-    return this.options.cellSize || 0;
+    return this.options?.cellSize || 0;
   }
 
   resize(options: HashGridOptions, doReposition: boolean = false): void {
     let recompute = (!this.options || this.options.width !== options.width || this.options.height !== options.height || this.options.cellSize !== options.cellSize || this.options.computeNeighborRadius !== options.computeNeighborRadius);
     this.options = {...options};
     if (recompute) {
+      this.gridXW = Math.ceil(options.width / this.options.cellSize);
+      this.gridYW = Math.ceil(options.height / this.options.cellSize);
+
       this.cells = new Array(options.width * options.height);
       for (let i = 0; i < this.cells.length; i++) {
         this.cells[i] = new Cell<T>();
@@ -173,12 +216,12 @@ export class HashGrid<T extends IPositional & ICellIndexable> {
   }
 
   addCelDataByIndex(cellIndex: number, v: T): void {
-    if (!isFinite(cellIndex) || cellIndex<0 || cellIndex >= this.cells.length) {
+    if (!isFinite(cellIndex) || cellIndex < 0 || cellIndex >= this.cells.length) {
       throw new Error(`Cell index out of bounds ${cellIndex}, ${this.cells.length}`);
     }
     try {
       this.cells[cellIndex].items.push(v);
-    }catch(e){
+    } catch (e) {
       debugger;
     }
     this.allData.add(v);

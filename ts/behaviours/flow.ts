@@ -1,5 +1,6 @@
 import { Boid, BoidBehavior } from '../Boid';
 import { ICellIndexable } from '../Cell';
+import { IGameTime } from '../GameClock';
 import { HashGrid } from '../HashGrid';
 import { IPositional } from '../interfaces';
 
@@ -11,7 +12,7 @@ export class FlowBehavior extends BoidBehavior {
     this.flowGrid = flowGrid;
   }
 
-  public tick(time: number, deltaTime: number): void {
+  public tick(gameTime: IGameTime): void {
     const b = this.boid;
     const p = b.p;
     const v = b.v;

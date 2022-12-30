@@ -1,3 +1,4 @@
+import { IGameTime } from './GameClock';
 import { Ivec2 } from './math/vec2';
 
 export interface IPositional {
@@ -5,7 +6,7 @@ export interface IPositional {
 }
 
 export interface IProgressible {
-  tick: (time: number, deltaTime: number) => void;
+  tick: (gameTime: IGameTime) => void;
 }
 
 export interface IDrawable {
