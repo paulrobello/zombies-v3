@@ -1,5 +1,6 @@
 import { Cell, ICellIndexable } from './Cell';
-import { IPositional, wrap } from './math/index';
+import { IPositional} from './interfaces';
+import { wrap } from './math';
 import vec2 from './math/vec2';
 
 

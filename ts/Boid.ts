@@ -1,6 +1,6 @@
 import { ICellIndexable } from './Cell';
 import { HashGrid } from './HashGrid';
-import { IPositional, IProgressible } from './math/interfaces';
+import { IDrawable, IPositional, IProgressible } from './interfaces';
 import vec2 from './math/vec2';
 
 
@@ -16,7 +16,7 @@ export class BoidBehavior implements IProgressible {
   }
 }
 
-export class Boid implements IPositional, ICellIndexable, IProgressible {
+export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawable {
   public p: vec2;
   public v: vec2;
   public a: vec2;
@@ -55,5 +55,17 @@ export class Boid implements IPositional, ICellIndexable, IProgressible {
     this.speed = l;
     this.p.x += v.x * deltaTime;
     this.p.y += v.y * deltaTime;
+  }
+
+  draw(ctx: CanvasRenderingContext2D): void {
+    const p = this.p;
+    const v = this.v;
+    let s = this.speed;
+    ctx.moveTo(p.x, p.y);
+    if (s < 1) {
+      s = 1;
+    }
+    ctx.lineTo(p.x - (v.x / s * 10), p.y - (v.y / s * 10));
+
   }
 }

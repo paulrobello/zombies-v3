@@ -1,7 +1,7 @@
 import { Boid, BoidBehavior } from '../Boid';
 import { ICellIndexable } from '../Cell';
 import { HashGrid } from '../HashGrid';
-import { IPositional } from '../math';
+import { IPositional } from '../interfaces';
 
 export class FlowBehavior extends BoidBehavior {
   public flowGrid: HashGrid<IPositional & ICellIndexable>;

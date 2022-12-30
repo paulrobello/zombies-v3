@@ -4,27 +4,17 @@ import {
 import { FlowBehavior } from './behaviours/flow';
 import { Boid } from './Boid';
 import { HashGrid, HashGridOptions } from './HashGrid';
-import { clamp, IPositional, map, wrap } from './math/index';
+import { IPositional } from './interfaces';
+import { clamp, map, wrap } from './math';
 import vec2 from './math/vec2';
 import { makeNoise2D } from 'fast-simplex-noise';
 
 const noise = makeNoise2D();
 
-const canvas = document.getElementById('canvas') as HTMLCanvasElement;
-const context = canvas.getContext('2d');
-let width = canvas.width = Math.floor(window.innerWidth),
-  height = canvas.height = Math.floor(window.innerHeight),
-  width_d2 = Math.floor(width / 2),
-  height_d2 = Math.floor(height / 2),
-  cellSize = 32,
-  boidCellSize = 256,
-  gridXW = Math.ceil(width / cellSize),
-  gridYW = Math.ceil(height / cellSize),
-  timer = 0,
+let  timer = 0,
   fieldScale = cellSize * 0.005,
   frameCount = 0,
   fps = 0;
-context.globalAlpha = 1;
 
 const drag = 0.95;
 const maxSpeed = 10000;
@@ -81,7 +71,7 @@ function resize() {
 function randomizeBoids() {
   boids.forEach(b => {
     b.p.set_xy(Math.random() * width, Math.random() * height);
-    b.v.random(maxSpeed/2, maxSpeed);
+    b.v.random(maxSpeed / 2, maxSpeed);
   });
   boidGrid.reposition();
 }
@@ -196,10 +186,7 @@ function render() {
     p.y = wrap(p.y, height);
 
     // context.beginPath();
-    context.moveTo(p.x, p.y);
-    context.lineTo(p.x - (v.x * 10), p.y - (v.y * 10));
-    // context.stroke();
-
+    b.draw(context);
   }
   context.stroke();
   // boidGrid.reposition();

@@ -1,4 +1,4 @@
-import { IPositional } from './math';
+import { IPositional } from './interfaces';
 import vec2, { Ivec2 } from './math/vec2';
 
 export interface ICellIndexable{
