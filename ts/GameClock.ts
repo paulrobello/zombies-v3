@@ -51,6 +51,7 @@ export class GameClock {
       gameTime.deltaTime = (gameTime.currentTime - this.lastTime);
     }
     this.lastTime = gameTime.currentTime;
+    // if (Math.random()<0.001) console.log(gameTime);
     gameTime.deltaTime = clamp(gameTime.deltaTime, this.options.minDeltaTime, this.options.maxDeltaTime);
     this.frameCount++;
   }

@@ -1,9 +1,8 @@
 import { FlowBehavior } from './behaviours';
 import { Boid } from './Boid';
-import { ICellIndexable } from './Cell';
 import { GameClock } from './GameClock';
 import { HashGrid, HashGridOptions } from './HashGrid';
-import { IPositional } from './interfaces';
+import { IFlowValue } from './interfaces';
 import { map, wrap } from './math';
 import vec2 from './math/vec2';
 import { makeNoise2D } from 'fast-simplex-noise';
@@ -22,7 +21,7 @@ export class World {
   gridXW: number;
   gridYW: number;
 
-  flowGrid: HashGrid<IPositional & ICellIndexable>;
+  flowGrid: HashGrid<IFlowValue>;
   boidGrid: HashGrid<Boid>;
   flowGridOptions: HashGridOptions;
   boidGridOptions: HashGridOptions;
@@ -82,7 +81,7 @@ export class World {
       computeNeighborRadius: 1
     };
     if (!this.flowGrid) {
-      this.flowGrid = new HashGrid<IPositional & ICellIndexable>(this.flowGridOptions);
+      this.flowGrid = new HashGrid<IFlowValue>(this.flowGridOptions);
     } else {
       this.flowGrid.resize(this.flowGridOptions, false);
     }
@@ -103,14 +102,16 @@ export class World {
     }
   }
 
-  getFlowFieldValue(x: number, y: number) {
+  getFlowFieldValue(x: number, y: number): IFlowValue {
     const scale = this.fieldScale + this.fieldRandomScale;
     x = (x - this.width_d2) * scale;
     y = (y - this.height_d2) * scale;
     const rad = noise(x, y);
-    // console.log(v);
+    const p = vec2.angle2Vec(rad * Math.PI).scale(map(rad, -1, 1, 0.01, 1));
+    const l = p.length();
     return {
-      p: vec2.angle2Vec(rad * Math.PI).scale(map(rad, -1, 1, 0.01, 1)),
+      p,
+      l,
       lastCellIndex: -1,
       cellIndex: -1
     };
@@ -125,7 +126,7 @@ export class World {
         1
       );
       b.maxSpeed = this.maxSpeed;
-      b.behaviors.push(new FlowBehavior(b, this.flowGrid));
+      b.behaviors.push(new FlowBehavior({flowGrid: this.flowGrid}, b));
       this.boids.push(b);
     }
   }

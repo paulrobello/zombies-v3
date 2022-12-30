@@ -217,12 +217,14 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
 
   addCelDataByIndex(cellIndex: number, v: T): void {
     if (!isFinite(cellIndex) || cellIndex < 0 || cellIndex >= this.cells.length) {
+      // debugger;
       throw new Error(`Cell index out of bounds ${cellIndex}, ${this.cells.length}`);
     }
     try {
       this.cells[cellIndex].items.push(v);
     } catch (e) {
-      debugger;
+      console.error(e);
+      // debugger;
     }
     this.allData.add(v);
     v.lastCellIndex = v.cellIndex;

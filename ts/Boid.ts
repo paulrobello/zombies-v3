@@ -2,7 +2,7 @@ import { ICellIndexable } from './Cell';
 import { IGameTime } from './GameClock';
 import { HashGrid } from './HashGrid';
 import { IDrawable, IPositional, IProgressible } from './interfaces';
-import vec2 from './math/vec2';
+import vec2, { Ivec2 } from './math/vec2';
 
 
 export class BoidBehavior implements IProgressible {
@@ -58,9 +58,9 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
   }
 
   draw(ctx: CanvasRenderingContext2D): void {
-    const p = this.p;
-    const v = this.v;
-    let s = this.speed;
+    const p: Ivec2 = this.p;
+    const v: Ivec2 = this.v;
+    let s: number = this.speed;
     ctx.moveTo(p.x, p.y);
     if (s < 1) {
       s = 1;
