@@ -42,7 +42,9 @@ export interface Ivec2 {
   copy(dest?: vec2): Ivec2;
 
   toString(): string;
+
   isFinite(): boolean;
+  rotate90(dest?: vec2): Ivec2;
 }
 
 export class vec2 implements Ivec2 {
@@ -84,7 +86,7 @@ export class vec2 implements Ivec2 {
   static readonly left = new vec2(-1, 0);
   static readonly right = new vec2(1, 0);
 
-  static readonly rand = (new vec2()).random();
+  static readonly rand = (min: number, max: number)=>(new vec2()).random(min, max);
 
   reset(): Ivec2 {
     this.x = 0;
@@ -253,7 +255,17 @@ export class vec2 implements Ivec2 {
     return matrix.multiplyVec2(this, dest);
   }
 
-  public isFinite(): boolean {
+  rotate90(dest?: vec2): Ivec2 {
+    if (!dest) {
+      dest = this;
+    }
+    const y = this.y;
+    dest.y = -this.x;
+    dest.x = y;
+    return dest;
+  }
+
+  isFinite(): boolean {
     return isFinite(this.x) && isFinite(this.y);
   }
 

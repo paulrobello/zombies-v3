@@ -18,8 +18,6 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
   private allData: Set<T> = new Set<T>();
   private gridXW: number;
   private gridYW: number;
-  gradient = scale(['#000000', '#00FF00', '#0000FF', '#FFFF00', '#FF8700', '#FF0000'])
-    .domain([0, 0.2, 0.5, 0.6, 0.75, 1.0]);
 
   constructor(options: HashGridOptions) {
     options.width = Math.floor(options.width);
@@ -279,6 +277,9 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
 }
 
 export class FlowGrid extends HashGrid<IFlowValue> {
+  gradient = scale(['#000000', '#00FF00', '#0000FF', '#FFFF00', '#FF8700', '#FF0000'])
+    .domain([0, 0.2, 0.5, 0.6, 0.75, 1.0]);
+
   draw(ctx: CanvasRenderingContext2D): void {
     // super.draw(ctx);
     const cellSize = this.options.cellSize;

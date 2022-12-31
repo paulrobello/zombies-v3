@@ -1,11 +1,12 @@
 import { AlignBehavior, FlowBehavior } from './behaviours';
+import { AvoidWallsBehavior } from './behaviours/avoid_walls';
 import { CollisionBehavior } from './behaviours/collision';
 import { SeparateBehavior } from './behaviours/separate';
 import { Boid } from './Boid';
 import { GameClock } from './GameClock';
 import { BoidGrid, FlowGrid, HashGridOptions } from './HashGrid';
 import { IFlowValue } from './interfaces';
-import { vec2, map } from './math';
+import { vec2, map, Ivec2, epsilon } from './math';
 import { makeNoise2D } from 'fast-simplex-noise';
 
 const noise = makeNoise2D();
@@ -104,14 +105,34 @@ export class World {
   }
 
   getFlowFieldValue(x: number, y: number): IFlowValue {
+    let p: Ivec2 = new vec2();
+    let border = false;
+    if (x === 0) {
+      p.x = 1;
+      border = true;
+    } else if (x === this.gridXW - 1) {
+      p.x = -1;
+      border = true;
+    }
+    if (y === 0) {
+      p.y = 1;
+      border = true;
+    } else if (y === this.gridYW - 1) {
+      p.y = -1;
+      border = true;
+    }
     const scale = this.fieldScale + this.fieldRandomScale;
     x = (x - this.width_d2) * scale;
     y = (y - this.height_d2) * scale;
     const rad = noise(x, y);
-    const p = vec2.angle2Vec(rad * Math.PI).scale(map(rad, -1, 1, 0.01, 1));
-    const l = p.length();
+    if (border) {
+      p.add(vec2.rand(0.1, 0.5));
+    } else {
+      p = vec2.angle2Vec(rad * Math.PI).scale(map(rad, -1, 1, 0.01, 1));
+    }
+    const l = p.length() + epsilon;
     return {
-      p,
+      p: p.scale(1 / l),
       l,
       lastCellIndex: -1,
       cellIndex: -1
@@ -125,13 +146,14 @@ export class World {
         this.boidGrid,
         new vec2(Math.random() * this.width, Math.random() * this.height),
         new vec2().random(10, 100),
-        10
+        5
       );
       b.maxSpeed = this.maxSpeed;
-      // b.behaviors.push(new FlowBehavior({flowGrid: this.flowGrid, normalize: true, scale: 10}, b));
-      b.behaviors.set('AlignBehavior', new AlignBehavior(b, 10));
+      b.behaviors.set('FlowBehavior', new FlowBehavior(b, {flowGrid: this.flowGrid, normalize: true, scale: 1}));
+      b.behaviors.set('AlignBehavior', new AlignBehavior(b, 75));
       b.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 20));
-      b.behaviors.set('CollisionBehavior', new CollisionBehavior(b, 100));
+      b.behaviors.set('CollisionBehavior', new CollisionBehavior(b, 20));
+      b.behaviors.set('AvoidWallsBehavior', new AvoidWallsBehavior(b, 20));
       this.boids.push(b);
     }
   }
@@ -150,7 +172,7 @@ export class World {
     const boids = this.boids;
     gameClock.tick();
     ctx.clearRect(0, 0, this.width, this.height);
-    // this.flowGrid.draw(ctx);
+    this.flowGrid.draw(ctx);
     this.boidGrid.draw(ctx);
     ctx.beginPath();
     ctx.lineWidth = 1;

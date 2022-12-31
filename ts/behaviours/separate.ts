@@ -10,20 +10,22 @@ export class SeparateBehavior extends BoidBehavior {
 
   public tick(gameTime: IGameTime): void {
     const b = this.boid;
+    const p: vec2 = b.p;
+    const v: vec2 = b.v;
     const grid = b.grid;
-    const nearest = grid.getDataRadius(b.p.x, b.p.y, grid.options.cellSize, true, b, false);
+    const r = b.r * 2.5;
+    const nearest = grid.getDataRadius(p.x, p.y, r, true, b, false);
     if (!nearest.length) return;
 
     const tempD = new vec2();
     for (const na of nearest) {
       const n = na.data;
       const d2 = na.dist2;
-      let dist = Math.sqrt(d2);
-      if (dist < epsilon) dist = epsilon;
-      const d = vec2.difference(n.p, b.p, tempD).scale(1 / dist);
-      dist = (grid.cellSize - dist) / grid.options.cellSize;
-      b.v.x += d.y * dist * this.scale;
-      b.v.y += -d.x * dist * this.scale;
+      let dist = Math.sqrt(d2) + epsilon;
+      const d = vec2.difference(n.p, p, tempD).scale(1 / dist).rotate90();
+      dist = (r - dist) / r;
+      v.x += d.x * dist * this.scale;
+      v.y += d.y * dist * this.scale;
     }
   }
 }

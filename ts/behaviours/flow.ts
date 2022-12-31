@@ -14,7 +14,7 @@ export class FlowBehavior extends BoidBehavior {
   public flowGrid: HashGrid<IFlowValue>;
   options: IFlowBehaviorOptions;
 
-  constructor(options: IFlowBehaviorOptions, boid: Boid) {
+  constructor(boid: Boid, options: IFlowBehaviorOptions) {
     super(boid);
     this.name = 'FlowBehavior';
     this.options = options;
@@ -30,13 +30,14 @@ export class FlowBehavior extends BoidBehavior {
       console.warn('no flow cell at', p.x, p.y);
       return;
     }
+    const scale = this.options.scale;
     // console.log(d)
-    if (!d.l || !this.options.normalize) {
-      v.x += d.p.x * this.options.scale;
-      v.y += d.p.y * this.options.scale;
+    if (!d.l || this.options.normalize) {
+      v.x += d.p.x * scale;
+      v.y += d.p.y * scale;
     } else {
-      v.x += d.p.x / d.l * this.options.scale;
-      v.y += d.p.y / d.l * this.options.scale;
+      v.x += d.p.x * d.l * scale;
+      v.y += d.p.y * d.l * scale;
     }
   }
 }

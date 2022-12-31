@@ -1,39 +1,53 @@
 import { Boid, BoidBehavior } from '../Boid';
 import { IGameTime } from '../GameClock';
-import { vec2 } from '../math';
+import { epsilon, vec2 } from '../math';
+
+export interface ICollisionBehaviorOptions {
+  margin: number;
+  iterations: number;
+}
+
+export const collisionBehaviorDefaultOptions: ICollisionBehaviorOptions = {
+  margin: 2,
+  iterations: 2
+};
 
 export class CollisionBehavior extends BoidBehavior {
-  public neighbor: Boid | undefined;
+  options: ICollisionBehaviorOptions;
 
-  constructor(boid: Boid, scale: number = 1) {
+  constructor(boid: Boid, scale: number = 1, options: ICollisionBehaviorOptions = collisionBehaviorDefaultOptions) {
     super(boid, scale);
     this.name = 'CollisionBehavior';
+    this.options = options;
   }
 
   public tick(gameTime: IGameTime): void {
     const b = this.boid;
+    const p: vec2 = b.p;
     const grid = b.grid;
-    const nearest = grid.getDataRadius(b.p.x, b.p.y, grid.cellSize, true, b, true);
-    this.neighbor = undefined;
+    const nearest = grid.getDataRadius(p.x, p.y, grid.options.cellSize, true, b, false);
     if (!nearest.length) return;
 
     const dTemp = new vec2();
-    for (const na of nearest) {
-      const n = na.data;
-      const bh = n.behaviors.get('CollisionBehavior') as CollisionBehavior;
-      if (bh && bh.neighbor === b) continue;
-      const d2 = na.dist2;
-      const r2 = b.r2 + n.r2;
-      if (d2 < r2) {
-        this.neighbor = n;
-        const d = vec2.direction(b.p, n.p, dTemp);
-        const dist = b.r + n.r;
-        b.p.x = n.p.x + d.x * dist;
-        b.p.y = n.p.y + d.y * dist;
-        b.v.x += d.y * this.scale;
-        b.v.y += -d.x * this.scale;
-        break;
+    let anyHit = false;
+    for (let i = 0; i < this.options.iterations; i++) {
+      for (const na of nearest) {
+        const n = na.data;
+        const d = vec2.difference(b.p, n.p, dTemp);
+        const l2 = d.squaredLength();
+        const r = b.r + n.r + this.options.margin;
+        if (l2 < r * r) {
+          anyHit = true;
+          let l = Math.sqrt(l2) + epsilon;
+          d.scale(1 / l);
+
+          const pd = r - l;
+          p.x += d.x * pd * gameTime.deltaTime * this.scale;
+          p.y += d.y * pd * gameTime.deltaTime * this.scale;
+          break;
+        }
       }
+      if (!anyHit) break;
     }
   }
 }

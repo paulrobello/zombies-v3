@@ -4,7 +4,7 @@ import { HashGrid } from './HashGrid';
 import { IDrawable, IPositional, IProgressible } from './interfaces';
 import { clamp, epsilon, TWO_PI } from './math';
 import { vec2, Ivec2 } from './math';
-import { World } from './world';
+import { World } from './World';
 
 
 export class BoidBehavior implements IProgressible {
@@ -44,7 +44,7 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
     this.p = p || new vec2();
     this.v = v || new vec2();
     this.a = new vec2();
-    this.r = r || 10;
+    this.r = r || 5;
     this.r2 = this.r * this.r;
   }
 
