@@ -1,9 +1,9 @@
 import { epsilon } from './constants';
-import mat3 from './mat3';
-import mat4 from './mat4';
-import vec3, { Ivec3 } from './vec3';
+import { mat3 } from './mat3';
+import { mat4 } from './mat4';
+import { vec3, Ivec3 } from './vec3';
 
-export default class quat {
+export class quat {
 
   public x: number = 0;
   public y: number = 0;

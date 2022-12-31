@@ -6,13 +6,18 @@ import { Ivec2 } from '../math';
 
 export interface IFlowBehaviorOptions {
   flowGrid: HashGrid<IFlowValue>;
+  normalize: boolean;
+  scale: number;
 }
 
 export class FlowBehavior extends BoidBehavior {
   public flowGrid: HashGrid<IFlowValue>;
+  options: IFlowBehaviorOptions;
 
   constructor(options: IFlowBehaviorOptions, boid: Boid) {
     super(boid);
+    this.name = 'FlowBehavior';
+    this.options = options;
     this.flowGrid = options.flowGrid;
   }
 
@@ -26,12 +31,12 @@ export class FlowBehavior extends BoidBehavior {
       return;
     }
     // console.log(d)
-    if (!d.l) {
-      v.x += d.p.x;
-      v.y += d.p.y;
+    if (!d.l || !this.options.normalize) {
+      v.x += d.p.x * this.options.scale;
+      v.y += d.p.y * this.options.scale;
     } else {
-      v.x += d.p.x / d.l;
-      v.y += d.p.y / d.l;
+      v.x += d.p.x / d.l * this.options.scale;
+      v.y += d.p.y / d.l * this.options.scale;
     }
   }
 }

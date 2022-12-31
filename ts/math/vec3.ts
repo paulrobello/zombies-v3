@@ -1,6 +1,6 @@
 import { epsilon } from './constants';
-import mat3 from './mat3';
-import quat from './quat';
+import { mat3 } from './mat3';
+import { quat } from './quat';
 
 export interface Ivec3 {
   x: number;
@@ -36,7 +36,7 @@ export interface Ivec3 {
   squaredDistanceTo(v: vec3): number;
 }
 
-export default class vec3 implements Ivec3 {
+export class vec3 implements Ivec3 {
 
   x: number = 0;
   y: number = 0;

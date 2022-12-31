@@ -42,9 +42,10 @@ export interface Ivec2 {
   copy(dest?: vec2): Ivec2;
 
   toString(): string;
+  isFinite(): boolean;
 }
 
-export default class vec2 implements Ivec2 {
+export class vec2 implements Ivec2 {
 
   x: number = 0;
   y: number = 0;
@@ -113,7 +114,7 @@ export default class vec2 implements Ivec2 {
     return dest;
   }
 
-  random(min: number = 0, max: number = 1, dest?: vec2): Ivec2 {
+  random(min: number = 0, max: number = 1, dest?: vec2): vec2 {
     if (!dest) {
       dest = this;
     }
@@ -250,6 +251,10 @@ export default class vec2 implements Ivec2 {
     }
 
     return matrix.multiplyVec2(this, dest);
+  }
+
+  public isFinite(): boolean {
+    return isFinite(this.x) && isFinite(this.y);
   }
 
   toString(): string {

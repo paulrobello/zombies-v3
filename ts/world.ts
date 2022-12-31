@@ -1,10 +1,11 @@
-import { FlowBehavior } from './behaviours';
+import { AlignBehavior, FlowBehavior } from './behaviours';
+import { CollisionBehavior } from './behaviours/collision';
+import { SeparateBehavior } from './behaviours/separate';
 import { Boid } from './Boid';
 import { GameClock } from './GameClock';
-import { HashGrid, HashGridOptions } from './HashGrid';
+import { BoidGrid, FlowGrid, HashGridOptions } from './HashGrid';
 import { IFlowValue } from './interfaces';
-import { map, wrap } from './math';
-import vec2 from './math/vec2';
+import { vec2, map } from './math';
 import { makeNoise2D } from 'fast-simplex-noise';
 
 const noise = makeNoise2D();
@@ -21,24 +22,24 @@ export class World {
   gridXW: number;
   gridYW: number;
 
-  flowGrid: HashGrid<IFlowValue>;
-  boidGrid: HashGrid<Boid>;
+  flowGrid: FlowGrid;
+  boidGrid: BoidGrid;
   flowGridOptions: HashGridOptions;
   boidGridOptions: HashGridOptions;
   fieldScale: number;
   boids: Boid[] = [];
-  drag = 0.95;
-  maxSpeed = 10000;
+  drag = 1;
+  maxSpeed = 100;
   maxTime = 10000;
   showField = true;
-  numBoids = 1000;
+  numBoids = 100;
   wheelInc = 0.001;
   gameClock: GameClock;
   private fieldRandomScale: number = Math.random() * 0.0001;
 
   constructor() {
     this.cellSize = 32;
-    this.boidCellSize = 256;
+    this.boidCellSize = 128;
 
     this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
     this.ctx = this.canvas.getContext('2d');
@@ -70,23 +71,23 @@ export class World {
       width: this.width,
       height: this.height,
       cellSize: this.cellSize,
-      wrap: true,
+      wrap: false,
       computeNeighborRadius: 0
     };
     this.boidGridOptions = {
       width: this.width,
       height: this.height,
       cellSize: this.boidCellSize,
-      wrap: true,
+      wrap: false,
       computeNeighborRadius: 1
     };
     if (!this.flowGrid) {
-      this.flowGrid = new HashGrid<IFlowValue>(this.flowGridOptions);
+      this.flowGrid = new FlowGrid(this.flowGridOptions);
     } else {
       this.flowGrid.resize(this.flowGridOptions, false);
     }
     if (!this.boidGrid) {
-      this.boidGrid = new HashGrid<Boid>(this.boidGridOptions);
+      this.boidGrid = new BoidGrid(this.boidGridOptions);
     } else {
       this.boidGrid.resize(this.boidGridOptions, true);
     }
@@ -120,13 +121,17 @@ export class World {
   initBoids() {
     for (let i = 0; i < this.numBoids; i++) {
       let b = new Boid(
+        this,
         this.boidGrid,
         new vec2(Math.random() * this.width, Math.random() * this.height),
-        vec2.zero,
-        1
+        new vec2().random(10, 100),
+        10
       );
       b.maxSpeed = this.maxSpeed;
-      b.behaviors.push(new FlowBehavior({flowGrid: this.flowGrid}, b));
+      // b.behaviors.push(new FlowBehavior({flowGrid: this.flowGrid, normalize: true, scale: 10}, b));
+      b.behaviors.set('AlignBehavior', new AlignBehavior(b, 10));
+      b.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 20));
+      b.behaviors.set('CollisionBehavior', new CollisionBehavior(b, 100));
       this.boids.push(b);
     }
   }
@@ -145,51 +150,21 @@ export class World {
     const boids = this.boids;
     gameClock.tick();
     ctx.clearRect(0, 0, this.width, this.height);
-    this.flowGrid.draw(ctx);
+    // this.flowGrid.draw(ctx);
+    this.boidGrid.draw(ctx);
     ctx.beginPath();
     ctx.lineWidth = 1;
+    ctx.strokeStyle = '#FFFFFF';
     for (const b of boids) {
-      // get each point and do what we did before with a single point
       b.tick(gameClock.gameTime);
-      const p = b.p;
-      const v = b.v;
-
-      // const d: IPositional = flowGrid.getCellValue(p.x, p.y, true);
-      // if (!d) continue;
-      // // console.log(d)
-      // v.add(d.p.copy().normalize().scale(1));
-      //
-      // // p.v.add(vec2.rand.scale(0.1));
-      // // apply some friction so point doesn't speed up too much
-      // v.scale(drag);
-      // // add velocity to position and line to new position
-      // let l = v.length();
-      // if (l > maxSpeed) {
-      //   v.normalize().scale(maxSpeed);
-      //   l = maxSpeed;
-      // }
-      // if (!isFinite(l)) {
-      //   l = 0;
-      // }
-      // currentMaxSpeed = Math.max(currentMaxSpeed, l);
-      // p.add(v);
-      //
-      // // wrap around edges of screen
-      // p.v.add(vec2.rand.scale(0.1));
-      // apply some friction so point doesn't speed up too much
-      v.scale(this.drag);
-
-      p.x = wrap(p.x, this.width);
-      p.y = wrap(p.y, this.height);
-
-      // context.beginPath();
       b.draw(ctx);
     }
     ctx.stroke();
 
-    // boidGrid.reposition();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
     ctx.font = 'bold 36px serif';
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillText(gameClock.fps.toFixed(0), 5, 30);
+    ctx.fillText(gameClock.fps.toFixed(0), 5, 5);
   }
 }

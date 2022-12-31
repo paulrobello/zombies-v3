@@ -1,10 +1,10 @@
 import { epsilon } from './constants';
-import mat4 from './mat4';
-import quat from './quat';
-import vec2, { Ivec2 } from './vec2';
-import vec3, { Ivec3 } from './vec3';
+import { mat4 } from './mat4';
+import { quat } from './quat';
+import { vec2, Ivec2 } from './vec2';
+import { vec3, Ivec3 } from './vec3';
 
-export default class mat3 {
+export class mat3 {
 
   constructor(values?: number[]) {
     if (values !== undefined) {

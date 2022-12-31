@@ -1,9 +1,8 @@
 import { scale } from 'chroma-js';
+import { Boid } from './Boid';
 import { Cell, ICellIndexable } from './Cell';
-import { IDrawable, IPositional } from './interfaces';
-import { wrap } from './math';
-import vec2 from './math/vec2';
-
+import { IDrawable, IFlowValue, IPositional } from './interfaces';
+import { vec2, wrap } from './math';
 
 export interface HashGridOptions {
   width: number;
@@ -29,39 +28,6 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
     this.gridXW = Math.ceil(options.width / options.cellSize);
     this.gridYW = Math.ceil(options.height / options.cellSize);
     this.resize(options);
-  }
-
-  draw(ctx: CanvasRenderingContext2D): void {
-    const cellSize = this.options.cellSize;
-    ctx.fillStyle = '#009900';
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 0.5;
-    // context.beginPath();
-    for (let x = 0; x < this.gridXW; x += 1) {
-      for (let y = 0; y < this.gridYW; y += 1) {
-        let cx = Math.floor(x * cellSize);
-        let cy = Math.floor(y * cellSize);
-        // context.beginPath();
-        // context.rect(cx, cy, flowGrid.celSize,flowGrid.celSize);
-        // context.stroke();
-        cx += cellSize * 0.5;
-        cy += cellSize * 0.5;
-        let d: IPositional = this.getCellValue(x, y);
-        if (!d) continue;
-        ctx.beginPath();
-
-        let l = d.p.length();
-        let p = d.p.copy().normalize().scale(cellSize * 0.5);
-
-        let tx = Math.floor(p.x);
-        let ty = Math.floor(p.y);
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(cx + tx, cy + ty);
-        ctx.stroke();
-        ctx.fillStyle = this.gradient(l).toString();
-        ctx.fillRect(cx - 1, cy - 1, 2, 2);
-      }
-    }
   }
 
   get width(): number {
@@ -131,8 +97,11 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
   getDataRadius(x: number, y: number, radius: number, worldSpace: boolean = false, self?: T, closest?: boolean) {
     const data: { data: T, dist2: number }[] = [];
     const c = this.getCell(x, y, worldSpace);
-    if (!c) return data;
-    const cellSize = this.cellSize;
+    if (!c) {
+      console.warn('getDataRadius no cell found at', x, y, radius, worldSpace);
+      return data;
+    }
+    const cellSize = this.options.cellSize;
     const v = new vec2(x * (worldSpace ? 1 : cellSize), y * (worldSpace ? 1 : cellSize));
     let dist, nearest = Infinity, nearestData: T | undefined;
     let blockRadius;
@@ -142,11 +111,12 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
       radius = radius * cellSize;
       blockRadius = Math.min(radius, this.options.computeNeighborRadius);
     }
-    blockRadius += 3;
+    blockRadius = blockRadius * 2 + 1;
     let numNeighbors = blockRadius * blockRadius;
     if (numNeighbors > c.neighbors.length) {
       numNeighbors = c.neighbors.length;
     }
+    // debugger;
     for (let ni = 0; ni < numNeighbors; ni++) {
       const n = c.neighbors[ni];
       for (const i of n.items) {
@@ -156,10 +126,15 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
           nearest = dist;
           nearestData = i;
         }
-        data.push({data: i, dist2: dist});
+        if (!closest) {
+          data.push({data: i, dist2: dist});
+        }
       }
     }
     if (closest) {
+      if (!nearest || !nearestData) {
+        return [];
+      }
       return [{data: nearestData, dist2: nearest}];
     }
 
@@ -283,6 +258,82 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
     for (const d of this.allData) {
       this.addCelData(d.p.x, d.p.y, true, d);
       d.lastCellIndex = d.cellIndex;
+    }
+  }
+
+  draw(ctx: CanvasRenderingContext2D): void {
+    const cellSize = this.options.cellSize;
+    ctx.beginPath();
+    ctx.fillStyle = 'none';
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 0.5;
+    for (let x = 0; x < this.gridXW; x += 1) {
+      for (let y = 0; y < this.gridYW; y += 1) {
+        let cx = Math.floor(x * cellSize);
+        let cy = Math.floor(y * cellSize);
+        ctx.rect(cx, cy, cellSize, cellSize);
+      }
+    }
+    ctx.stroke();
+  }
+}
+
+export class FlowGrid extends HashGrid<IFlowValue> {
+  draw(ctx: CanvasRenderingContext2D): void {
+    // super.draw(ctx);
+    const cellSize = this.options.cellSize;
+    ctx.fillStyle = '#009900';
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 0.5;
+    // context.beginPath();
+    for (let x = 0; x < this.gridXW; x += 1) {
+      for (let y = 0; y < this.gridYW; y += 1) {
+        let cx = Math.floor(x * cellSize);
+        let cy = Math.floor(y * cellSize);
+        // context.beginPath();
+        // context.rect(cx, cy, flowGrid.celSize,flowGrid.celSize);
+        // context.stroke();
+        cx += cellSize * 0.5;
+        cy += cellSize * 0.5;
+        let d: IPositional = this.getCellValue(x, y);
+        if (!d) continue;
+        ctx.beginPath();
+
+        let l = d.p.length();
+        let p = d.p.copy().normalize().scale(cellSize * 0.5);
+
+        let tx = Math.floor(p.x);
+        let ty = Math.floor(p.y);
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + tx, cy + ty);
+        ctx.stroke();
+        ctx.fillStyle = this.gradient(l).toString();
+        ctx.fillRect(cx - 1, cy - 1, 2, 2);
+      }
+    }
+  }
+}
+
+export class BoidGrid extends HashGrid<Boid> {
+  draw(ctx: CanvasRenderingContext2D): void {
+    super.draw(ctx);
+    const cellSize = this.options.cellSize;
+    ctx.beginPath();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 36px serif';
+    ctx.fillStyle = '#A00';
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 0.5;
+
+    for (let x = 0; x < this.gridXW; x += 1) {
+      for (let y = 0; y < this.gridYW; y += 1) {
+        const boids = this.getCellValues(x, y, false);
+        const nb = boids.length;
+        let cx = Math.floor(x * cellSize);
+        let cy = Math.floor(y * cellSize);
+        ctx.fillText(nb, cx + cellSize / 2, cy + cellSize / 2);
+      }
     }
   }
 }

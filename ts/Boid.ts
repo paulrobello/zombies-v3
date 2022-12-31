@@ -2,14 +2,19 @@ import { ICellIndexable } from './Cell';
 import { IGameTime } from './GameClock';
 import { HashGrid } from './HashGrid';
 import { IDrawable, IPositional, IProgressible } from './interfaces';
-import vec2, { Ivec2 } from './math/vec2';
+import { clamp, epsilon, TWO_PI } from './math';
+import { vec2, Ivec2 } from './math';
+import { World } from './world';
 
 
 export class BoidBehavior implements IProgressible {
+  public name: string;
   public boid: Boid;
+  public scale: number;
 
-  constructor(boid: Boid) {
+  constructor(boid: Boid, scale: number = 1) {
     this.boid = boid;
+    this.scale = scale;
   }
 
   tick(gameTime: IGameTime): void {
@@ -21,50 +26,73 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
   public v: vec2;
   public a: vec2;
   public r: number;
+  public r2: number;
   public speed: number = 0;
   public maxSpeed: number = 1;
 
-  public behaviors: BoidBehavior[] = [];
+  public behaviors: Map<string, BoidBehavior> = new Map<string, BoidBehavior>();
   public grid: HashGrid<Boid>;
   public lastCellIndex: number = -1;
   public cellIndex: number = -1;
+  public type: number = 1;
+  public world: World;
 
-  constructor(grid: HashGrid<Boid>, p?: vec2, v?: vec2, r?: number) {
+  constructor(world: World, grid: HashGrid<Boid>, p?: vec2, v?: vec2, r?: number) {
+    this.world = world;
     this.grid = grid;
-    this.p = p || vec2.zero;
-    this.v = v || vec2.zero;
-    this.a = vec2.zero;
-    this.r = r || 1;
+
+    this.p = p || new vec2();
+    this.v = v || new vec2();
+    this.a = new vec2();
+    this.r = r || 10;
+    this.r2 = this.r * this.r;
   }
 
   tick(gameTime: IGameTime): void {
-    for (const b of this.behaviors) {
+    for (const b of this.behaviors.values()) {
       b.tick(gameTime);
     }
-    const newCellIndex = this.grid.getCellIndex(this.p.x, this.p.y, true);
+    const p: Ivec2 = this.p;
+    const v: Ivec2 = this.v;
+    if (!p.isFinite()){
+      console.log(p);
+      throw new Error("Boid position is not finite");
+    }
+    if (!v.isFinite()) {
+      console.log(v);
+      throw new Error("Boid has infinite velocity");
+    }
+    const maxSpeed = this.maxSpeed;
+    let l: number = v.length();
+    if (l > maxSpeed) {
+      v.normalize().scale(maxSpeed);
+      l = maxSpeed;
+    }
+    this.speed = l;
+
+    p.x += v.x * gameTime.deltaTime;
+    p.y += v.y * gameTime.deltaTime;
+    p.x = clamp(p.x, 0, this.world.width - 1);
+    p.y = clamp(p.y, 0, this.world.height - 1);
+    v.scale(this.world.drag);
+    const newCellIndex = this.grid.getCellIndex(p.x, p.y, true);
+    if (newCellIndex === undefined) {
+      throw new Error(`newCellIndex is undefined for ${p.x} and ${p.y}`);
+    }
     if (this.cellIndex !== newCellIndex) {
       this.grid.removeCelDataByIndex(this.lastCellIndex, this);
       this.grid.addCelDataByIndex(newCellIndex, this);
     }
-    const v = this.v;
-    let l = v.length();
-    if (l > this.maxSpeed) {
-      v.normalize().scale(this.maxSpeed);
-      l = this.maxSpeed;
-    }
-    this.speed = l;
-    this.p.x += v.x * gameTime.deltaTime;
-    this.p.y += v.y * gameTime.deltaTime;
   }
 
   draw(ctx: CanvasRenderingContext2D): void {
     const p: Ivec2 = this.p;
     const v: Ivec2 = this.v;
     let s: number = this.speed;
+    ctx.moveTo(p.x + this.r, p.y);
+    ctx.arc(p.x, p.y, this.r, 0, TWO_PI);
+    if (s < epsilon) return;
     ctx.moveTo(p.x, p.y);
-    if (s < 1) {
-      s = 1;
-    }
-    ctx.lineTo(p.x - (v.x / s * 10), p.y - (v.y / s * 10));
+    ctx.lineTo(p.x + (v.x / s * this.r), p.y + (v.y / s * this.r));
   }
 }

@@ -1,6 +1,6 @@
 import { ICellIndexable } from './Cell';
 import { IGameTime } from './GameClock';
-import { Ivec2 } from './math/vec2';
+import { Ivec2 } from './math';
 
 export interface IPositional {
   p: Ivec2;

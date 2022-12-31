@@ -11,7 +11,7 @@ export interface IGameTime {
 }
 
 export const GameClockDefaultOptions: IGameClockOptions = {
-  minDeltaTime: 0.1,
+  minDeltaTime: 0.01,
   maxDeltaTime: 1
 };
 
@@ -50,6 +50,10 @@ export class GameClock {
     if (this.lastTime) {
       gameTime.deltaTime = (gameTime.currentTime - this.lastTime);
     }
+    if (isNaN(gameTime.deltaTime)) {
+      gameTime.deltaTime = 0;
+    }
+
     this.lastTime = gameTime.currentTime;
     // if (Math.random()<0.001) console.log(gameTime);
     gameTime.deltaTime = clamp(gameTime.deltaTime, this.options.minDeltaTime, this.options.maxDeltaTime);
