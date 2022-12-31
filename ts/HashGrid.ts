@@ -283,35 +283,36 @@ export class FlowGrid extends HashGrid<IFlowValue> {
   draw(ctx: CanvasRenderingContext2D): void {
     // super.draw(ctx);
     const cellSize = this.options.cellSize;
+    ctx.beginPath();
     ctx.fillStyle = '#009900';
     ctx.strokeStyle = '#FFFFFF';
     ctx.lineWidth = 0.5;
-    // context.beginPath();
     for (let x = 0; x < this.gridXW; x += 1) {
       for (let y = 0; y < this.gridYW; y += 1) {
-        let cx = Math.floor(x * cellSize);
-        let cy = Math.floor(y * cellSize);
+        let d: IPositional = this.getCellValue(x, y);
+        if (!d) continue;
+        let cx = x * cellSize;
+        let cy = y * cellSize;
         // context.beginPath();
         // context.rect(cx, cy, flowGrid.celSize,flowGrid.celSize);
         // context.stroke();
-        cx += cellSize * 0.5;
-        cy += cellSize * 0.5;
-        let d: IPositional = this.getCellValue(x, y);
-        if (!d) continue;
-        ctx.beginPath();
+        cx = Math.floor(cx + cellSize * 0.5);
+        cy = Math.floor(cy + cellSize * 0.5);
 
-        let l = d.p.length();
+        // ctx.beginPath();
+
+        // let l = d.p.length();
         let p = d.p.copy().normalize().scale(cellSize * 0.5);
 
         let tx = Math.floor(p.x);
         let ty = Math.floor(p.y);
         ctx.moveTo(cx, cy);
         ctx.lineTo(cx + tx, cy + ty);
-        ctx.stroke();
-        ctx.fillStyle = this.gradient(l).toString();
-        ctx.fillRect(cx - 1, cy - 1, 2, 2);
+        // ctx.fillStyle = this.gradient(l).toString();
+        // ctx.fillRect(cx - 1, cy - 1, 2, 2);
       }
     }
+    ctx.stroke();
   }
 }
 
