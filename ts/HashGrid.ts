@@ -13,16 +13,18 @@ export interface HashGridOptions {
 }
 
 export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawable {
-  public options: HashGridOptions;
-  private cells: Cell<T>[];
-  private allData: Set<T> = new Set<T>();
-  private gridXW: number;
-  private gridYW: number;
+  options: HashGridOptions;
+  cells: Cell<T>[];
+  allData: Set<T> = new Set<T>();
+  gridXW: number;
+  gridYW: number;
+  cellSizeD2: number;
 
   constructor(options: HashGridOptions) {
     options.width = Math.floor(options.width);
     options.height = Math.floor(options.height);
     options.cellSize = Math.floor(options.cellSize);
+    this.cellSizeD2 = Math.floor(this.cellSize / 2);
     this.gridXW = Math.ceil(options.width / options.cellSize);
     this.gridYW = Math.ceil(options.height / options.cellSize);
     this.resize(options);
@@ -41,11 +43,17 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
   }
 
   resize(options: HashGridOptions, doReposition: boolean = false): void {
-    let recompute = (!this.options || this.options.width !== options.width || this.options.height !== options.height || this.options.cellSize !== options.cellSize || this.options.computeNeighborRadius !== options.computeNeighborRadius);
+    let recompute = (!this.options ||
+      this.options.width !== options.width ||
+      this.options.height !== options.height ||
+      this.options.cellSize !== options.cellSize ||
+      this.options.computeNeighborRadius !== options.computeNeighborRadius
+    );
     this.options = {...options};
     if (recompute) {
-      this.gridXW = Math.ceil(options.width / this.options.cellSize);
-      this.gridYW = Math.ceil(options.height / this.options.cellSize);
+      this.gridXW = Math.ceil(options.width / options.cellSize);
+      this.gridYW = Math.ceil(options.height / options.cellSize);
+      this.cellSizeD2 = Math.floor(options.cellSize / 2);
 
       this.cells = new Array(options.width * options.height);
       for (let i = 0; i < this.cells.length; i++) {
@@ -63,24 +71,26 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
     const cellSizeD2 = cellSize / 2;
     const w = this.options.width;
     const h = this.options.height;
-    for (let x = 0; x < this.options.width; x++) {
-      for (let y = 0; y < this.options.height; y++) {
+    let x, y, xc, yc, nx, ny;
+    for (x = 0; x < this.options.width; x++) {
+      for (y = 0; y < this.options.height; y++) {
         let c = this.getCell(x, y);
         c.p.set_xy(x, y);
         c.wp.set_xy(x * cellSize, y * cellSize);
         c.wc.set_xy(x * cellSize + cellSizeD2, y * cellSize + cellSizeD2);
         c.neighbors.length = 0;
-        for (let xc = -radius; xc <= radius; xc++) {
-          for (let yc = -radius; yc <= radius; yc++) {
+
+        for (xc = -radius; xc <= radius; xc++) {
+          for (yc = -radius; yc <= radius; yc++) {
             if (xc === 0 && yc === 0) {
               c.neighbors.push(c);
               continue;
             }
-            let nx = x + xc;
+            nx = x + xc;
             if (nx < 0 || nx >= w) {
               continue;
             }
-            let ny = y + yc;
+            ny = y + yc;
             if (ny < 0 || ny >= h) {
               continue;
             }
@@ -104,7 +114,7 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
     let dist, nearest = Infinity, nearestData: T | undefined;
     let blockRadius;
     if (worldSpace) {
-      blockRadius = Math.min(Math.floor(radius / cellSize), this.options.computeNeighborRadius);
+      blockRadius = Math.min(~~(radius / cellSize), this.options.computeNeighborRadius);
     } else {
       radius = radius * cellSize;
       blockRadius = Math.min(radius, this.options.computeNeighborRadius);
@@ -143,26 +153,29 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
   }
 
   getCellIndex(x: number, y: number, worldSpace: boolean = false): number | undefined {
+    const width = this.options.width;
+    const height = this.options.height;
     if (worldSpace) {
       x /= this.options.cellSize;
       y /= this.options.cellSize;
     }
-    x = Math.floor(x);
-    y = Math.floor(y);
+    x = ~~x;
+    y = ~~y;
+
     if (this.options.wrap) {
-      x = wrap(x, this.options.width);
-      y = wrap(y, this.options.height);
+      x = wrap(x, width);
+      y = wrap(y, height);
     } else {
-      if (x < 0 || y < 0 || x >= this.options.width || y >= this.options.height) {
+      if (x < 0 || y < 0 || x >= width || y >= height) {
         return undefined;
       }
     }
-    return y * this.options.width + x;
+    return y * width + x;
   }
 
   getCellValue(x: number, y: number, worldSpace: boolean = false): T | undefined {
     const c = this.getCell(x, y, worldSpace);
-    if (!c || !c.items.length) return undefined;
+    if (!c?.items.length) return undefined;
     return c.items[0];
   }
 
@@ -193,12 +206,7 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
       // debugger;
       throw new Error(`Cell index out of bounds ${cellIndex}, ${this.cells.length}`);
     }
-    try {
-      this.cells[cellIndex].items.push(v);
-    } catch (e) {
-      console.error(e);
-      // debugger;
-    }
+    this.cells[cellIndex].items.push(v);
     this.allData.add(v);
     v.lastCellIndex = v.cellIndex;
     v.cellIndex = cellIndex;
@@ -262,13 +270,12 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
   draw(ctx: CanvasRenderingContext2D): void {
     const cellSize = this.options.cellSize;
     ctx.beginPath();
-    ctx.fillStyle = 'none';
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 0.5;
-    for (let x = 0; x < this.gridXW; x += 1) {
-      for (let y = 0; y < this.gridYW; y += 1) {
-        let cx = Math.floor(x * cellSize);
-        let cy = Math.floor(y * cellSize);
+    ctx.strokeStyle = '#FFF';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < this.gridXW; x++) {
+      for (let y = 0; y < this.gridYW; y++) {
+        let cx = ~~(x * cellSize);
+        let cy = ~~(y * cellSize);
         ctx.rect(cx, cy, cellSize, cellSize);
       }
     }
@@ -280,61 +287,61 @@ export class FlowGrid extends HashGrid<IFlowValue> {
   gradient = scale(['#000000', '#00FF00', '#0000FF', '#FFFF00', '#FF8700', '#FF0000'])
     .domain([0, 0.2, 0.5, 0.6, 0.75, 1.0]);
 
-  draw(ctx: CanvasRenderingContext2D): void {
+  override draw(ctx: CanvasRenderingContext2D): void {
     // super.draw(ctx);
     const cellSize = this.options.cellSize;
     ctx.beginPath();
     ctx.fillStyle = '#009900';
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 0.5;
-    for (let x = 0; x < this.gridXW; x += 1) {
-      for (let y = 0; y < this.gridYW; y += 1) {
+    ctx.strokeStyle = '#FFF';
+    ctx.lineWidth = 1;
+    let x, y, cx, cy, tx, ty;
+    for (x = 0; x < this.gridXW; x++) {
+      for (y = 0; y < this.gridYW; y++) {
         let d: IPositional = this.getCellValue(x, y);
         if (!d) continue;
-        let cx = x * cellSize;
-        let cy = y * cellSize;
+        cx = x * cellSize;
+        cy = y * cellSize;
         // context.beginPath();
         // context.rect(cx, cy, flowGrid.celSize,flowGrid.celSize);
         // context.stroke();
-        cx = Math.floor(cx + cellSize * 0.5);
-        cy = Math.floor(cy + cellSize * 0.5);
+        cx = ~~(cx + this.cellSizeD2);
+        cy = ~~(cy + this.cellSizeD2);
 
         // ctx.beginPath();
 
         // let l = d.p.length();
-        let p = d.p.copy().normalize().scale(cellSize * 0.5);
+        let p = d.p.copy().normalize().scale(this.cellSizeD2);
 
-        let tx = Math.floor(p.x);
-        let ty = Math.floor(p.y);
+        tx = ~~p.x;
+        ty = ~~p.y;
         ctx.moveTo(cx, cy);
         ctx.lineTo(cx + tx, cy + ty);
-        // ctx.fillStyle = this.gradient(l).toString();
-        // ctx.fillRect(cx - 1, cy - 1, 2, 2);
-      }
-    }
+        ctx.fillRect(cx - 2, cy - 2, 4, 4);
+      } // for y
+    } // for x
     ctx.stroke();
   }
 }
 
 export class BoidGrid extends HashGrid<Boid> {
-  draw(ctx: CanvasRenderingContext2D): void {
+  override draw(ctx: CanvasRenderingContext2D): void {
     super.draw(ctx);
     const cellSize = this.options.cellSize;
     ctx.beginPath();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = 'bold 36px serif';
+    ctx.font = 'bold 24px serif';
     ctx.fillStyle = '#A00';
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 0.5;
+    ctx.strokeStyle = '#FFF';
+    ctx.lineWidth = 1;
 
-    for (let x = 0; x < this.gridXW; x += 1) {
-      for (let y = 0; y < this.gridYW; y += 1) {
+    for (let x = 0; x < this.gridXW; x++) {
+      for (let y = 0; y < this.gridYW; y++) {
         const boids = this.getCellValues(x, y, false);
         const nb = boids.length;
-        let cx = Math.floor(x * cellSize);
-        let cy = Math.floor(y * cellSize);
-        ctx.fillText(nb, cx + cellSize / 2, cy + cellSize / 2);
+        let cx = ~~(x * cellSize);
+        let cy = ~~(y * cellSize);
+        ctx.fillText('' + nb, cx + cellSize / 2, cy + cellSize / 2);
       }
     }
   }

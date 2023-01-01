@@ -8,11 +8,11 @@ export class SeparateBehavior extends BoidBehavior {
     this.name = 'SeparateBehavior';
   }
 
-  public tick(gameTime: IGameTime): void {
+  public override tick(gameTime: IGameTime): void {
     const b = this.boid;
     const p: vec2 = b.p;
     const v: vec2 = b.v;
-    const grid = b.grid;
+    const grid = b.options.grid;
     const r = b.r * 2.5;
     const nearest = grid.getDataRadius(p.x, p.y, r, true, b, false);
     if (!nearest.length) return;

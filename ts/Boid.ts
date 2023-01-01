@@ -7,6 +7,14 @@ import { vec2, Ivec2 } from './math';
 import { World } from './World';
 
 
+export interface IBoidOptions {
+  world: World,
+  grid: HashGrid<Boid>,
+  p?: vec2,
+  v?: vec2,
+  r?: number
+}
+
 export class BoidBehavior implements IProgressible {
   public name: string;
   public boid: Boid;
@@ -22,6 +30,7 @@ export class BoidBehavior implements IProgressible {
 }
 
 export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawable {
+  public id: number;
   public p: vec2;
   public v: vec2;
   public a: vec2;
@@ -35,18 +44,27 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
   public lastCellIndex: number = -1;
   public cellIndex: number = -1;
   public type: number = 1;
-  public world: World;
 
-  constructor(world: World, grid: HashGrid<Boid>, p?: vec2, v?: vec2, r?: number) {
-    this.world = world;
-    this.grid = grid;
+  options: IBoidOptions;
 
-    this.p = p || new vec2();
-    this.v = v || new vec2();
+  constructor(options: IBoidOptions) {
+    this.options = options;
+
+    this.p = options.p || new vec2();
+    this.v = options.v || new vec2();
     this.a = new vec2();
-    this.r = r || 5;
+    this.r = options.r || 5;
     this.r2 = this.r * this.r;
   }
+
+  // if (!p.isFinite()) {
+  //   console.log(p);
+  //   throw new Error('Boid position is not finite');
+  // }
+  // if (!v.isFinite()) {
+  //   console.log(v);
+  //   throw new Error('Boid has infinite velocity');
+  // }
 
   tick(gameTime: IGameTime): void {
     for (const b of this.behaviors.values()) {
@@ -54,14 +72,8 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
     }
     const p: Ivec2 = this.p;
     const v: Ivec2 = this.v;
-    if (!p.isFinite()){
-      console.log(p);
-      throw new Error("Boid position is not finite");
-    }
-    if (!v.isFinite()) {
-      console.log(v);
-      throw new Error("Boid has infinite velocity");
-    }
+    const world = this.options.world;
+    const grid = this.options.grid;
     const maxSpeed = this.maxSpeed;
     let l: number = v.length();
     if (l > maxSpeed) {
@@ -72,16 +84,16 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
 
     p.x += v.x * gameTime.deltaTime;
     p.y += v.y * gameTime.deltaTime;
-    p.x = clamp(p.x, 0, this.world.width - 1);
-    p.y = clamp(p.y, 0, this.world.height - 1);
-    v.scale(this.world.drag);
-    const newCellIndex = this.grid.getCellIndex(p.x, p.y, true);
+    p.x = clamp(p.x, 0, world.width - 1);
+    p.y = clamp(p.y, 0, world.height - 1);
+    v.scale(world.drag);
+    const newCellIndex = grid.getCellIndex(p.x, p.y, true);
     if (newCellIndex === undefined) {
       throw new Error(`newCellIndex is undefined for ${p.x} and ${p.y}`);
     }
     if (this.cellIndex !== newCellIndex) {
-      this.grid.removeCelDataByIndex(this.lastCellIndex, this);
-      this.grid.addCelDataByIndex(newCellIndex, this);
+      grid.removeCelDataByIndex(this.lastCellIndex, this);
+      grid.addCelDataByIndex(newCellIndex, this);
     }
   }
 

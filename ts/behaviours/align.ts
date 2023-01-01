@@ -1,5 +1,6 @@
 import { Boid, BoidBehavior } from '../Boid';
 import { IGameTime } from '../GameClock';
+import { BoidGrid } from '../HashGrid';
 
 export class AlignBehavior extends BoidBehavior {
   public neighbor: Boid | undefined;
@@ -9,10 +10,10 @@ export class AlignBehavior extends BoidBehavior {
     this.name = 'AlignBehavior';
   }
 
-  public tick(gameTime: IGameTime): void {
+  public override tick(gameTime: IGameTime): void {
     const b = this.boid;
-    const grid = b.grid;
-    const nearest = grid.getDataRadius(b.p.x, b.p.y, grid.cellSize, true, b, true);
+    const grid: BoidGrid = b.options.grid;
+    const nearest = grid.getDataRadius(b.p.x, b.p.y, grid.options.cellSize, true, b, true);
     this.neighbor = undefined;
     if (!nearest.length) return;
     const n = nearest[0].data;

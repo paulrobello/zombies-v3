@@ -21,7 +21,7 @@ export class FlowBehavior extends BoidBehavior {
     this.flowGrid = options.flowGrid;
   }
 
-  public tick(gameTime: IGameTime): void {
+  public override tick(gameTime: IGameTime): void {
     const b: Boid = this.boid;
     const p: Ivec2 = b.p;
     const v: Ivec2 = b.v;

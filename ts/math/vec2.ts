@@ -1,6 +1,6 @@
 import { epsilon } from './constants';
-import mat2 from './mat2';
-import mat3 from './mat3';
+import { mat2 } from './mat2';
+import { mat3 } from './mat3';
 
 
 export interface Ivec2 {

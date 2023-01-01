@@ -9,7 +9,7 @@ export interface ICollisionBehaviorOptions {
 
 export const collisionBehaviorDefaultOptions: ICollisionBehaviorOptions = {
   margin: 2,
-  iterations: 2
+  iterations: 1
 };
 
 export class CollisionBehavior extends BoidBehavior {
@@ -21,10 +21,10 @@ export class CollisionBehavior extends BoidBehavior {
     this.options = options;
   }
 
-  public tick(gameTime: IGameTime): void {
+  public override tick(gameTime: IGameTime): void {
     const b = this.boid;
     const p: vec2 = b.p;
-    const grid = b.grid;
+    const grid = b.options.grid;
     const nearest = grid.getDataRadius(p.x, p.y, grid.options.cellSize, true, b, false);
     if (!nearest.length) return;
 

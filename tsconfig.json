@@ -1,7 +1,21 @@
 {
   "compilerOptions": {
     "target": "esnext",
-    "moduleResolution": "node"
+    "module": "esnext",
+    "moduleResolution": "node",
+    "lib": [
+      "esnext",
+      "dom",
+      "dom.iterable"
+    ],
+    "sourceMap": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "experimentalDecorators": true,
+    "resolveJsonModule": true,
+    "noUnusedParameters": false
   },
-  "include": ["src/**/*.ts"]
+  "include": [
+    "src/**/*.ts"
+  ]
 }

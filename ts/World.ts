@@ -1,7 +1,4 @@
-import { AlignBehavior, FlowBehavior } from './behaviours';
-import { AvoidWallsBehavior } from './behaviours/avoid_walls';
-import { CollisionBehavior } from './behaviours/collision';
-import { SeparateBehavior } from './behaviours/separate';
+import { SeparateBehavior, CollisionBehavior, AlignBehavior, FlowBehavior, AvoidWallsBehavior } from './behaviours';
 import { Boid } from './Boid';
 import { GameClock } from './GameClock';
 import { BoidGrid, FlowGrid, HashGridOptions } from './HashGrid';
@@ -33,14 +30,14 @@ export class World {
   maxSpeed = 100;
   maxTime = 10000;
   showField = true;
-  numBoids = 100;
+  numBoids = 1000;
   wheelInc = 0.001;
   gameClock: GameClock;
   private fieldRandomScale: number = Math.random() * 0.0001;
 
   constructor() {
     this.cellSize = 32;
-    this.boidCellSize = 128;
+    this.boidCellSize = 32;
 
     this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
     this.ctx = this.canvas.getContext('2d');
@@ -53,6 +50,12 @@ export class World {
     });
     window.addEventListener('resize', (event: UIEvent) => () => {
       // this.resize();
+    });
+    window.addEventListener('wheel', (event: WheelEvent) => {
+//   fieldScale += event.deltaY > 0 ? wheelInc : -wheelInc;
+//   fieldScale = Math.max(Math.min(fieldScale, 1), wheelInc);
+//   genField();
+//   console.log(fieldScale + a);
     });
 
     this.resize();
@@ -141,16 +144,16 @@ export class World {
 
   initBoids() {
     for (let i = 0; i < this.numBoids; i++) {
-      let b = new Boid(
-        this,
-        this.boidGrid,
-        new vec2(Math.random() * this.width, Math.random() * this.height),
-        new vec2().random(10, 100),
-        5
-      );
+      let b = new Boid({
+        world: this,
+        grid: this.boidGrid,
+        p: new vec2(Math.random() * this.width, Math.random() * this.height),
+        v: new vec2().random(10, 100),
+        r: 5
+      });
       b.maxSpeed = this.maxSpeed;
-      b.behaviors.set('FlowBehavior', new FlowBehavior(b, {flowGrid: this.flowGrid, normalize: true, scale: 1}));
-      b.behaviors.set('AlignBehavior', new AlignBehavior(b, 75));
+      // b.behaviors.set('FlowBehavior', new FlowBehavior(b, {flowGrid: this.flowGrid, normalize: true, scale: 1}));
+      b.behaviors.set('AlignBehavior', new AlignBehavior(b, 50));
       b.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 20));
       b.behaviors.set('CollisionBehavior', new CollisionBehavior(b, 20));
       b.behaviors.set('AvoidWallsBehavior', new AvoidWallsBehavior(b, 20));
@@ -170,10 +173,16 @@ export class World {
     const gameClock = this.gameClock;
     const ctx = this.ctx;
     const boids = this.boids;
-    gameClock.tick();
+
     ctx.clearRect(0, 0, this.width, this.height);
-    this.flowGrid.draw(ctx);
-    this.boidGrid.draw(ctx);
+
+    gameClock.tick();
+
+    // draw grids
+    // this.flowGrid.draw(ctx);
+    // this.boidGrid.draw(ctx);
+
+    // draw boids
     ctx.beginPath();
     ctx.lineWidth = 1;
     ctx.strokeStyle = '#FFFFFF';
@@ -183,10 +192,11 @@ export class World {
     }
     ctx.stroke();
 
+    // draw fps on screen
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.font = 'bold 36px serif';
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillText(gameClock.fps.toFixed(0), 5, 5);
+    ctx.fillText('' + gameClock.gameTime.fps.toFixed(0), 5, 5);
   }
 }

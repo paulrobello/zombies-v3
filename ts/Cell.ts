@@ -1,10 +1,11 @@
 import { IPositional } from './interfaces';
-import  { vec2,Ivec2 } from './math';
+import { vec2, Ivec2 } from './math';
 
-export interface ICellIndexable{
+export interface ICellIndexable {
   lastCellIndex: number;
   cellIndex: number;
 }
+
 export class Cell<T> implements IPositional {
   public items: T[] = [];
   public neighbors: Cell<T>[] = [];

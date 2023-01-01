@@ -19,7 +19,7 @@ export class AvoidWallsBehavior extends BoidBehavior {
     this.options = options;
   }
 
-  public tick(gameTime: IGameTime): void {
+  public override tick(gameTime: IGameTime): void {
     const b = this.boid;
     const p: vec2 = b.p;
     const v: vec2 = b.v;
@@ -28,7 +28,7 @@ export class AvoidWallsBehavior extends BoidBehavior {
     if (p.x < r2) {
       v.x += (r2 - p.x) / r2 * this.scale;
     } else {
-      d = b.world.width - p.x;
+      d = b.options.world.width - p.x;
       if (d < r2) {
         v.x -= (r2 - d) / r2 * this.scale;
       }
@@ -36,7 +36,7 @@ export class AvoidWallsBehavior extends BoidBehavior {
     if (p.y < r2) {
       v.y += (r2 - p.y) / r2 * this.scale;
     } else {
-      d = b.world.height - p.y;
+      d = b.options.world.height - p.y;
       if (d < r2) {
         v.y -= (r2 - d) / r2 * this.scale;
       }
