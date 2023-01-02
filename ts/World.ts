@@ -1,3 +1,4 @@
+import { BufferInfo, ProgramInfo } from 'twgl.js';
 import { SeparateBehavior, CollisionBehavior, AlignBehavior, FlowBehavior, AvoidWallsBehavior } from './behaviours';
 import { Boid } from './Boid';
 import { GameClock } from './GameClock';
@@ -5,12 +6,13 @@ import { BoidGrid, FlowGrid, HashGridOptions } from './HashGrid';
 import { IFlowValue } from './interfaces';
 import { vec2, map, Ivec2, epsilon } from './math';
 import { makeNoise2D } from 'fast-simplex-noise';
+import * as twgl from 'twgl.js';
 
 const noise = makeNoise2D();
 
 export class World {
   canvas: HTMLCanvasElement;
-  ctx: CanvasRenderingContext2D;
+  ctx: WebGLRenderingContext;
   width: number;
   height: number;
   width_d2: number;
@@ -33,15 +35,18 @@ export class World {
   numBoids = 1000;
   wheelInc = 0.001;
   gameClock: GameClock;
-  private fieldRandomScale: number = Math.random() * 0.0001;
+  fieldRandomScale: number = Math.random() * 0.0001;
+  ext: ANGLE_instanced_arrays;
+  programInfo: ProgramInfo;
+  maxCount: number;
+  bufferInfo: BufferInfo;
 
   constructor() {
     this.cellSize = 32;
     this.boidCellSize = 32;
 
     this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
-    this.ctx = this.canvas.getContext('2d');
-    this.ctx.globalAlpha = 1;
+    this.ctx = this.canvas.getContext('webgl');
 
     this.gameClock = new GameClock();
 
@@ -57,9 +62,97 @@ export class World {
 //   genField();
 //   console.log(fieldScale + a);
     });
+    this.ext = this.ctx.getExtension('ANGLE_instanced_arrays');
+    if (!this.ext) {
+      throw new Error('need ANGLE_instanced_arrays');
+    }
+    twgl.addExtensionsToContext(this.ctx);
 
-    this.resize();
-    this.initBoids();
+    const vs = `
+  attribute float id;
+  attribute vec4 position;
+  attribute vec2 texcoord;
+
+  uniform float time;
+
+  varying vec2 v_texcoord;
+  varying vec4 v_color;
+
+  void main() {
+    float o = id + time;
+    gl_Position = position + vec4(
+        vec2(
+             fract(o * 0.1373),
+             fract(o * 0.5127)) * 2.0 - 1.0,
+        0, 0);
+
+    v_texcoord = texcoord;
+    v_color = vec4(fract(vec3(id) * vec3(0.127, 0.373, 0.513)), 1);
+  }`;
+
+    const fs = `
+  precision mediump float;
+  varying vec2 v_texcoord;
+  varying vec4 v_color;
+
+  float circle(in vec2 st, in float radius) {
+    vec2 dist = st - vec2(0.5);
+    return 1.0 - smoothstep(
+       radius - (radius * 0.01),
+       radius +(radius * 0.01),
+       dot(dist, dist) * 4.0);
+  }
+
+  void main() {
+    if (circle(v_texcoord, 1.0) < 0.5) {
+      discard;
+    }
+    gl_FragColor = v_color;
+  }
+  `;
+
+    // compile shaders, link program, look up locations
+    this.programInfo = twgl.createProgramInfo(this.ctx, [vs, fs]);
+
+    this.maxCount = 100000;
+    const ids = new Float32Array(this.maxCount);
+    for (let i = 0; i < ids.length; ++i) {
+      ids[i] = i;
+    }
+    const x = 16/600;
+    const y = 16/400;
+
+    this.bufferInfo = twgl.createBufferInfoFromArrays(this.ctx, {
+      position: {
+        numComponents: 2,
+        data: [
+          -x, -y,
+          x, -y,
+          -x, y,
+          -x, y,
+          x, -y,
+          x, y
+        ]
+      },
+      texcoord: [
+        0, 1,
+        1, 1,
+        0, 0,
+        0, 0,
+        1, 1,
+        1, 0
+      ],
+      id: {
+        numComponents: 1,
+        data: ids,
+        divisor: 1
+      }
+    });
+    twgl.setBuffersAndAttributes(this.ctx, this.programInfo, this.bufferInfo);
+    twgl.resizeCanvasToDisplaySize(this.canvas);
+
+    // this.resize();
+    // this.initBoids();
   }
 
   resize() {
@@ -173,30 +266,35 @@ export class World {
     const gameClock = this.gameClock;
     const ctx = this.ctx;
     const boids = this.boids;
-
-    ctx.clearRect(0, 0, this.width, this.height);
-
+    this.ctx.viewport(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
+    this.ctx.useProgram(this.programInfo.program);
+    twgl.setUniforms(this.programInfo, {time: gameClock.gameTime.currentTime});
+    this.ext.drawArraysInstancedANGLE(this.ctx.TRIANGLES, 0, 6, this.maxCount);
+    //
+    // ctx.clearRect(0, 0, this.width, this.height);
+    //
     gameClock.tick();
-
-    // draw grids
-    // this.flowGrid.draw(ctx);
-    // this.boidGrid.draw(ctx);
-
-    // draw boids
-    ctx.beginPath();
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = '#FFFFFF';
-    for (const b of boids) {
-      b.tick(gameClock.gameTime);
-      b.draw(ctx);
-    }
-    ctx.stroke();
-
-    // draw fps on screen
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.font = 'bold 36px serif';
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillText('' + gameClock.gameTime.fps.toFixed(0), 5, 5);
+    //
+    // // draw grids
+    // // this.flowGrid.draw(ctx);
+    // // this.boidGrid.draw(ctx);
+    //
+    // // draw boids
+    // ctx.beginPath();
+    // ctx.lineWidth = 1;
+    // ctx.strokeStyle = '#FFFFFF';
+    // for (const b of boids) {
+    //   b.tick(gameClock.gameTime);
+    //   b.draw(ctx);
+    // }
+    // ctx.stroke();
+    //
+    // // draw fps on screen
+    // ctx.textAlign = 'left';
+    // ctx.textBaseline = 'top';
+    // ctx.font = 'bold 36px serif';
+    // ctx.fillStyle = '#FFFFFF';
+    // ctx.fillText('' + gameClock.gameTime.fps.toFixed(0), 5, 5);
+    document.title=gameClock.gameTime.fps.toFixed(0);
   }
 }
