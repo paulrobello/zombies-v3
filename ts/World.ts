@@ -10,6 +10,11 @@ import * as twgl from 'twgl.js';
 
 const noise = makeNoise2D();
 
+export interface IGLBuffers {
+  offsets: Float32Array;
+  angles: Float32Array;
+  radiuses: Float32Array;
+}
 export class World {
   canvas: HTMLCanvasElement;
   ctx: WebGLRenderingContext;
@@ -32,7 +37,7 @@ export class World {
   maxSpeed = 100;
   maxTime = 10000;
   showField = true;
-  numBoids = 100;
+  numBoids = 10;
   wheelInc = 0.001;
   gameClock: GameClock;
   fieldRandomScale: number = Math.random() * 0.0001;
@@ -40,9 +45,8 @@ export class World {
   programInfo: ProgramInfo;
   bufferInfo: BufferInfo;
   u_matrix: m4.Mat4;
-  gl_locations: Float32Array;
-  gl_angles: Float32Array;
-  gl_radius: Float32Array;
+  glBuffers: IGLBuffers
+
 
   constructor() {
     this.cellSize = 32;
@@ -103,8 +107,12 @@ export class World {
     if (dot(dir, dir) > 0.25) {
       discard;
     }
-    if (dot(v_angle*vec2(-1,1), dir)>0.0) {
-      gl_FragColor = vec4(1.0,0.0,0.0,0);
+    if (dot(vec2(-v_angle.x,v_angle.y), dir)>0.0) {
+      if (abs(dot(vec2(v_angle.y,v_angle.x), dir))<0.1) {
+        gl_FragColor = vec4(1.0,0.0,0.0,1.0);
+      }else{
+        gl_FragColor = v_color;
+      }
     }else{
       gl_FragColor = v_color;
     }
@@ -115,19 +123,20 @@ export class World {
 
     this.u_matrix=m4.identity();
 
-    this.gl_locations = new Float32Array(this.numBoids * 2);
+    this.glBuffers={
+      offsets: new Float32Array(this.numBoids * 2),
+      angles: new Float32Array(this.numBoids*2),
+      radiuses: new Float32Array(this.numBoids),
+    };
     // for (let i = 0; i < this.numBoids / 2; i += 2) {
     //   this.gl_locations[i] = Math.random() * this.canvas.width;
     //   this.gl_locations[i + 1] = Math.random() * this.canvas.height;
     // }
-
-    this.gl_angles = new Float32Array(this.numBoids*2);
-    this.gl_radius = new Float32Array(this.numBoids);
     // for (let i = 0; i < this.gl_angles.length; ++i) {
     //   this.gl_angles[i] = Math.PI*2;
     // }
-    const x = 1;
-    const y = 1;
+    const x = 0.5;
+    const y = 0.5;
 
     this.bufferInfo = twgl.createBufferInfoFromArrays(this.ctx, {
       position: {
@@ -151,17 +160,17 @@ export class World {
       ],
       offset: {
         numComponents: 2,
-        data:this.gl_locations,
+        data:this.glBuffers.offsets,
         divisor: 1
       },
       angle: {
         numComponents: 2,
-        data: this.gl_angles,
+        data: this.glBuffers.angles,
         divisor: 1
       },
       radius: {
         numComponents: 1,
-        data: this.gl_radius,
+        data: this.glBuffers.radiuses,
         divisor: 1
       }
     });
@@ -259,7 +268,7 @@ export class World {
         grid: this.boidGrid,
         p: new vec2(Math.random() * this.width, Math.random() * this.height),
         v: new vec2().random(10, 100),
-        r: 8
+        r: 32
       });
       b.maxSpeed = this.maxSpeed;
       // b.behaviors.set('FlowBehavior', new FlowBehavior(b, {flowGrid: this.flowGrid, normalize: true, scale: 1}));
@@ -308,9 +317,9 @@ export class World {
       b.tick(gameClock.gameTime);
     //   b.draw(ctx);
     }
-    twgl.setAttribInfoBufferFromArray(ctx, this.bufferInfo.attribs.offset, this.gl_locations);
-    twgl.setAttribInfoBufferFromArray(ctx, this.bufferInfo.attribs.angle, this.gl_angles);
-    twgl.setAttribInfoBufferFromArray(ctx, this.bufferInfo.attribs.radius, this.gl_radius);
+    twgl.setAttribInfoBufferFromArray(ctx, this.bufferInfo.attribs.offset, this.glBuffers.offsets);
+    twgl.setAttribInfoBufferFromArray(ctx, this.bufferInfo.attribs.angle, this.glBuffers.angles);
+    twgl.setAttribInfoBufferFromArray(ctx, this.bufferInfo.attribs.radius, this.glBuffers.radiuses);
     // ctx.stroke();
     //
     // // draw fps on screen
