@@ -29,6 +29,8 @@ export class BoidBehavior implements IProgressible {
   }
 }
 
+let id = 0;
+
 export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawable {
   public id: number;
   public p: vec2;
@@ -49,7 +51,7 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
 
   constructor(options: IBoidOptions) {
     this.options = options;
-
+    this.id = id++;
     this.p = options.p || new vec2();
     this.v = options.v || new vec2();
     this.a = new vec2();
@@ -95,6 +97,10 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
       grid.removeCelDataByIndex(this.lastCellIndex, this);
       grid.addCelDataByIndex(newCellIndex, this);
     }
+    this.options.world.gl_locations[this.id * 2] = p.x;
+    this.options.world.gl_locations[this.id * 2 + 1] = p.y;
+    this.options.world.gl_angles[this.id * 2] = v.x;
+    this.options.world.gl_angles[this.id * 2+1] = v.y;
   }
 
   draw(ctx: CanvasRenderingContext2D): void {
