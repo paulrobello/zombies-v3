@@ -17,3 +17,5 @@ export interface IDrawable {
 export interface IFlowValue extends IPositional, ICellIndexable {
   l: number;
 }
+
+export type QueryLayer = Record<string, number>;

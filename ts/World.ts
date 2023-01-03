@@ -42,10 +42,11 @@ export class World {
   gameClock: GameClock;
   fieldRandomScale: number = Math.random() * 0.0001;
   ext: ANGLE_instanced_arrays;
-  programInfo: ProgramInfo;
-  bufferInfo: BufferInfo;
-  u_matrix: m4.Mat4;
-  glBuffers: IGLBuffers
+  u_matrix: m4.Mat4 = m4.identity();
+  boidProgramInfo: ProgramInfo;
+  boidBufferInfo: BufferInfo;
+
+  boidGlBuffers: IGLBuffers
 
 
   constructor() {
@@ -75,7 +76,7 @@ export class World {
     }
     twgl.addExtensionsToContext(this.ctx);
     twgl.resizeCanvasToDisplaySize(this.canvas);
-    const vs = `
+    const boidVs = `
   uniform float time;
   uniform mat4 u_matrix;
 
@@ -97,7 +98,7 @@ export class World {
     v_angle = normalize(angle);
   }`;
 
-    const fs = `
+    const BoidFs = `
   precision mediump float;
   varying vec2 v_texcoord;
   varying vec4 v_color;
@@ -119,11 +120,9 @@ export class World {
   }`;
 
     // compile shaders, link program, look up locations
-    this.programInfo = twgl.createProgramInfo(this.ctx, [vs, fs]);
+    this.boidProgramInfo = twgl.createProgramInfo(this.ctx, [boidVs, BoidFs]);
 
-    this.u_matrix=m4.identity();
-
-    this.glBuffers={
+    this.boidGlBuffers={
       offsets: new Float32Array(this.numBoids * 2),
       angles: new Float32Array(this.numBoids*2),
       radiuses: new Float32Array(this.numBoids),
@@ -138,7 +137,7 @@ export class World {
     const x = 0.5;
     const y = 0.5;
 
-    this.bufferInfo = twgl.createBufferInfoFromArrays(this.ctx, {
+    this.boidBufferInfo = twgl.createBufferInfoFromArrays(this.ctx, {
       position: {
         numComponents: 2,
         data: [
@@ -160,21 +159,21 @@ export class World {
       ],
       offset: {
         numComponents: 2,
-        data:this.glBuffers.offsets,
+        data:this.boidGlBuffers.offsets,
         divisor: 1
       },
       angle: {
         numComponents: 2,
-        data: this.glBuffers.angles,
+        data: this.boidGlBuffers.angles,
         divisor: 1
       },
       radius: {
         numComponents: 1,
-        data: this.glBuffers.radiuses,
+        data: this.boidGlBuffers.radiuses,
         divisor: 1
       }
     });
-    twgl.setBuffersAndAttributes(this.ctx, this.programInfo, this.bufferInfo);
+    twgl.setBuffersAndAttributes(this.ctx, this.boidProgramInfo, this.boidBufferInfo);
     this.ctx.disable(this.ctx.DEPTH_TEST);
     this.ctx.clearColor(0, 0, 0, 1);
     this.resize();
@@ -298,8 +297,8 @@ export class World {
 
     m4.ortho(0, ctx.canvas.width, ctx.canvas.height,0, -1, 1, this.u_matrix);
 
-    this.ctx.useProgram(this.programInfo.program);
-    twgl.setUniforms(this.programInfo, {
+    this.ctx.useProgram(this.boidProgramInfo.program);
+    twgl.setUniforms(this.boidProgramInfo, {
       time: gameClock.gameTime.currentTime * 0.1,
       u_matrix: this.u_matrix
     });
@@ -317,9 +316,9 @@ export class World {
       b.tick(gameClock.gameTime);
     //   b.draw(ctx);
     }
-    twgl.setAttribInfoBufferFromArray(ctx, this.bufferInfo.attribs.offset, this.glBuffers.offsets);
-    twgl.setAttribInfoBufferFromArray(ctx, this.bufferInfo.attribs.angle, this.glBuffers.angles);
-    twgl.setAttribInfoBufferFromArray(ctx, this.bufferInfo.attribs.radius, this.glBuffers.radiuses);
+    twgl.setAttribInfoBufferFromArray(ctx, this.boidBufferInfo.attribs.offset, this.boidGlBuffers.offsets);
+    twgl.setAttribInfoBufferFromArray(ctx, this.boidBufferInfo.attribs.angle, this.boidGlBuffers.angles);
+    twgl.setAttribInfoBufferFromArray(ctx, this.boidBufferInfo.attribs.radius, this.boidGlBuffers.radiuses);
     // ctx.stroke();
     //
     // // draw fps on screen

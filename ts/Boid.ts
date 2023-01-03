@@ -97,7 +97,7 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
       grid.removeCelDataByIndex(this.lastCellIndex, this);
       grid.addCelDataByIndex(newCellIndex, this);
     }
-    const buffers=world.glBuffers;
+    const buffers=world.boidGlBuffers;
     buffers.offsets[this.id * 2] = p.x;
     buffers.offsets[this.id * 2 + 1] = p.y;
     buffers.angles[this.id * 2] = v.x;
