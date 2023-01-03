@@ -100,7 +100,8 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
     this.options.world.gl_locations[this.id * 2] = p.x;
     this.options.world.gl_locations[this.id * 2 + 1] = p.y;
     this.options.world.gl_angles[this.id * 2] = v.x;
-    this.options.world.gl_angles[this.id * 2+1] = v.y;
+    this.options.world.gl_angles[this.id * 2 + 1] = v.y;
+    this.options.world.gl_radius[this.id] = this.r;
   }
 
   draw(ctx: CanvasRenderingContext2D): void {

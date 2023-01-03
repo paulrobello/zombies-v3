@@ -42,6 +42,7 @@ export class World {
   u_matrix: m4.Mat4;
   gl_locations: Float32Array;
   gl_angles: Float32Array;
+  gl_radius: Float32Array;
 
   constructor() {
     this.cellSize = 32;
@@ -79,13 +80,14 @@ export class World {
   attribute vec2 offset;
   attribute vec2 texcoord;
   attribute vec2 angle;
+  attribute float radius;
 
   varying vec2 v_texcoord;
   varying vec4 v_color;
   varying vec2 v_angle;
 
   void main() {
-    gl_Position = u_matrix * (position*vec4(8.0,8.0,1.0,1.0) + vec4(offset, 0, 0));
+    gl_Position = u_matrix * (position*vec4(radius,radius,1.0,1.0) + vec4(offset, 0, 0));
     v_texcoord = texcoord;
     v_color = vec4(1, 1, 1, 1);
     v_angle = normalize(angle);
@@ -96,22 +98,12 @@ export class World {
   varying vec2 v_texcoord;
   varying vec4 v_color;
   varying vec2 v_angle;
-
-  float circle(in vec2 dist, in float radius) {
-    return 1.0 - smoothstep(
-       radius - (radius * 0.01),
-       radius + (radius * 0.01),
-       dot(dist, dist) * 4.0);
-  }
-
   void main() {
-    vec2 dist = v_texcoord - vec2(0.5, 0.5);
-    float r = circle(dist, 1.0);
-    if (r < 0.5) {
+    vec2 dir = vec2(0.5, 0.5)-v_texcoord;
+    if (dot(dir, dir) > 0.25) {
       discard;
     }
-    float v_d = dot(v_angle*vec2(-1,1), -dist);
-    if (v_d>0.0) {
+    if (dot(v_angle*vec2(-1,1), dir)>0.0) {
       gl_FragColor = vec4(1.0,0.0,0.0,0);
     }else{
       gl_FragColor = v_color;
@@ -130,6 +122,7 @@ export class World {
     // }
 
     this.gl_angles = new Float32Array(this.numBoids*2);
+    this.gl_radius = new Float32Array(this.numBoids);
     // for (let i = 0; i < this.gl_angles.length; ++i) {
     //   this.gl_angles[i] = Math.PI*2;
     // }
@@ -164,6 +157,11 @@ export class World {
       angle: {
         numComponents: 2,
         data: this.gl_angles,
+        divisor: 1
+      },
+      radius: {
+        numComponents: 1,
+        data: this.gl_radius,
         divisor: 1
       }
     });
@@ -261,7 +259,7 @@ export class World {
         grid: this.boidGrid,
         p: new vec2(Math.random() * this.width, Math.random() * this.height),
         v: new vec2().random(10, 100),
-        r: 5
+        r: 8
       });
       b.maxSpeed = this.maxSpeed;
       // b.behaviors.set('FlowBehavior', new FlowBehavior(b, {flowGrid: this.flowGrid, normalize: true, scale: 1}));
@@ -312,6 +310,7 @@ export class World {
     }
     twgl.setAttribInfoBufferFromArray(ctx, this.bufferInfo.attribs.offset, this.gl_locations);
     twgl.setAttribInfoBufferFromArray(ctx, this.bufferInfo.attribs.angle, this.gl_angles);
+    twgl.setAttribInfoBufferFromArray(ctx, this.bufferInfo.attribs.radius, this.gl_radius);
     // ctx.stroke();
     //
     // // draw fps on screen
