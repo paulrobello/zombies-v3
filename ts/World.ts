@@ -63,12 +63,12 @@ export class World {
     window.addEventListener('resize', (event: UIEvent) => () => {
       // this.resize();
     });
-    window.addEventListener('wheel', (event: WheelEvent) => {
+    // window.addEventListener('wheel', (event: WheelEvent) => {
 //   fieldScale += event.deltaY > 0 ? wheelInc : -wheelInc;
 //   fieldScale = Math.max(Math.min(fieldScale, 1), wheelInc);
 //   genField();
 //   console.log(fieldScale + a);
-    });
+//     });
     this.ext = this.ctx.getExtension('ANGLE_instanced_arrays');
     if (!this.ext) {
       throw new Error('need ANGLE_instanced_arrays');

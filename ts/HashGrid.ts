@@ -267,19 +267,19 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
     }
   }
 
-  draw(ctx: CanvasRenderingContext2D): void {
+  draw(ctx: WebGLRenderingContext): void {
     const cellSize = this.options.cellSize;
-    ctx.beginPath();
-    ctx.strokeStyle = '#FFF';
-    ctx.lineWidth = 1;
-    for (let x = 0; x < this.gridXW; x++) {
-      for (let y = 0; y < this.gridYW; y++) {
-        let cx = ~~(x * cellSize);
-        let cy = ~~(y * cellSize);
-        ctx.rect(cx, cy, cellSize, cellSize);
-      }
-    }
-    ctx.stroke();
+    // ctx.beginPath();
+    // ctx.strokeStyle = '#FFF';
+    // ctx.lineWidth = 1;
+    // for (let x = 0; x < this.gridXW; x++) {
+    //   for (let y = 0; y < this.gridYW; y++) {
+    //     let cx = ~~(x * cellSize);
+    //     let cy = ~~(y * cellSize);
+    //     ctx.rect(cx, cy, cellSize, cellSize);
+    //   }
+    // }
+    // ctx.stroke();
   }
 }
 
@@ -287,62 +287,62 @@ export class FlowGrid extends HashGrid<IFlowValue> {
   gradient = scale(['#000000', '#00FF00', '#0000FF', '#FFFF00', '#FF8700', '#FF0000'])
     .domain([0, 0.2, 0.5, 0.6, 0.75, 1.0]);
 
-  override draw(ctx: CanvasRenderingContext2D): void {
+  override draw(ctx: WebGLRenderingContext): void {
     // super.draw(ctx);
     const cellSize = this.options.cellSize;
-    ctx.beginPath();
-    ctx.fillStyle = '#009900';
-    ctx.strokeStyle = '#FFF';
-    ctx.lineWidth = 1;
-    let x, y, cx, cy, tx, ty;
-    for (x = 0; x < this.gridXW; x++) {
-      for (y = 0; y < this.gridYW; y++) {
-        let d: IPositional = this.getCellValue(x, y);
-        if (!d) continue;
-        cx = x * cellSize;
-        cy = y * cellSize;
-        // context.beginPath();
-        // context.rect(cx, cy, flowGrid.celSize,flowGrid.celSize);
-        // context.stroke();
-        cx = ~~(cx + this.cellSizeD2);
-        cy = ~~(cy + this.cellSizeD2);
-
-        // ctx.beginPath();
-
-        // let l = d.p.length();
-        let p = d.p.copy().normalize().scale(this.cellSizeD2);
-
-        tx = ~~p.x;
-        ty = ~~p.y;
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(cx + tx, cy + ty);
-        ctx.fillRect(cx - 2, cy - 2, 4, 4);
-      } // for y
-    } // for x
-    ctx.stroke();
+    // ctx.beginPath();
+    // ctx.fillStyle = '#009900';
+    // ctx.strokeStyle = '#FFF';
+    // ctx.lineWidth = 1;
+    // let x, y, cx, cy, tx, ty;
+    // for (x = 0; x < this.gridXW; x++) {
+    //   for (y = 0; y < this.gridYW; y++) {
+    //     let d: IPositional = this.getCellValue(x, y);
+    //     if (!d) continue;
+    //     cx = x * cellSize;
+    //     cy = y * cellSize;
+    //     // context.beginPath();
+    //     // context.rect(cx, cy, flowGrid.celSize,flowGrid.celSize);
+    //     // context.stroke();
+    //     cx = ~~(cx + this.cellSizeD2);
+    //     cy = ~~(cy + this.cellSizeD2);
+    //
+    //     // ctx.beginPath();
+    //
+    //     // let l = d.p.length();
+    //     let p = d.p.copy().normalize().scale(this.cellSizeD2);
+    //
+    //     tx = ~~p.x;
+    //     ty = ~~p.y;
+    //     ctx.moveTo(cx, cy);
+    //     ctx.lineTo(cx + tx, cy + ty);
+    //     ctx.fillRect(cx - 2, cy - 2, 4, 4);
+    //   } // for y
+    // } // for x
+    // ctx.stroke();
   }
 }
 
 export class BoidGrid extends HashGrid<Boid> {
-  override draw(ctx: CanvasRenderingContext2D): void {
+  override draw(ctx: WebGLRenderingContext): void {
     super.draw(ctx);
-    const cellSize = this.options.cellSize;
-    ctx.beginPath();
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = 'bold 24px serif';
-    ctx.fillStyle = '#A00';
-    ctx.strokeStyle = '#FFF';
-    ctx.lineWidth = 1;
-
-    for (let x = 0; x < this.gridXW; x++) {
-      for (let y = 0; y < this.gridYW; y++) {
-        const boids = this.getCellValues(x, y, false);
-        const nb = boids.length;
-        let cx = ~~(x * cellSize);
-        let cy = ~~(y * cellSize);
-        ctx.fillText('' + nb, cx + cellSize / 2, cy + cellSize / 2);
-      }
-    }
+    // const cellSize = this.options.cellSize;
+    // ctx.beginPath();
+    // ctx.textAlign = 'center';
+    // ctx.textBaseline = 'middle';
+    // ctx.font = 'bold 24px serif';
+    // ctx.fillStyle = '#A00';
+    // ctx.strokeStyle = '#FFF';
+    // ctx.lineWidth = 1;
+    //
+    // for (let x = 0; x < this.gridXW; x++) {
+    //   for (let y = 0; y < this.gridYW; y++) {
+    //     const boids = this.getCellValues(x, y, false);
+    //     const nb = boids.length;
+    //     let cx = ~~(x * cellSize);
+    //     let cy = ~~(y * cellSize);
+    //     ctx.fillText('' + nb, cx + cellSize / 2, cy + cellSize / 2);
+    //   }
+    // }
   }
 }

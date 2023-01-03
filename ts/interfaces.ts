@@ -11,7 +11,7 @@ export interface IProgressible {
 }
 
 export interface IDrawable {
-  draw: (ctx: CanvasRenderingContext2D) => void;
+  draw: (ctx: WebGLRenderingContext) => void;
 }
 
 export interface IFlowValue extends IPositional, ICellIndexable {

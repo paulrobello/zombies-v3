@@ -105,14 +105,9 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
     buffers.radiuses[this.id] = this.r;
   }
 
-  draw(ctx: CanvasRenderingContext2D): void {
+  draw(ctx: WebGLRenderingContext): void {
     const p: Ivec2 = this.p;
     const v: Ivec2 = this.v;
-    let s: number = this.speed;
-    ctx.moveTo(p.x + this.r, p.y);
-    ctx.arc(p.x, p.y, this.r, 0, TWO_PI);
-    if (s < epsilon) return;
-    ctx.moveTo(p.x, p.y);
-    ctx.lineTo(p.x + (v.x / s * this.r), p.y + (v.y / s * this.r));
+
   }
 }
