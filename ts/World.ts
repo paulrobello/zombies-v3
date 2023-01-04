@@ -22,10 +22,10 @@ export class World {
   ctx: WebGLRenderingContext;
   width: number;
   height: number;
-  width_d2: number;
-  height_d2: number;
+  widthD2: number;
+  heightD2: number;
   dimensions: [number, number] = [0, 0];
-  cellSize: number = 32;
+  flowCellSize: number = 32;
   boidCellSize: number = 16;
   gridXW: number;
   gridYW: number;
@@ -34,7 +34,7 @@ export class World {
   boidGrid: BoidGrid;
   flowGridOptions: HashGridOptions;
   boidGridOptions: HashGridOptions;
-  fieldScale: number;
+  fieldScale: number = this.flowCellSize * 0.005;
   boids: Boid[] = [];
   boidSize: number = 8;
   drag = 1;
@@ -196,16 +196,15 @@ void main() {
     this.height = this.canvas.height = Math.floor(window.innerHeight);
     this.dimensions[0] = this.width;
     this.dimensions[1] = this.height;
-    this.width_d2 = Math.floor(this.width / 2);
-    this.height_d2 = Math.floor(this.height / 2);
-    this.gridXW = Math.ceil(this.width / this.cellSize);
-    this.gridYW = Math.ceil(this.height / this.cellSize);
-    this.fieldScale = this.cellSize * 0.005;
+    this.widthD2 = Math.floor(this.width / 2);
+    this.heightD2 = Math.floor(this.height / 2);
+    this.gridXW = Math.ceil(this.width / this.flowCellSize);
+    this.gridYW = Math.ceil(this.height / this.flowCellSize);
 
     this.flowGridOptions = {
       width: this.width,
       height: this.height,
-      cellSize: this.cellSize,
+      cellSize: this.flowCellSize,
       wrap: false,
       computeNeighborRadius: 0
     };
@@ -257,8 +256,8 @@ void main() {
       border = true;
     }
     const scale = this.fieldScale + this.fieldRandomScale;
-    x = (x - this.width_d2) * scale;
-    y = (y - this.height_d2) * scale;
+    x = (x - this.widthD2) * scale;
+    y = (y - this.heightD2) * scale;
     const rad = noise(x, y);
     if (border) {
       p.add(vec2.rand(0.1, 0.5));
@@ -332,7 +331,7 @@ void main() {
     // ctx.strokeStyle = '#FFFFFF';
     for (const b of boids) {
       b.tick(gameClock.gameTime);
-      //   b.draw(ctx);
+      b.draw(ctx);
     }
     twgl.setAttribInfoBufferFromArray(ctx, this.boidBufferInfo.attribs.pos_vel, this.boidGlBuffers.pos_vel);
     twgl.setAttribInfoBufferFromArray(ctx, this.boidBufferInfo.attribs.rad_color, this.boidGlBuffers.rad_color);
