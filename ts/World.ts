@@ -16,6 +16,7 @@ export interface IGLBuffers {
   vel_offset: number;
   rad_color: Float32Array;
 }
+
 export class World {
   canvas: HTMLCanvasElement;
   ctx: WebGLRenderingContext;
@@ -23,8 +24,9 @@ export class World {
   height: number;
   width_d2: number;
   height_d2: number;
-  cellSize: number;
-  boidCellSize: number;
+  dimensions: [number, number] = [0, 0];
+  cellSize: number = 32;
+  boidCellSize: number = 16;
   gridXW: number;
   gridYW: number;
 
@@ -34,11 +36,12 @@ export class World {
   boidGridOptions: HashGridOptions;
   fieldScale: number;
   boids: Boid[] = [];
+  boidSize: number = 8;
   drag = 1;
   maxSpeed = 100;
   maxTime = 10000;
   showField = true;
-  numBoids = 10;
+  numBoids = 1000;
   wheelInc = 0.001;
   gameClock: GameClock;
   fieldRandomScale: number = Math.random() * 0.0001;
@@ -46,13 +49,10 @@ export class World {
   u_matrix: m4.Mat4 = m4.identity();
   boidProgramInfo: ProgramInfo;
   boidBufferInfo: BufferInfo;
-  boidGlBuffers: IGLBuffers
+  boidGlBuffers: IGLBuffers;
 
 
   constructor() {
-    this.cellSize = 32;
-    this.boidCellSize = 32;
-
     this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
     this.ctx = this.canvas.getContext('webgl');
 
@@ -75,31 +75,36 @@ export class World {
       throw new Error('need ANGLE_instanced_arrays');
     }
     twgl.addExtensionsToContext(this.ctx);
-    twgl.resizeCanvasToDisplaySize(this.canvas);
     const boidVs = `
-  uniform float time;
-  uniform mat4 u_matrix;
+#define PI2         6.28318530718
+#define PI          3.14159265358
 
-  attribute float id;
-  attribute vec4 vert_pos;
-  attribute vec4 pos_vel;
-  attribute vec2 texcoord;
-  attribute vec4 rad_color;
+uniform mat4   u_matrix;
+uniform vec2   iDimensions;  // viewport dimensions
+uniform float  iTime;        // shader playback time (in seconds)
+uniform float  iTimeDelta;   // render time (in seconds)
+uniform float  iFrameRate;   // shader frame rate
+uniform int    iFrame;       // shader playback frame
+attribute float id;
+attribute vec4 vert_pos;
+attribute vec4 pos_vel;
+attribute vec2 texcoord;
+attribute vec4 rad_color;
 
-  varying vec2 v_texcoord;
-  varying vec4 v_color;
-  varying vec2 v_angle;
-  varying float v_speed;
-  varying float v_radius;
+varying vec2 v_texcoord;
+varying vec4 v_color;
+varying vec2 v_angle;
+varying float v_speed;
+varying float v_radius;
 
-  void main() {
-    gl_Position = u_matrix * (vert_pos*vec4(rad_color.w,rad_color.w,1.0,1.0) + vec4(pos_vel.xy, 0, 0));
-    v_texcoord = texcoord;
-    v_color = vec4(rad_color.xyz, 1);
-    float l = length(pos_vel.zw);
-    v_speed = l;
-    v_angle = pos_vel.zw / l;
-    v_radius = rad_color.w;
+void main() {
+  gl_Position = u_matrix * (vert_pos*vec4(rad_color.w,rad_color.w,1.0,1.0) + vec4(pos_vel.xy, 0, 0));
+  v_texcoord = texcoord;
+  v_color = vec4(rad_color.xyz, 1);
+  float l = length(pos_vel.zw);
+  v_speed = l;
+  v_angle = pos_vel.zw / l;
+  v_radius = rad_color.w;
   }`;
 
     const BoidFs = `
@@ -113,10 +118,10 @@ export class World {
   void main() {
     vec2 dir = vec2(0.5, 0.5)-v_texcoord;
     float r2=dot(dir, dir);
-    if (r2 > 0.25) {
+    if (r2 >= 0.25) {
       discard;
     }
-    vec4 color = mix(vec4(1.0,0.0,0.0,1.0), vec4(0.0,1.0,0.0,1.0), v_speed/100.0);
+    vec4 color = mix(vec4(1.0,0.0,0.0,1.0), v_color, v_speed/100.0);
     if (dot(vec2(-v_angle.x,v_angle.y), dir)>0.0) {
       if (abs(dot(vec2(v_angle.y,v_angle.x), dir))<0.1) {
         gl_FragColor = vec4(1.0,0.0,0.0,1.0);
@@ -126,17 +131,17 @@ export class World {
     }else{
       gl_FragColor = color;
     }
-    gl_FragColor = gl_FragColor * (0.75-sqrt(r2));
+    // gl_FragColor = gl_FragColor * (0.95-r2);
   }`;
 
     // compile shaders, link program, look up locations
     this.boidProgramInfo = twgl.createProgramInfo(this.ctx, [boidVs, BoidFs]);
 
-    this.boidGlBuffers={
+    this.boidGlBuffers = {
       pos_vel: new Float32Array(this.numBoids * 4),
       pos_offset: 0,
       vel_offset: 2,
-      rad_color: new Float32Array(this.numBoids*4),
+      rad_color: new Float32Array(this.numBoids * 4)
     };
     // for (let i = 0; i < this.numBoids / 2; i += 2) {
     //   this.gl_locations[i] = Math.random() * this.canvas.width;
@@ -145,8 +150,8 @@ export class World {
     // for (let i = 0; i < this.gl_angles.length; ++i) {
     //   this.gl_angles[i] = Math.PI*2;
     // }
-    const x = 0.5;
-    const y = 0.5;
+    const x = 1;
+    const y = x;
 
     this.boidBufferInfo = twgl.createBufferInfoFromArrays(this.ctx, {
       vert_pos: {
@@ -170,7 +175,7 @@ export class World {
       ],
       pos_vel: {
         numComponents: 4,
-        data:this.boidGlBuffers.pos_vel,
+        data: this.boidGlBuffers.pos_vel,
         divisor: 1
       },
       rad_color: {
@@ -189,6 +194,8 @@ export class World {
   resize() {
     this.width = this.canvas.width = Math.floor(window.innerWidth);
     this.height = this.canvas.height = Math.floor(window.innerHeight);
+    this.dimensions[0] = this.width;
+    this.dimensions[1] = this.height;
     this.width_d2 = Math.floor(this.width / 2);
     this.height_d2 = Math.floor(this.height / 2);
     this.gridXW = Math.ceil(this.width / this.cellSize);
@@ -207,7 +214,7 @@ export class World {
       height: this.height,
       cellSize: this.boidCellSize,
       wrap: false,
-      computeNeighborRadius: 0
+      computeNeighborRadius: 1
     };
     if (!this.flowGrid) {
       this.flowGrid = new FlowGrid(this.flowGridOptions);
@@ -221,6 +228,7 @@ export class World {
     }
 
     this.genField();
+    twgl.resizeCanvasToDisplaySize(this.canvas);
   }
 
   genField() {
@@ -273,7 +281,7 @@ export class World {
         grid: this.boidGrid,
         p: new vec2(Math.random() * this.width, Math.random() * this.height),
         v: new vec2().random(10, 100),
-        r: 32
+        r: this.boidSize
       });
       b.maxSpeed = this.maxSpeed;
       // b.behaviors.set('FlowBehavior', new FlowBehavior(b, {flowGrid: this.flowGrid, normalize: true, scale: 1}));
@@ -301,12 +309,16 @@ export class World {
     ctx.viewport(0, 0, this.width, this.height);
     ctx.clear(ctx.COLOR_BUFFER_BIT);
 
-    m4.ortho(0, ctx.canvas.width, ctx.canvas.height,0, -1, 1, this.u_matrix);
+    m4.ortho(0, ctx.canvas.width, ctx.canvas.height, 0, -1, 1, this.u_matrix);
 
     this.ctx.useProgram(this.boidProgramInfo.program);
     twgl.setUniforms(this.boidProgramInfo, {
-      time: gameClock.gameTime.currentTime * 0.1,
-      u_matrix: this.u_matrix
+      u_matrix: this.u_matrix,
+      iDimensions: this.dimensions,   // viewport resolution (in pixels)
+      iTime: gameClock.gameTime.currentTime,    // shader playback time (in seconds)
+      iTimeDelta: gameClock.gameTime.deltaTime, // render time (in seconds)
+      iFrameRate: gameClock.gameTime.fps,       // shader frame rate
+      iFrame: gameClock.gameTime.currentFrame   // shader playback frame
     });
     gameClock.tick();
 
@@ -320,7 +332,7 @@ export class World {
     // ctx.strokeStyle = '#FFFFFF';
     for (const b of boids) {
       b.tick(gameClock.gameTime);
-    //   b.draw(ctx);
+      //   b.draw(ctx);
     }
     twgl.setAttribInfoBufferFromArray(ctx, this.boidBufferInfo.attribs.pos_vel, this.boidGlBuffers.pos_vel);
     twgl.setAttribInfoBufferFromArray(ctx, this.boidBufferInfo.attribs.rad_color, this.boidGlBuffers.rad_color);
