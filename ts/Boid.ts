@@ -102,8 +102,8 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
     buffers.pos_vel[this.id * 4 + 1] = p.y;
     buffers.pos_vel[this.id * 4 + 2] = v.x;
     buffers.pos_vel[this.id * 4 + 3] = v.y;
-    buffers.rad_color[this.id * 4] = 1;
-    buffers.rad_color[this.id * 4 + 1] = 0;
+    buffers.rad_color[this.id * 4] = 0;
+    buffers.rad_color[this.id * 4 + 1] = 1;
     buffers.rad_color[this.id * 4 + 2] = 0;
     buffers.rad_color[this.id * 4 + 3] = this.r;
   }
