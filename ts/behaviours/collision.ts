@@ -8,8 +8,8 @@ export interface ICollisionBehaviorOptions {
 }
 
 export const collisionBehaviorDefaultOptions: ICollisionBehaviorOptions = {
-  margin: 2,
-  iterations: 2
+  margin: 0,
+  iterations: 1
 };
 
 export class CollisionBehavior extends BoidBehavior {
