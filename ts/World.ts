@@ -11,9 +11,10 @@ import * as twgl from 'twgl.js';
 const noise = makeNoise2D();
 
 export interface IGLBuffers {
-  offsets: Float32Array;
-  angles: Float32Array;
-  radiuses: Float32Array;
+  pos_vel: Float32Array;
+  pos_offset: number;
+  vel_offset: number;
+  rad_color: Float32Array;
 }
 export class World {
   canvas: HTMLCanvasElement;
@@ -45,7 +46,6 @@ export class World {
   u_matrix: m4.Mat4 = m4.identity();
   boidProgramInfo: ProgramInfo;
   boidBufferInfo: BufferInfo;
-
   boidGlBuffers: IGLBuffers
 
 
@@ -81,21 +81,25 @@ export class World {
   uniform mat4 u_matrix;
 
   attribute float id;
-  attribute vec4 position;
-  attribute vec2 offset;
+  attribute vec4 vert_pos;
+  attribute vec4 pos_vel;
   attribute vec2 texcoord;
-  attribute vec2 angle;
-  attribute float radius;
+  attribute vec4 rad_color;
 
   varying vec2 v_texcoord;
   varying vec4 v_color;
   varying vec2 v_angle;
+  varying float v_speed;
+  varying float v_radius;
 
   void main() {
-    gl_Position = u_matrix * (position*vec4(radius,radius,1.0,1.0) + vec4(offset, 0, 0));
+    gl_Position = u_matrix * (vert_pos*vec4(rad_color.w,rad_color.w,1.0,1.0) + vec4(pos_vel.xy, 0, 0));
     v_texcoord = texcoord;
-    v_color = vec4(1, 1, 1, 1);
-    v_angle = normalize(angle);
+    v_color = vec4(rad_color.xyz, 1);
+    float l = length(pos_vel.zw);
+    v_speed = l;
+    v_angle = pos_vel.zw / l;
+    v_radius = rad_color.w;
   }`;
 
     const BoidFs = `
@@ -103,29 +107,36 @@ export class World {
   varying vec2 v_texcoord;
   varying vec4 v_color;
   varying vec2 v_angle;
+  varying float v_speed;
+  varying float v_radius;
+
   void main() {
     vec2 dir = vec2(0.5, 0.5)-v_texcoord;
-    if (dot(dir, dir) > 0.25) {
+    float r2=dot(dir, dir);
+    if (r2 > 0.25) {
       discard;
     }
+    vec4 color = mix(vec4(1.0,0.0,0.0,1.0), vec4(0.0,1.0,0.0,1.0), v_speed/100.0);
     if (dot(vec2(-v_angle.x,v_angle.y), dir)>0.0) {
       if (abs(dot(vec2(v_angle.y,v_angle.x), dir))<0.1) {
         gl_FragColor = vec4(1.0,0.0,0.0,1.0);
       }else{
-        gl_FragColor = v_color;
+        gl_FragColor = color;
       }
     }else{
-      gl_FragColor = v_color;
+      gl_FragColor = color;
     }
+    gl_FragColor = gl_FragColor * (0.75-sqrt(r2));
   }`;
 
     // compile shaders, link program, look up locations
     this.boidProgramInfo = twgl.createProgramInfo(this.ctx, [boidVs, BoidFs]);
 
     this.boidGlBuffers={
-      offsets: new Float32Array(this.numBoids * 2),
-      angles: new Float32Array(this.numBoids*2),
-      radiuses: new Float32Array(this.numBoids),
+      pos_vel: new Float32Array(this.numBoids * 4),
+      pos_offset: 0,
+      vel_offset: 2,
+      rad_color: new Float32Array(this.numBoids*4),
     };
     // for (let i = 0; i < this.numBoids / 2; i += 2) {
     //   this.gl_locations[i] = Math.random() * this.canvas.width;
@@ -138,7 +149,7 @@ export class World {
     const y = 0.5;
 
     this.boidBufferInfo = twgl.createBufferInfoFromArrays(this.ctx, {
-      position: {
+      vert_pos: {
         numComponents: 2,
         data: [
           -x, -y,
@@ -157,19 +168,14 @@ export class World {
         1, 1,
         1, 0
       ],
-      offset: {
-        numComponents: 2,
-        data:this.boidGlBuffers.offsets,
+      pos_vel: {
+        numComponents: 4,
+        data:this.boidGlBuffers.pos_vel,
         divisor: 1
       },
-      angle: {
-        numComponents: 2,
-        data: this.boidGlBuffers.angles,
-        divisor: 1
-      },
-      radius: {
-        numComponents: 1,
-        data: this.boidGlBuffers.radiuses,
+      rad_color: {
+        numComponents: 4,
+        data: this.boidGlBuffers.rad_color,
         divisor: 1
       }
     });
@@ -316,9 +322,8 @@ export class World {
       b.tick(gameClock.gameTime);
     //   b.draw(ctx);
     }
-    twgl.setAttribInfoBufferFromArray(ctx, this.boidBufferInfo.attribs.offset, this.boidGlBuffers.offsets);
-    twgl.setAttribInfoBufferFromArray(ctx, this.boidBufferInfo.attribs.angle, this.boidGlBuffers.angles);
-    twgl.setAttribInfoBufferFromArray(ctx, this.boidBufferInfo.attribs.radius, this.boidGlBuffers.radiuses);
+    twgl.setAttribInfoBufferFromArray(ctx, this.boidBufferInfo.attribs.pos_vel, this.boidGlBuffers.pos_vel);
+    twgl.setAttribInfoBufferFromArray(ctx, this.boidBufferInfo.attribs.rad_color, this.boidGlBuffers.rad_color);
     // ctx.stroke();
     //
     // // draw fps on screen

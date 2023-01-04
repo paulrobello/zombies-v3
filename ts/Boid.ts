@@ -97,12 +97,15 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
       grid.removeCelDataByIndex(this.lastCellIndex, this);
       grid.addCelDataByIndex(newCellIndex, this);
     }
-    const buffers=world.boidGlBuffers;
-    buffers.offsets[this.id * 2] = p.x;
-    buffers.offsets[this.id * 2 + 1] = p.y;
-    buffers.angles[this.id * 2] = v.x;
-    buffers.angles[this.id * 2 + 1] = v.y;
-    buffers.radiuses[this.id] = this.r;
+    const buffers = world.boidGlBuffers;
+    buffers.pos_vel[this.id * 4] = p.x;
+    buffers.pos_vel[this.id * 4 + 1] = p.y;
+    buffers.pos_vel[this.id * 4 + 2] = v.x;
+    buffers.pos_vel[this.id * 4 + 3] = v.y;
+    buffers.rad_color[this.id * 4] = 1;
+    buffers.rad_color[this.id * 4 + 1] = 0;
+    buffers.rad_color[this.id * 4 + 2] = 0;
+    buffers.rad_color[this.id * 4 + 3] = this.r;
   }
 
   draw(ctx: WebGLRenderingContext): void {
