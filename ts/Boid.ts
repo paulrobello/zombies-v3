@@ -102,14 +102,14 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
   draw(ctx: WebGLRenderingContext): void {
     const p: Ivec2 = this.p;
     const v: Ivec2 = this.v;
-    const buffers = this.options.world.boidGlBuffers;
+    const buffers = this.options.world.boidGl;
     buffers.pos_vel[this.id * 4] = p.x;
     buffers.pos_vel[this.id * 4 + 1] = p.y;
     buffers.pos_vel[this.id * 4 + 2] = v.x;
     buffers.pos_vel[this.id * 4 + 3] = v.y;
-    buffers.rad_color[this.id * 4] = 0;
-    buffers.rad_color[this.id * 4 + 1] = 1;
-    buffers.rad_color[this.id * 4 + 2] = 0;
-    buffers.rad_color[this.id * 4 + 3] = this.r;
+    buffers.color_rad[this.id * 4] = 0;
+    buffers.color_rad[this.id * 4 + 1] = 1;
+    buffers.color_rad[this.id * 4 + 2] = 0;
+    buffers.color_rad[this.id * 4 + 3] = this.r;
   }
 }

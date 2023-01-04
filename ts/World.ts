@@ -1,20 +1,20 @@
+import { makeNoise2D } from 'fast-simplex-noise';
+import * as twgl from 'twgl.js';
 import { BufferInfo, m4, ProgramInfo } from 'twgl.js';
-import { SeparateBehavior, CollisionBehavior, AlignBehavior, FlowBehavior, AvoidWallsBehavior } from './behaviours';
+import { AlignBehavior, AvoidWallsBehavior, CollisionBehavior, SeparateBehavior } from './behaviours';
 import { Boid } from './Boid';
 import { GameClock } from './GameClock';
 import { BoidGrid, FlowGrid, HashGridOptions } from './HashGrid';
 import { IFlowValue } from './interfaces';
-import { vec2, map, Ivec2, epsilon } from './math';
-import { makeNoise2D } from 'fast-simplex-noise';
-import * as twgl from 'twgl.js';
+import { epsilon, Ivec2, map, vec2 } from './math';
 
 const noise = makeNoise2D();
 
-export interface IGLBuffers {
+export interface IBoidGl {
   pos_vel: Float32Array;
-  pos_offset: number;
-  vel_offset: number;
-  rad_color: Float32Array;
+  color_rad: Float32Array;
+  programInfo: ProgramInfo;
+  bufferInfo: BufferInfo;
 }
 
 export class World {
@@ -47,9 +47,7 @@ export class World {
   fieldRandomScale: number = Math.random() * 0.0001;
   ext: ANGLE_instanced_arrays;
   u_matrix: m4.Mat4 = m4.identity();
-  boidProgramInfo: ProgramInfo;
-  boidBufferInfo: BufferInfo;
-  boidGlBuffers: IGLBuffers;
+  boidGl: IBoidGl;
 
 
   constructor() {
@@ -97,6 +95,13 @@ varying vec2 v_angle;
 varying float v_speed;
 varying float v_radius;
 
+vec3 hsv2rgb(vec3 c) {
+  c = vec3(c.x, clamp(c.yz, 0.0, 1.0));
+  vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+  vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+  return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+}
+
 void main() {
   gl_Position = u_matrix * (vert_pos*vec4(rad_color.w,rad_color.w,1.0,1.0) + vec4(pos_vel.xy, 0, 0));
   v_texcoord = texcoord;
@@ -135,13 +140,13 @@ void main() {
   }`;
 
     // compile shaders, link program, look up locations
-    this.boidProgramInfo = twgl.createProgramInfo(this.ctx, [boidVs, BoidFs]);
+    const boidProgramInfo = twgl.createProgramInfo(this.ctx, [boidVs, BoidFs]);
 
-    this.boidGlBuffers = {
+    this.boidGl = {
       pos_vel: new Float32Array(this.numBoids * 4),
-      pos_offset: 0,
-      vel_offset: 2,
-      rad_color: new Float32Array(this.numBoids * 4)
+      color_rad: new Float32Array(this.numBoids * 4),
+      programInfo: boidProgramInfo,
+      bufferInfo: undefined
     };
     // for (let i = 0; i < this.numBoids / 2; i += 2) {
     //   this.gl_locations[i] = Math.random() * this.canvas.width;
@@ -153,38 +158,40 @@ void main() {
     const x = 1;
     const y = x;
 
-    this.boidBufferInfo = twgl.createBufferInfoFromArrays(this.ctx, {
-      vert_pos: {
-        numComponents: 2,
-        data: [
-          -x, -y,
-          x, -y,
-          -x, y,
-          -x, y,
-          x, -y,
-          x, y
-        ]
-      },
-      texcoord: [
-        0, 1,
-        1, 1,
-        0, 0,
-        0, 0,
-        1, 1,
-        1, 0
-      ],
-      pos_vel: {
-        numComponents: 4,
-        data: this.boidGlBuffers.pos_vel,
-        divisor: 1
-      },
-      rad_color: {
-        numComponents: 4,
-        data: this.boidGlBuffers.rad_color,
-        divisor: 1
-      }
-    });
-    twgl.setBuffersAndAttributes(this.ctx, this.boidProgramInfo, this.boidBufferInfo);
+    const boidBufferInfo = twgl.createBufferInfoFromArrays(this.ctx,
+      {
+        vert_pos: {
+          numComponents: 2,
+          data: [
+            -x, -y,
+            x, -y,
+            -x, y,
+            -x, y,
+            x, -y,
+            x, y
+          ]
+        },
+        texcoord: [
+          0, 1,
+          1, 1,
+          0, 0,
+          0, 0,
+          1, 1,
+          1, 0
+        ],
+        pos_vel: {
+          numComponents: 4,
+          data: this.boidGl.pos_vel,
+          divisor: 1
+        },
+        rad_color: {
+          numComponents: 4,
+          data: this.boidGl.color_rad,
+          divisor: 1
+        }
+      });
+    this.boidGl.bufferInfo = boidBufferInfo;
+    twgl.setBuffersAndAttributes(this.ctx, boidProgramInfo, boidBufferInfo);
     this.ctx.disable(this.ctx.DEPTH_TEST);
     this.ctx.clearColor(0, 0, 0, 1);
     this.resize();
@@ -310,8 +317,8 @@ void main() {
 
     m4.ortho(0, ctx.canvas.width, ctx.canvas.height, 0, -1, 1, this.u_matrix);
 
-    this.ctx.useProgram(this.boidProgramInfo.program);
-    twgl.setUniforms(this.boidProgramInfo, {
+    this.ctx.useProgram(this.boidGl.programInfo.program);
+    twgl.setUniforms(this.boidGl.programInfo, {
       u_matrix: this.u_matrix,
       iDimensions: this.dimensions,   // viewport resolution (in pixels)
       iTime: gameClock.gameTime.currentTime,    // shader playback time (in seconds)
@@ -333,8 +340,8 @@ void main() {
       b.tick(gameClock.gameTime);
       b.draw(ctx);
     }
-    twgl.setAttribInfoBufferFromArray(ctx, this.boidBufferInfo.attribs.pos_vel, this.boidGlBuffers.pos_vel);
-    twgl.setAttribInfoBufferFromArray(ctx, this.boidBufferInfo.attribs.rad_color, this.boidGlBuffers.rad_color);
+    twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.pos_vel, this.boidGl.pos_vel);
+    twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.rad_color, this.boidGl.color_rad);
     // ctx.stroke();
     //
     // // draw fps on screen
