@@ -12,8 +12,10 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "devDependencies": {
+    "@parcel/packager-raw-url": "2.8.2",
+    "@parcel/transformer-webmanifest": "2.8.2",
     "@types/chroma-js": "^2.1.4",
-    "parcel-bundler": "^1.12.4",
+    "parcel": "^2.8.2",
     "typescript": "^4.9.4"
   },
   "dependencies": {
