@@ -267,7 +267,7 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
     }
   }
 
-  draw(ctx: WebGLRenderingContext): void {
+  draw(ctx: WebGL2RenderingContext): void {
     const cellSize = this.options.cellSize;
     // ctx.beginPath();
     // ctx.strokeStyle = '#FFF';
@@ -287,7 +287,7 @@ export class FlowGrid extends HashGrid<IFlowValue> {
   gradient = scale(['#000000', '#00FF00', '#0000FF', '#FFFF00', '#FF8700', '#FF0000'])
     .domain([0, 0.2, 0.5, 0.6, 0.75, 1.0]);
 
-  override draw(ctx: WebGLRenderingContext): void {
+  override draw(ctx: WebGL2RenderingContext): void {
     // super.draw(ctx);
     const cellSize = this.options.cellSize;
     // ctx.beginPath();
@@ -324,7 +324,7 @@ export class FlowGrid extends HashGrid<IFlowValue> {
 }
 
 export class BoidGrid extends HashGrid<Boid> {
-  override draw(ctx: WebGLRenderingContext): void {
+  override draw(ctx: WebGL2RenderingContext): void {
     super.draw(ctx);
     // const cellSize = this.options.cellSize;
     // ctx.beginPath();

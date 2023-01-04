@@ -19,7 +19,7 @@ export interface IBoidGl {
 
 export class World {
   canvas: HTMLCanvasElement;
-  ctx: WebGLRenderingContext;
+  ctx: WebGL2RenderingContext;
   width: number;
   height: number;
   widthD2: number;
@@ -52,7 +52,7 @@ export class World {
 
   constructor() {
     this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
-    this.ctx = this.canvas.getContext('webgl');
+    this.ctx = this.canvas.getContext('webgl2');
 
     this.gameClock = new GameClock();
 
@@ -68,10 +68,6 @@ export class World {
 //   genField();
 //   console.log(fieldScale + a);
 //     });
-    this.ext = this.ctx.getExtension('ANGLE_instanced_arrays');
-    if (!this.ext) {
-      throw new Error('need ANGLE_instanced_arrays');
-    }
     twgl.addExtensionsToContext(this.ctx);
     const boidVs = `
 #define PI2         6.28318530718
@@ -350,7 +346,7 @@ void main() {
     // ctx.font = 'bold 36px serif';
     // ctx.fillStyle = '#FFFFFF';
     // ctx.fillText('' + gameClock.gameTime.fps.toFixed(0), 5, 5);
-    this.ext.drawArraysInstancedANGLE(this.ctx.TRIANGLES, 0, 6, this.numBoids);
+    this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.numBoids);
 
     document.title = gameClock.gameTime.fps.toFixed(0);
   }

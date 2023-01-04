@@ -99,7 +99,7 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
     }
   }
 
-  draw(ctx: WebGLRenderingContext): void {
+  draw(ctx: WebGL2RenderingContext): void {
     const p: Ivec2 = this.p;
     const v: Ivec2 = this.v;
     const buffers = this.options.world.boidGl;
