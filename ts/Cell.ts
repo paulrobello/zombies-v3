@@ -7,13 +7,15 @@ export interface ICellIndexable {
 }
 
 export class Cell<T> implements IPositional {
+  id: number;
   public items: T[] = [];
   public neighbors: Cell<T>[] = [];
   public p: Ivec2 = new vec2();
   public wp: Ivec2 = new vec2();
   public wc: Ivec2 = new vec2();
 
-  constructor() {
+  constructor(id: number) {
+    this.id = id;
   }
 
   clear() {
