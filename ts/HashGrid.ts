@@ -3,8 +3,10 @@ import { Boid } from './Boid';
 import { Cell, ICellIndexable } from './Cell';
 import { IDrawable, IFlowValue, IPositional } from './interfaces';
 import { vec2, wrap } from './math';
+import { World } from './World';
 
 export interface HashGridOptions {
+  world: World,
   width: number;
   height: number;
   cellSize: number;
@@ -57,7 +59,7 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
 
       this.cells = new Array(options.width * options.height);
       for (let i = 0; i < this.cells.length; i++) {
-        this.cells[i] = new Cell<T>();
+        this.cells[i] = new Cell<T>(i);
       }
       this.computeNeighbors(this.options.computeNeighborRadius);
       if (doReposition) {
@@ -268,7 +270,44 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
   }
 
   draw(ctx: WebGL2RenderingContext): void {
+    // return;
     const cellSize = this.options.cellSize;
+    const world = this.options.world;
+    const buffers = world.gridGl;
+    let cell: Cell<T>;
+    let id: number;
+    for (let i=0;i<this.cells.length;++i) {
+      cell = this.cells[i];
+      id = cell.id;
+      // buffers.pos_dim[id * 4] = cell.wc.x;
+      // buffers.pos_dim[id * 4 + 1] = cell.wc.y;
+      // buffers.pos_dim[id * 4 + 2] = this.options.cellSize/4;
+      // buffers.pos_dim[id * 4 + 3] = this.options.cellSize/4;
+      if (cell.items.length){
+        buffers.color[id * 4] = 0.5;
+        buffers.color[id * 4 + 1] = 0;
+        buffers.color[id * 4 + 2] = 0;
+        buffers.color[id * 4 + 3] = 1;
+      }else {
+        buffers.color[id * 4] = 0;
+        buffers.color[id * 4 + 1] = 0.5;
+        buffers.color[id * 4 + 2] = 0;
+        buffers.color[id * 4 + 3] = 1;
+      }
+      if (cell.wp.x===0){
+        buffers.color[id * 4] = 0.5;
+        buffers.color[id * 4 + 1] = 0.5;
+        buffers.color[id * 4 + 2] = 0;
+        buffers.color[id * 4 + 3] = 1;
+      }
+      if (cell.wp.y===0){
+        buffers.color[id * 4] = 0;
+        buffers.color[id * 4 + 1] = 0.5;
+        buffers.color[id * 4 + 2] = 0.5;
+        buffers.color[id * 4 + 3] = 1;
+      }
+
+    }
     // ctx.beginPath();
     // ctx.strokeStyle = '#FFF';
     // ctx.lineWidth = 1;
