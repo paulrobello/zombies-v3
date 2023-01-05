@@ -17,6 +17,13 @@ export interface IBoidGl {
   bufferInfo: BufferInfo;
 }
 
+export interface IGridGl {
+  pos_dim: Float32Array;
+  color: Float32Array;
+  programInfo: ProgramInfo;
+  bufferInfo: BufferInfo;
+}
+
 export class World {
   canvas: HTMLCanvasElement;
   ctx: WebGL2RenderingContext;
@@ -29,7 +36,6 @@ export class World {
   boidCellSize: number = 16;
   gridXW: number;
   gridYW: number;
-
   flowGrid: FlowGrid;
   boidGrid: BoidGrid;
   flowGridOptions: HashGridOptions;
@@ -45,9 +51,10 @@ export class World {
   wheelInc = 0.001;
   gameClock: GameClock;
   fieldRandomScale: number = Math.random() * 0.0001;
-  ext: ANGLE_instanced_arrays;
   u_matrix: m4.Mat4 = m4.identity();
   boidGl: IBoidGl;
+  gridGl: IGridGl;
+  commonVs: string;
 
 
   constructor() {
@@ -69,7 +76,11 @@ export class World {
 //   console.log(fieldScale + a);
 //     });
     twgl.addExtensionsToContext(this.ctx);
-    const boidVs = `
+    this.ctx.disable(this.ctx.DEPTH_TEST);
+    this.ctx.clearColor(0, 0, 0, 1);
+    this.resize();
+
+    this.commonVs = `
 #define PI2         6.28318530718
 #define PI          3.14159265358
 
@@ -79,11 +90,22 @@ uniform float  iTime;        // shader playback time (in seconds)
 uniform float  iTimeDelta;   // render time (in seconds)
 uniform float  iFrameRate;   // shader frame rate
 uniform int    iFrame;       // shader playback frame
-attribute float id;
+`;
+    this.initGridGl();
+
+    this.initBoidGl();
+    this.initBoids();
+  }
+
+  initBoidGl() {
+    console.log('initBoidGl');
+
+    const vs = `
+${this.commonVs}
 attribute vec4 vert_pos;
-attribute vec4 pos_vel;
 attribute vec2 texcoord;
-attribute vec4 rad_color;
+attribute vec4 pos_vel;
+attribute vec4 color_rad;
 
 varying vec2 v_texcoord;
 varying vec4 v_color;
@@ -99,16 +121,16 @@ vec3 hsv2rgb(vec3 c) {
 }
 
 void main() {
-  gl_Position = u_matrix * (vert_pos*vec4(rad_color.w,rad_color.w,1.0,1.0) + vec4(pos_vel.xy, 0, 0));
+  gl_Position = u_matrix * (vert_pos * vec4(color_rad.w,color_rad.w,1.0,1.0) + vec4(pos_vel.xy, 0, 0));
   v_texcoord = texcoord;
-  v_color = vec4(rad_color.xyz, 1);
+  v_color = vec4(color_rad.xyz, 1);
   float l = length(pos_vel.zw);
   v_speed = l;
   v_angle = pos_vel.zw / l;
-  v_radius = rad_color.w;
-  }`;
+  v_radius = color_rad.w;
+}`;
 
-    const BoidFs = `
+    const fs = `
   precision mediump float;
   varying vec2 v_texcoord;
   varying vec4 v_color;
@@ -117,7 +139,7 @@ void main() {
   varying float v_radius;
 
   void main() {
-    vec2 dir = vec2(0.5, 0.5)-v_texcoord;
+    vec2 dir = vec2(0.5, 0.5) - v_texcoord;
     float r2=dot(dir, dir);
     if (r2 >= 0.25) {
       discard;
@@ -136,12 +158,12 @@ void main() {
   }`;
 
     // compile shaders, link program, look up locations
-    const boidProgramInfo = twgl.createProgramInfo(this.ctx, [boidVs, BoidFs]);
+    const programInfo = twgl.createProgramInfo(this.ctx, [vs, fs]);
 
     this.boidGl = {
       pos_vel: new Float32Array(this.numBoids * 4),
       color_rad: new Float32Array(this.numBoids * 4),
-      programInfo: boidProgramInfo,
+      programInfo: programInfo,
       bufferInfo: undefined
     };
     // for (let i = 0; i < this.numBoids / 2; i += 2) {
@@ -154,7 +176,8 @@ void main() {
     const x = 1;
     const y = x;
 
-    const boidBufferInfo = twgl.createBufferInfoFromArrays(this.ctx,
+    const bufferInfo = twgl.createBufferInfoFromArrays(
+      this.ctx,
       {
         vert_pos: {
           numComponents: 2,
@@ -180,18 +203,92 @@ void main() {
           data: this.boidGl.pos_vel,
           divisor: 1
         },
-        rad_color: {
+        color_rad: {
           numComponents: 4,
           data: this.boidGl.color_rad,
           divisor: 1
         }
+      }
+    );
+    this.boidGl.bufferInfo = bufferInfo;
+    twgl.setBuffersAndAttributes(this.ctx, programInfo, bufferInfo);
+  }
+
+  initGridGl() {
+    console.log('initGridGl');
+    const vs = `
+${this.commonVs}
+attribute vec4 vert_pos;
+attribute vec2 texcoord;
+attribute vec4 pos_dim;
+attribute vec4 color;
+
+varying vec2 v_texcoord;
+varying vec4 v_color;
+
+void main() {
+  gl_Position = u_matrix * (vert_pos * vec4(pos_dim.zw,1.0,1.0) + vec4(pos_dim.xy, 0, 0));
+  v_texcoord = texcoord;
+  v_color = color;
+}`;
+
+    const fs = `
+precision mediump float;
+varying vec2 v_texcoord;
+varying vec4 v_color;
+
+void main() {
+  gl_FragColor = v_color;
+}`;
+
+    // compile shaders, link program, look up locations
+    const programInfo = twgl.createProgramInfo(this.ctx, [vs, fs]);
+
+    this.gridGl = {
+      pos_dim: new Float32Array(this.flowGrid.cells.length * 4),
+      color: new Float32Array(this.flowGrid.cells.length * 4),
+      programInfo: programInfo,
+      bufferInfo: undefined
+    };
+
+    const x = 1;
+    const y = x;
+
+    const bufferInfo = twgl.createBufferInfoFromArrays(
+      this.ctx,
+      {
+        vert_pos: {
+          numComponents: 2,
+          data: [
+            -x, -y,
+            x, -y,
+            -x, y,
+            -x, y,
+            x, -y,
+            x, y
+          ]
+        },
+        texcoord: [
+          0, 1,
+          1, 1,
+          0, 0,
+          0, 0,
+          1, 1,
+          1, 0
+        ],
+        pos_dim: {
+          numComponents: 4,
+          data: this.gridGl.pos_dim,
+          divisor: 1
+        },
+        color: {
+          numComponents: 4,
+          data: this.gridGl.color,
+          divisor: 1
+        }
       });
-    this.boidGl.bufferInfo = boidBufferInfo;
-    twgl.setBuffersAndAttributes(this.ctx, boidProgramInfo, boidBufferInfo);
-    this.ctx.disable(this.ctx.DEPTH_TEST);
-    this.ctx.clearColor(0, 0, 0, 1);
-    this.resize();
-    this.initBoids();
+    this.gridGl.bufferInfo = bufferInfo;
+    twgl.setBuffersAndAttributes(this.ctx, programInfo, bufferInfo);
   }
 
   resize() {
@@ -304,8 +401,11 @@ void main() {
   }
 
   public draw() {
-    const m4 = twgl.m4;
     const gameClock = this.gameClock;
+
+    gameClock.tick();
+
+    const m4 = twgl.m4;
     const ctx = this.ctx;
     const boids = this.boids;
     ctx.viewport(0, 0, this.width, this.height);
@@ -322,7 +422,6 @@ void main() {
       iFrameRate: gameClock.gameTime.fps,       // shader frame rate
       iFrame: gameClock.gameTime.currentFrame   // shader playback frame
     });
-    gameClock.tick();
 
     // draw grids
     // this.flowGrid.draw(ctx);
@@ -337,7 +436,7 @@ void main() {
       b.draw(ctx);
     }
     twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.pos_vel, this.boidGl.pos_vel);
-    twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.rad_color, this.boidGl.color_rad);
+    twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.color_rad, this.boidGl.color_rad);
     // ctx.stroke();
     //
     // // draw fps on screen
