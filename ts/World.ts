@@ -18,7 +18,6 @@ export interface IBoidGl {
 }
 
 export interface IGridGl {
-  pos_dim: Float32Array;
   color: Float32Array;
   programInfo: ProgramInfo;
   bufferInfo: BufferInfo;
@@ -91,10 +90,11 @@ uniform float  iTimeDelta;   // render time (in seconds)
 uniform float  iFrameRate;   // shader frame rate
 uniform int    iFrame;       // shader playback frame
 `;
-    this.initGridGl();
-
     this.initBoidGl();
     this.initBoids();
+
+    this.initGridGl();
+
   }
 
   initBoidGl() {
@@ -211,47 +211,53 @@ void main() {
       }
     );
     this.boidGl.bufferInfo = bufferInfo;
-    twgl.setBuffersAndAttributes(this.ctx, programInfo, bufferInfo);
+    // twgl.setBuffersAndAttributes(this.ctx, programInfo, bufferInfo);
   }
 
   initGridGl() {
     console.log('initGridGl');
     const vs = `
-${this.commonVs}
-attribute vec4 vert_pos;
-attribute vec2 texcoord;
-attribute vec4 pos_dim;
-attribute vec4 color;
+#version 300 es
+precision mediump float;
 
-varying vec2 v_texcoord;
-varying vec4 v_color;
+${this.commonVs}
+
+uniform float gridCellSize;
+uniform int gridWidth;
+uniform int gridHeight;
+
+in vec2 vert_pos;
+in vec2 texcoord;
+in vec4 color;
+out vec4 v_color;
 
 void main() {
-  gl_Position = u_matrix * (vert_pos * vec4(pos_dim.zw,1.0,1.0) + vec4(pos_dim.xy, 0, 0));
-  v_texcoord = texcoord;
+  vec2 ot = vec2(float(gl_InstanceID % gridWidth)*gridCellSize+(gridCellSize/2.0),
+                 trunc(float(gl_InstanceID) / float(gridWidth))*gridCellSize+(gridCellSize/2.0));
+  gl_Position = u_matrix * vec4(vert_pos * vec2(gridCellSize*0.5, gridCellSize*0.5) + ot, 0, 1);
   v_color = color;
+  // v_color = vec4(1.0, 1.0, 1.0, 1.0);
 }`;
 
     const fs = `
+#version 300 es
 precision mediump float;
-varying vec2 v_texcoord;
-varying vec4 v_color;
-
+in vec4 v_color;
+out vec4 FragColor;
 void main() {
-  gl_FragColor = v_color;
+  FragColor = v_color;
 }`;
 
     // compile shaders, link program, look up locations
     const programInfo = twgl.createProgramInfo(this.ctx, [vs, fs]);
 
     this.gridGl = {
-      pos_dim: new Float32Array(this.flowGrid.cells.length * 4),
-      color: new Float32Array(this.flowGrid.cells.length * 4),
+      color: new Float32Array(this.boidGrid.cells.length * 4),
       programInfo: programInfo,
       bufferInfo: undefined
     };
 
-    const x = 1;
+    const x = 0.5;
     const y = x;
 
     const bufferInfo = twgl.createBufferInfoFromArrays(
@@ -276,11 +282,6 @@ void main() {
           1, 1,
           1, 0
         ],
-        pos_dim: {
-          numComponents: 4,
-          data: this.gridGl.pos_dim,
-          divisor: 1
-        },
         color: {
           numComponents: 4,
           data: this.gridGl.color,
@@ -288,7 +289,7 @@ void main() {
         }
       });
     this.gridGl.bufferInfo = bufferInfo;
-    twgl.setBuffersAndAttributes(this.ctx, programInfo, bufferInfo);
+    // twgl.setBuffersAndAttributes(this.ctx, programInfo, bufferInfo);
   }
 
   resize() {
@@ -302,6 +303,7 @@ void main() {
     this.gridYW = Math.ceil(this.height / this.flowCellSize);
 
     this.flowGridOptions = {
+      world: this,
       width: this.width,
       height: this.height,
       cellSize: this.flowCellSize,
@@ -309,6 +311,7 @@ void main() {
       computeNeighborRadius: 0
     };
     this.boidGridOptions = {
+      world: this,
       width: this.width,
       height: this.height,
       cellSize: this.boidCellSize,
@@ -413,30 +416,46 @@ void main() {
 
     m4.ortho(0, ctx.canvas.width, ctx.canvas.height, 0, -1, 1, this.u_matrix);
 
-    this.ctx.useProgram(this.boidGl.programInfo.program);
-    twgl.setUniforms(this.boidGl.programInfo, {
+    this.ctx.useProgram(this.gridGl.programInfo.program);
+
+    twgl.setUniforms(this.gridGl.programInfo, {
       u_matrix: this.u_matrix,
       iDimensions: this.dimensions,   // viewport resolution (in pixels)
       iTime: gameClock.gameTime.currentTime,    // shader playback time (in seconds)
       iTimeDelta: gameClock.gameTime.deltaTime, // render time (in seconds)
       iFrameRate: gameClock.gameTime.fps,       // shader frame rate
-      iFrame: gameClock.gameTime.currentFrame   // shader playback frame
+      iFrame: gameClock.gameTime.currentFrame,   // shader playback frame
+      gridCellSize: this.boidCellSize,
+      gridWidth: this.boidGrid.options.width,
+      gridHeight: this.boidGrid.options.height
     });
+    this.boidGrid.draw(ctx);
 
-    // draw grids
-    // this.flowGrid.draw(ctx);
-    // this.boidGrid.draw(ctx);
-    //
-    // draw boids
-    // ctx.beginPath();
-    // ctx.lineWidth = 1;
-    // ctx.strokeStyle = '#FFFFFF';
+    twgl.setAttribInfoBufferFromArray(ctx, this.gridGl.bufferInfo.attribs.color, this.gridGl.color);
+    twgl.setBuffersAndAttributes(ctx, this.gridGl.programInfo, this.gridGl.bufferInfo);
+
+    this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.boidGrid.cells.length);
+
+
     for (const b of boids) {
       b.tick(gameClock.gameTime);
       b.draw(ctx);
     }
-    twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.pos_vel, this.boidGl.pos_vel);
-    twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.color_rad, this.boidGl.color_rad);
+
+    // this.ctx.useProgram(this.boidGl.programInfo.program);
+    //
+    // twgl.setUniforms(this.boidGl.programInfo, {
+    //   u_matrix: this.u_matrix,
+    //   iDimensions: this.dimensions,   // viewport resolution (in pixels)
+    //   iTime: gameClock.gameTime.currentTime,    // shader playback time (in seconds)
+    //   iTimeDelta: gameClock.gameTime.deltaTime, // render time (in seconds)
+    //   iFrameRate: gameClock.gameTime.fps,       // shader frame rate
+    //   iFrame: gameClock.gameTime.currentFrame   // shader playback frame
+    // });
+    // twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.pos_vel, this.boidGl.pos_vel);
+    // twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.color_rad, this.boidGl.color_rad);
+    // twgl.setBuffersAndAttributes(ctx, this.boidGl.programInfo, this.boidGl.bufferInfo);
+    // this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.numBoids);
     // ctx.stroke();
     //
     // // draw fps on screen
@@ -445,7 +464,7 @@ void main() {
     // ctx.font = 'bold 36px serif';
     // ctx.fillStyle = '#FFFFFF';
     // ctx.fillText('' + gameClock.gameTime.fps.toFixed(0), 5, 5);
-    this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.numBoids);
+
 
     document.title = gameClock.gameTime.fps.toFixed(0);
   }
