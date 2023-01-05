@@ -2,15 +2,16 @@ import { World } from './world';
 
 const world = new World();
 
-render();
-
-function render() {
+const render = () => {
   world.draw();
   requestAnimationFrame(render);
-}
+};
 
-if (module.hot) {
-  module.hot.accept(() => {
-    location.reload()
-  })
-}
+render();
+
+// if (module.hot) {
+//   console.log('Module hot!');
+//   module.hot.accept(() => {
+//     location.reload();
+//   });
+// }
