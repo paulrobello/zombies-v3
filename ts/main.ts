@@ -8,3 +8,9 @@ function render() {
   world.draw();
   requestAnimationFrame(render);
 }
+
+if (module.hot) {
+  module.hot.accept(() => {
+    location.reload()
+  })
+}
