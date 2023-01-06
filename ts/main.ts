@@ -1,17 +1,15 @@
 import { World } from './world';
 
-const world = new World();
+const world: World = new World();
+world.draw();
 
-const render = () => {
-  world.draw();
-  requestAnimationFrame(render);
-};
+if (module.hot) {
+  module.hot.accept(() => {
+    // or use this instead of dispose()
+    // window.location.reload();
+  });
 
-render();
-
-// if (module.hot) {
-//   console.log('Module hot!');
-//   module.hot.accept(() => {
-//     location.reload();
-//   });
-// }
+  module.hot.dispose(() => {
+    window.location.reload();
+  });
+}

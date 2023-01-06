@@ -31,8 +31,8 @@ export class World {
   widthD2: number;
   heightD2: number;
   dimensions: [number, number] = [0, 0];
-  flowCellSize: number = 32;
-  boidCellSize: number = 16;
+  flowCellSize: number = 128;
+  boidCellSize: number = 32;
   gridXW: number;
   gridYW: number;
   flowGrid: FlowGrid;
@@ -41,10 +41,9 @@ export class World {
   boidGridOptions: HashGridOptions;
   fieldScale: number = this.flowCellSize * 0.005;
   boids: Boid[] = [];
-  boidSize: number = 8;
+  boidSize: number = 6;
   drag = 1;
   maxSpeed = 100;
-  maxTime = 10000;
   showField = true;
   numBoids = 1000;
   wheelInc = 0.001;
@@ -174,20 +173,19 @@ void main() {
     //   this.gl_angles[i] = Math.PI*2;
     // }
     const x = 1;
-    const y = x;
 
-    const bufferInfo = twgl.createBufferInfoFromArrays(
+    this.boidGl.bufferInfo = twgl.createBufferInfoFromArrays(
       this.ctx,
       {
         vert_pos: {
           numComponents: 2,
           data: [
-            -x, -y,
-            x, -y,
-            -x, y,
-            -x, y,
-            x, -y,
-            x, y
+            -x, -x,
+            x, -x,
+            -x, x,
+            -x, x,
+            x, -x,
+            x, x
           ]
         },
         texcoord: [
@@ -210,8 +208,6 @@ void main() {
         }
       }
     );
-    this.boidGl.bufferInfo = bufferInfo;
-    // twgl.setBuffersAndAttributes(this.ctx, programInfo, bufferInfo);
   }
 
   initGridGl() {
@@ -223,8 +219,8 @@ precision mediump float;
 ${this.commonVs}
 
 uniform float gridCellSize;
-uniform int gridWidth;
-uniform int gridHeight;
+uniform float gridWidth;
+uniform float gridHeight;
 
 in vec2 vert_pos;
 in vec2 texcoord;
@@ -232,9 +228,11 @@ in vec4 color;
 out vec4 v_color;
 
 void main() {
-  vec2 ot = vec2(float(gl_InstanceID % gridWidth)*gridCellSize+(gridCellSize/2.0),
-                 trunc(float(gl_InstanceID) / float(gridWidth))*gridCellSize+(gridCellSize/2.0));
-  gl_Position = u_matrix * vec4(vert_pos * vec2(gridCellSize*0.5, gridCellSize*0.5) + ot, 0, 1);
+  vec2 ot = vec2(
+    float(gl_InstanceID % int(gridWidth))*gridCellSize+(gridCellSize*0.5),
+    trunc(float(gl_InstanceID) / gridWidth)*gridCellSize+(gridCellSize*0.5)
+  );
+  gl_Position = u_matrix * vec4(vert_pos * vec2(gridCellSize*0.85, gridCellSize*0.85) + ot, 0, 1);
   v_color = color;
   // v_color = vec4(1.0, 1.0, 1.0, 1.0);
 }`;
@@ -250,7 +248,7 @@ void main() {
 
     // compile shaders, link program, look up locations
     const programInfo = twgl.createProgramInfo(this.ctx, [vs, fs]);
-
+    console.log('cells num', this.boidGrid.cells.length);
     this.gridGl = {
       color: new Float32Array(this.boidGrid.cells.length * 4),
       programInfo: programInfo,
@@ -258,20 +256,19 @@ void main() {
     };
 
     const x = 0.5;
-    const y = x;
 
-    const bufferInfo = twgl.createBufferInfoFromArrays(
+    this.gridGl.bufferInfo = twgl.createBufferInfoFromArrays(
       this.ctx,
       {
         vert_pos: {
           numComponents: 2,
           data: [
-            -x, -y,
-            x, -y,
-            -x, y,
-            -x, y,
-            x, -y,
-            x, y
+            -x, -x,
+            x, -x,
+            -x, x,
+            -x, x,
+            x, -x,
+            x, x
           ]
         },
         texcoord: [
@@ -288,8 +285,6 @@ void main() {
           divisor: 1
         }
       });
-    this.gridGl.bufferInfo = bufferInfo;
-    // twgl.setBuffersAndAttributes(this.ctx, programInfo, bufferInfo);
   }
 
   resize() {
@@ -316,7 +311,7 @@ void main() {
       height: this.height,
       cellSize: this.boidCellSize,
       wrap: false,
-      computeNeighborRadius: 1
+      computeNeighborRadius: 2
     };
     if (!this.flowGrid) {
       this.flowGrid = new FlowGrid(this.flowGridOptions);
@@ -369,6 +364,7 @@ void main() {
     }
     const l = p.length() + epsilon;
     return {
+      id: 0,
       p: p.scale(1 / l),
       l,
       lastCellIndex: -1,
@@ -426,8 +422,8 @@ void main() {
       iFrameRate: gameClock.gameTime.fps,       // shader frame rate
       iFrame: gameClock.gameTime.currentFrame,   // shader playback frame
       gridCellSize: this.boidCellSize,
-      gridWidth: this.boidGrid.options.width,
-      gridHeight: this.boidGrid.options.height
+      gridWidth: this.boidGrid.gridXW,
+      gridHeight: this.boidGrid.gridYW
     });
     this.boidGrid.draw(ctx);
 
@@ -436,28 +432,26 @@ void main() {
 
     this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.boidGrid.cells.length);
 
-
     for (const b of boids) {
       b.tick(gameClock.gameTime);
       b.draw(ctx);
     }
 
-    // this.ctx.useProgram(this.boidGl.programInfo.program);
-    //
-    // twgl.setUniforms(this.boidGl.programInfo, {
-    //   u_matrix: this.u_matrix,
-    //   iDimensions: this.dimensions,   // viewport resolution (in pixels)
-    //   iTime: gameClock.gameTime.currentTime,    // shader playback time (in seconds)
-    //   iTimeDelta: gameClock.gameTime.deltaTime, // render time (in seconds)
-    //   iFrameRate: gameClock.gameTime.fps,       // shader frame rate
-    //   iFrame: gameClock.gameTime.currentFrame   // shader playback frame
-    // });
-    // twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.pos_vel, this.boidGl.pos_vel);
-    // twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.color_rad, this.boidGl.color_rad);
-    // twgl.setBuffersAndAttributes(ctx, this.boidGl.programInfo, this.boidGl.bufferInfo);
-    // this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.numBoids);
-    // ctx.stroke();
-    //
+    this.ctx.useProgram(this.boidGl.programInfo.program);
+
+    twgl.setUniforms(this.boidGl.programInfo, {
+      u_matrix: this.u_matrix,
+      iDimensions: this.dimensions,   // viewport resolution (in pixels)
+      iTime: gameClock.gameTime.currentTime,    // shader playback time (in seconds)
+      iTimeDelta: gameClock.gameTime.deltaTime, // render time (in seconds)
+      iFrameRate: gameClock.gameTime.fps,       // shader frame rate
+      iFrame: gameClock.gameTime.currentFrame   // shader playback frame
+    });
+    twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.pos_vel, this.boidGl.pos_vel);
+    twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.color_rad, this.boidGl.color_rad);
+    twgl.setBuffersAndAttributes(ctx, this.boidGl.programInfo, this.boidGl.bufferInfo);
+    this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.numBoids);
+
     // // draw fps on screen
     // ctx.textAlign = 'left';
     // ctx.textBaseline = 'top';
@@ -467,5 +461,8 @@ void main() {
 
 
     document.title = gameClock.gameTime.fps.toFixed(0);
+    requestAnimationFrame(()=>{
+      this.draw();
+    });
   }
 }

@@ -5,6 +5,18 @@ import { IDrawable, IFlowValue, IPositional } from './interfaces';
 import { vec2, wrap } from './math';
 import { World } from './World';
 
+export interface IDataRadiusResult<T> {
+  data: T;
+  dist2: number;
+}
+
+export type IDataRadiusResults<T> = IDataRadiusResult<T>[];
+
+export interface IDataCacheResult<T> {
+  frame: number;
+  data: IDataRadiusResults<T>;
+}
+
 export interface HashGridOptions {
   world: World,
   width: number;
@@ -21,6 +33,7 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
   gridXW: number;
   gridYW: number;
   cellSizeD2: number;
+  getDataRadiusCache: Map<string, IDataCacheResult<T>> = new Map<string, IDataCacheResult<T>>();
 
   constructor(options: HashGridOptions) {
     options.width = Math.floor(options.width);
@@ -57,7 +70,7 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
       this.gridYW = Math.ceil(options.height / options.cellSize);
       this.cellSizeD2 = Math.floor(options.cellSize / 2);
 
-      this.cells = new Array(options.width * options.height);
+      this.cells = new Array(this.gridXW * this.gridYW);
       for (let i = 0; i < this.cells.length; i++) {
         this.cells[i] = new Cell<T>(i);
       }
@@ -71,11 +84,11 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
   computeNeighbors(radius: number) {
     const cellSize = this.cellSize;
     const cellSizeD2 = cellSize / 2;
-    const w = this.options.width;
-    const h = this.options.height;
+    const w = this.gridXW;
+    const h = this.gridYW;
     let x, y, xc, yc, nx, ny;
-    for (x = 0; x < this.options.width; x++) {
-      for (y = 0; y < this.options.height; y++) {
+    for (x = 0; x < w; x++) {
+      for (y = 0; y < h; y++) {
         let c = this.getCell(x, y);
         c.p.set_xy(x, y);
         c.wp.set_xy(x * cellSize, y * cellSize);
@@ -104,13 +117,23 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
     }
   }
 
-  getDataRadius(x: number, y: number, radius: number, worldSpace: boolean = false, self?: T, closest?: boolean) {
-    const data: { data: T, dist2: number }[] = [];
+  getDataRadius(x: number, y: number, radius: number, worldSpace: boolean = false, self?: T, closest?: boolean): IDataRadiusResults<T> {
+    let data: IDataRadiusResults<T> = [];
     const c = this.getCell(x, y, worldSpace);
     if (!c) {
       console.warn('getDataRadius no cell found at', x, y, radius, worldSpace);
       return data;
     }
+    const hashKey = `${c.id}|${(self?.id || 0)}|${closest ? 1 : 0}`;
+    // const hashKey = `${c.id}|${closest ? 1 : 0}`;
+    const getDataRadiusCacheResult = this.getDataRadiusCache.get(hashKey);
+    if (getDataRadiusCacheResult) {
+      if (this.options.world.gameClock.frameCount - getDataRadiusCacheResult.frame < 2) {
+        return getDataRadiusCacheResult.data;
+      }
+      this.getDataRadiusCache.delete(hashKey);
+    }
+
     const cellSize = this.options.cellSize;
     const v = new vec2(x * (worldSpace ? 1 : cellSize), y * (worldSpace ? 1 : cellSize));
     let dist, nearest = Infinity, nearestData: T | undefined;
@@ -126,7 +149,6 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
     if (numNeighbors > c.neighbors.length) {
       numNeighbors = c.neighbors.length;
     }
-    // debugger;
     for (let ni = 0; ni < numNeighbors; ni++) {
       const n = c.neighbors[ni];
       for (const i of n.items) {
@@ -143,20 +165,26 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
     }
     if (closest) {
       if (!nearest || !nearestData) {
-        return [];
+        data = [];
+        this.getDataRadiusCache.set(hashKey, {frame: this.options.world.gameClock.frameCount, data});
+        return data;
       }
-      return [{data: nearestData, dist2: nearest}];
+      data = [{data: nearestData, dist2: nearest}];
+      this.getDataRadiusCache.set(hashKey, {frame: this.options.world.gameClock.frameCount, data});
+      return data;
     }
 
     const radius2 = radius * radius;
-    return data
+    data = data
       .filter(i => i.dist2 <= radius2)
       .sort((a, b) => a.dist2 > b.dist2 ? 1 : -1);
+    this.getDataRadiusCache.set(hashKey, {frame: this.options.world.gameClock.frameCount, data});
+    return data;
   }
 
   getCellIndex(x: number, y: number, worldSpace: boolean = false): number | undefined {
-    const width = this.options.width;
-    const height = this.options.height;
+    const width = this.gridXW;
+    const height = this.gridYW;
     if (worldSpace) {
       x /= this.options.cellSize;
       y /= this.options.cellSize;
@@ -276,31 +304,31 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
     const buffers = world.gridGl;
     let cell: Cell<T>;
     let id: number;
-    for (let i=0;i<this.cells.length;++i) {
+    for (let i = 0; i < this.cells.length; ++i) {
       cell = this.cells[i];
       id = cell.id;
       // buffers.pos_dim[id * 4] = cell.wc.x;
       // buffers.pos_dim[id * 4 + 1] = cell.wc.y;
       // buffers.pos_dim[id * 4 + 2] = this.options.cellSize/4;
       // buffers.pos_dim[id * 4 + 3] = this.options.cellSize/4;
-      if (cell.items.length){
+      if (cell.items.length) {
         buffers.color[id * 4] = 0.5;
         buffers.color[id * 4 + 1] = 0;
         buffers.color[id * 4 + 2] = 0;
         buffers.color[id * 4 + 3] = 1;
-      }else {
+      } else {
         buffers.color[id * 4] = 0;
         buffers.color[id * 4 + 1] = 0.5;
         buffers.color[id * 4 + 2] = 0;
         buffers.color[id * 4 + 3] = 1;
       }
-      if (cell.wp.x===0){
+      if (cell.wp.x === 0) {
         buffers.color[id * 4] = 0.5;
         buffers.color[id * 4 + 1] = 0.5;
         buffers.color[id * 4 + 2] = 0;
         buffers.color[id * 4 + 3] = 1;
       }
-      if (cell.wp.y===0){
+      if (cell.wp.y === 0) {
         buffers.color[id * 4] = 0;
         buffers.color[id * 4 + 1] = 0.5;
         buffers.color[id * 4 + 2] = 0.5;

@@ -4,6 +4,7 @@ import { vec2, Ivec2 } from './math';
 export interface ICellIndexable {
   lastCellIndex: number;
   cellIndex: number;
+  id: number;
 }
 
 export class Cell<T> implements IPositional {
