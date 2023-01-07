@@ -93,7 +93,22 @@ uniform int    iFrame;       // shader playback frame
     this.initBoids();
 
     this.initGridGl();
+  }
 
+  get CurrentFrame(): number {
+    return this.gameClock.gameTime.currentFrame;
+  }
+
+  get CurrentTime(): number {
+    return this.gameClock.gameTime.currentTime;
+  }
+
+  get DeltaTme(): number {
+    return this.gameClock.gameTime.deltaTime;
+  }
+
+  get FPS(): number {
+    return this.gameClock.gameTime.fps;
   }
 
   initBoidGl() {
@@ -462,7 +477,7 @@ void main() {
 
 
     document.title = gameClock.gameTime.fps.toFixed(0);
-    requestAnimationFrame(()=>{
+    requestAnimationFrame(() => {
       this.draw();
     });
   }
