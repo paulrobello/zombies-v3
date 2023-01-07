@@ -200,7 +200,7 @@ export class vec4 {
     return dest;
   }
 
-  equals(vector: vec4, threshold = epsilon): boolean {
+  equals(vector: vec4, threshold: number = epsilon): boolean {
     if (Math.abs(this.x - vector.x) > threshold) {
       return false;
     }

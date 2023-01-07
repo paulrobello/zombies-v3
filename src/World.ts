@@ -53,6 +53,8 @@ export class World {
   boidGl: IBoidGl;
   gridGl: IGridGl;
   commonVs: string;
+  mousePos: vec2 = new vec2();
+  glMousePos: [number, number] = [0, 0];
 
 
   constructor() {
@@ -63,6 +65,12 @@ export class World {
 
     this.canvas.addEventListener('click', (event: MouseEvent) => {
       this.randomizeBoids();
+    });
+    this.canvas.addEventListener('mousemove', (event: MouseEvent) => {
+      this.mousePos.x = event.x;
+      this.mousePos.y = event.y;
+      this.glMousePos[0] = event.x;
+      this.glMousePos[1] = event.y;
     });
     window.addEventListener('resize', (event: UIEvent) => () => {
       // this.resize();
@@ -88,6 +96,7 @@ uniform float  iTime;        // shader playback time (in seconds)
 uniform float  iTimeDelta;   // render time (in seconds)
 uniform float  iFrameRate;   // shader frame rate
 uniform int    iFrame;       // shader playback frame
+uniform vec2   iMousePos;    // mouse position in world coordinates
 `;
     this.initBoidGl();
     this.initBoids();
@@ -247,9 +256,16 @@ void main() {
     float(gl_InstanceID % int(gridWidth))*gridCellSize+(gridCellSize*0.5),
     trunc(float(gl_InstanceID) / gridWidth)*gridCellSize+(gridCellSize*0.5)
   );
-  gl_Position = u_matrix * vec4(vert_pos * vec2(gridCellSize*0.85, gridCellSize*0.85) + ot, 0, 1);
-  v_color = color;
+  vec2 p = vert_pos * vec2(gridCellSize*0.85, gridCellSize*0.85) + ot;
+  gl_Position = u_matrix * vec4(p, 0, 1);
+  float l = length(p - iMousePos);
+  if (l<gridCellSize) {
+    v_color = vec4(1.0, 0.0, 0.0, 1.0);
+  } else {
+    v_color = color;
+  }
   // v_color = vec4(1.0, 1.0, 1.0, 1.0);
+
 }`;
 
     const fs = `
@@ -437,6 +453,7 @@ void main() {
       iTimeDelta: gameClock.gameTime.deltaTime, // render time (in seconds)
       iFrameRate: gameClock.gameTime.fps,       // shader frame rate
       iFrame: gameClock.gameTime.currentFrame,   // shader playback frame
+      iMousePos: this.glMousePos,
       gridCellSize: this.boidCellSize,
       gridWidth: this.boidGrid.gridXW,
       gridHeight: this.boidGrid.gridYW
@@ -461,7 +478,8 @@ void main() {
       iTime: gameClock.gameTime.currentTime,    // shader playback time (in seconds)
       iTimeDelta: gameClock.gameTime.deltaTime, // render time (in seconds)
       iFrameRate: gameClock.gameTime.fps,       // shader frame rate
-      iFrame: gameClock.gameTime.currentFrame   // shader playback frame
+      iFrame: gameClock.gameTime.currentFrame,   // shader playback frame
+      iMousePos: this.glMousePos
     });
     twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.pos_vel, this.boidGl.pos_vel);
     twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.color_rad, this.boidGl.color_rad);

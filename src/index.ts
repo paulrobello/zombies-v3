@@ -1,4 +1,4 @@
-import { World } from './world';
+import { World } from './World';
 
 const world: World = new World();
 world.draw();

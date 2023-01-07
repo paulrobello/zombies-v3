@@ -17,7 +17,7 @@ export interface Ivec3 {
 
   reset(): void;
 
-  equals(vector: vec3, threshold): boolean;
+  equals(vector: vec3, threshold: number): boolean;
 
   length(): number;
 
@@ -131,7 +131,7 @@ export class vec3 implements Ivec3 {
     return dest;
   }
 
-  equals(vector: Ivec3, threshold = epsilon): boolean {
+  equals(vector: Ivec3, threshold: number = epsilon): boolean {
     if (Math.abs(this.x - vector.x) > threshold) {
       return false;
     }

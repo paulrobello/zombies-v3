@@ -13,7 +13,7 @@ export interface Ivec2 {
 
   reset(): Ivec2;
 
-  equals(vector: Ivec2, threshold): boolean;
+  equals(vector: Ivec2, threshold: number): boolean;
 
   length(): number;
 
@@ -44,6 +44,7 @@ export interface Ivec2 {
   toString(): string;
 
   isFinite(): boolean;
+
   rotate90(dest?: vec2): Ivec2;
 }
 
@@ -86,7 +87,7 @@ export class vec2 implements Ivec2 {
   static readonly left = new vec2(-1, 0);
   static readonly right = new vec2(1, 0);
 
-  static readonly rand = (min: number, max: number)=>(new vec2()).random(min, max);
+  static readonly rand = (min: number, max: number) => (new vec2()).random(min, max);
 
   reset(): Ivec2 {
     this.x = 0;
@@ -127,7 +128,7 @@ export class vec2 implements Ivec2 {
     return dest;
   }
 
-  equals(vector: Ivec2, threshold = epsilon): boolean {
+  equals(vector: Ivec2, threshold: number = epsilon): boolean {
     if (Math.abs(this.x - vector.x) > threshold) {
       return false;
     }

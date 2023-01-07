@@ -14,7 +14,11 @@
     "noImplicitReturns": true,
     "experimentalDecorators": true,
     "resolveJsonModule": true,
-    "noUnusedParameters": false
+    "noUnusedParameters": false,
+    "noImplicitAny": true,
+    "removeComments": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true
   },
   "include": [
     "src/**/*.ts"
