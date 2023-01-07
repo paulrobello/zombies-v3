@@ -34,7 +34,10 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
   gridYW: number;
   cellSizeD2: number;
   getDataRadiusCache: Map<string, IDataCacheResult<T>> = new Map<string, IDataCacheResult<T>>();
-
+  changedCells: Set<Cell<T>> = new Set<Cell<T>>();
+  gradient = scale(['#131313', '#002300', '#005b00', '#007700', '#8d3100', '#8d0000'])
+    .domain([0, 1, 2, 3, 4, 5]);
+  drpc = '#8d3100';
   constructor(options: HashGridOptions) {
     options.width = Math.floor(options.width);
     options.height = Math.floor(options.height);
@@ -128,7 +131,7 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
     // const hashKey = `${c.id}|${closest ? 1 : 0}`;
     const getDataRadiusCacheResult = this.getDataRadiusCache.get(hashKey);
     if (getDataRadiusCacheResult) {
-      if (this.options.world.gameClock.frameCount - getDataRadiusCacheResult.frame < 2) {
+      if (this.options.world.CurrentFrame - getDataRadiusCacheResult.frame < 2) {
         return getDataRadiusCacheResult.data;
       }
       this.getDataRadiusCache.delete(hashKey);
@@ -166,11 +169,11 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
     if (closest) {
       if (!nearest || !nearestData) {
         data = [];
-        this.getDataRadiusCache.set(hashKey, {frame: this.options.world.gameClock.frameCount, data});
+        this.getDataRadiusCache.set(hashKey, {frame: this.options.world.CurrentFrame, data});
         return data;
       }
       data = [{data: nearestData, dist2: nearest}];
-      this.getDataRadiusCache.set(hashKey, {frame: this.options.world.gameClock.frameCount, data});
+      this.getDataRadiusCache.set(hashKey, {frame: this.options.world.CurrentFrame, data});
       return data;
     }
 
@@ -178,7 +181,7 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
     data = data
       .filter(i => i.dist2 <= radius2)
       .sort((a, b) => a.dist2 > b.dist2 ? 1 : -1);
-    this.getDataRadiusCache.set(hashKey, {frame: this.options.world.gameClock.frameCount, data});
+    this.getDataRadiusCache.set(hashKey, {frame: this.options.world.CurrentFrame, data});
     return data;
   }
 
@@ -236,13 +239,15 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
       // debugger;
       throw new Error(`Cell index out of bounds ${cellIndex}, ${this.cells.length}`);
     }
-    this.cells[cellIndex].items.push(v);
+    const cell = this.cells[cellIndex];
+    cell.items.push(v);
     this.allData.add(v);
     v.lastCellIndex = v.cellIndex;
     v.cellIndex = cellIndex;
     if (v.lastCellIndex < 0) {
       v.lastCellIndex = v.cellIndex;
     }
+    this.changedCells.add(cell);
   }
 
   removeCelData(x: number, y: number, worldSpace: boolean, v: T): boolean {
@@ -257,7 +262,8 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
     if (cellIndex < 0 || cellIndex >= this.cells.length) {
       return false;
     }
-    const items = this.cells[cellIndex].items;
+    const cell = this.cells[cellIndex];
+    const items = cell.items;
     const i = items.indexOf(v);
     if (i === -1) {
       return false;
@@ -266,6 +272,7 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
     items.splice(i, 1);
     this.allData.delete(v);
     v.cellIndex = -1;
+    this.changedCells.add(cell);
     return true;
   }
 
@@ -298,61 +305,43 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
   }
 
   draw(ctx: WebGL2RenderingContext): void {
-    // return;
-    const cellSize = this.options.cellSize;
     const world = this.options.world;
     const buffers = world.gridGl;
-    let cell: Cell<T>;
     let id: number;
-    for (let i = 0; i < this.cells.length; ++i) {
-      cell = this.cells[i];
+    const cells = this.changedCells.size ? this.changedCells : this.cells;
+    for (const cell of cells) {
       id = cell.id;
-      // buffers.pos_dim[id * 4] = cell.wc.x;
-      // buffers.pos_dim[id * 4 + 1] = cell.wc.y;
-      // buffers.pos_dim[id * 4 + 2] = this.options.cellSize/4;
-      // buffers.pos_dim[id * 4 + 3] = this.options.cellSize/4;
-      if (cell.items.length) {
-        buffers.color[id * 4] = 0.5;
-        buffers.color[id * 4 + 1] = 0;
-        buffers.color[id * 4 + 2] = 0;
-        buffers.color[id * 4 + 3] = 1;
-      } else {
-        buffers.color[id * 4] = 0;
-        buffers.color[id * 4 + 1] = 0.5;
-        buffers.color[id * 4 + 2] = 0;
-        buffers.color[id * 4 + 3] = 1;
-      }
-      if (cell.wp.x === 0) {
-        buffers.color[id * 4] = 0.5;
-        buffers.color[id * 4 + 1] = 0.5;
-        buffers.color[id * 4 + 2] = 0;
-        buffers.color[id * 4 + 3] = 1;
-      }
-      if (cell.wp.y === 0) {
-        buffers.color[id * 4] = 0;
-        buffers.color[id * 4 + 1] = 0.5;
-        buffers.color[id * 4 + 2] = 0.5;
-        buffers.color[id * 4 + 3] = 1;
-      }
-
+      const c = this.gradient(cell.items.length).gl();
+      buffers.color[id * 4] = c[0];
+      buffers.color[id * 4 + 1] = c[1];
+      buffers.color[id * 4 + 2] = c[2];
+      buffers.color[id * 4 + 3] = 1;
+      // if (cell.wp.x === 0) {
+      //   buffers.color[id * 4] = 0.5;
+      //   buffers.color[id * 4 + 1] = 0.5;
+      //   buffers.color[id * 4 + 2] = 0;
+      //   buffers.color[id * 4 + 3] = 1;
+      // }
+      // if (cell.wp.y === 0) {
+      //   buffers.color[id * 4] = 0;
+      //   buffers.color[id * 4 + 1] = 0.5;
+      //   buffers.color[id * 4 + 2] = 0.5;
+      //   buffers.color[id * 4 + 3] = 1;
+      // }
     }
-    // ctx.beginPath();
-    // ctx.strokeStyle = '#FFF';
-    // ctx.lineWidth = 1;
-    // for (let x = 0; x < this.gridXW; x++) {
-    //   for (let y = 0; y < this.gridYW; y++) {
-    //     let cx = ~~(x * cellSize);
-    //     let cy = ~~(y * cellSize);
-    //     ctx.rect(cx, cy, cellSize, cellSize);
-    //   }
-    // }
-    // ctx.stroke();
+    // if (Math.random() > 0.99) console.log('changed', this.getDataRadiusCache.size);
+    for (const [key, value] of this.getDataRadiusCache.entries()) {
+      if (this.options.world.CurrentFrame - value.frame > 4) {
+        this.getDataRadiusCache.delete(key);
+      }
+    }
+    this.changedCells.clear();
   }
 }
 
 export class FlowGrid extends HashGrid<IFlowValue> {
-  gradient = scale(['#000000', '#00FF00', '#0000FF', '#FFFF00', '#FF8700', '#FF0000'])
-    .domain([0, 0.2, 0.5, 0.6, 0.75, 1.0]);
+  // gradient = scale(['#000000', '#00FF00', '#0000FF', '#FFFF00', '#FF8700', '#FF0000'])
+  //   .domain([0, 0.2, 0.5, 0.6, 0.75, 1.0]);
 
   override draw(ctx: WebGL2RenderingContext): void {
     // super.draw(ctx);
