@@ -20,7 +20,7 @@ export const GameClockDefaultOptions: IGameClockOptions = {
 export class GameClock {
   startTime: number = 0;
   lastTime: number = 0;
-  frameCount: number = 0;
+  fpsFrameCount: number = 0;
   options: IGameClockOptions;
   gameTime: IGameTime = {
     currentTime: 0,
@@ -35,17 +35,17 @@ export class GameClock {
     this.startTime = performance.now();
     setInterval(() => {
       if (gameTime.fps) {
-        gameTime.fps = (gameTime.fps + this.frameCount) / 2;
+        gameTime.fps = (gameTime.fps + this.fpsFrameCount) / 2;
       } else {
-        gameTime.fps = this.frameCount;
+        gameTime.fps = this.fpsFrameCount;
       }
-      this.frameCount = 0;
+      this.fpsFrameCount = 0;
     }, 1000);
   }
 
   tick() {
     const t = performance.now();
-    const gameTime = this.gameTime;
+    const gameTime: IGameTime = this.gameTime;
     gameTime.currentFrame++;
     gameTime.currentTime = (t - this.startTime) / 1000;
     if (isNaN(gameTime.currentTime)) {
@@ -61,6 +61,6 @@ export class GameClock {
     this.lastTime = gameTime.currentTime;
     // if (Math.random()<0.001) console.log(gameTime);
     gameTime.deltaTime = clamp(gameTime.deltaTime, this.options.minDeltaTime, this.options.maxDeltaTime);
-    this.frameCount++;
+    this.fpsFrameCount++;
   }
 }
