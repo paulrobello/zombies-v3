@@ -5,11 +5,12 @@ world.draw();
 
 if (module.hot) {
   module.hot.accept(() => {
-    // or use this instead of dispose()
+    // console.log('module.hot index accepted');
     // window.location.reload();
   });
 
   module.hot.dispose(() => {
+    console.log('module.hot index disposed');
     window.location.reload();
   });
 }
