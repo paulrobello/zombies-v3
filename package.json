@@ -8,6 +8,7 @@
   "author": "Paul Robello",
   "scripts": {
     "build": "webpack --node-env production",
+    "watch": "webpack --node-env development --watch",
     "dev": "webpack --node-env development",
     "start": "webpack serve --node-env development --open",
     "test": "echo \"Error: no test specified\" && exit 1"
