@@ -76,6 +76,7 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
       this.cells = new Array(this.gridXW * this.gridYW);
       for (let i = 0; i < this.cells.length; i++) {
         this.cells[i] = new Cell<T>(i);
+        this.changedCells.add(this.cells[i]);
       }
       this.computeNeighbors(this.options.computeNeighborRadius);
       if (doReposition) {
@@ -128,6 +129,7 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
       return data;
     }
     const hashKey = `${c.id}|${(self?.id || 0)}|${closest ? 1 : 0}`;
+    // const hashKey = closest ? `${c.id}|${(self?.id || 0)}` : `${c.id}`;
     // const hashKey = `${c.id}|${closest ? 1 : 0}`;
     const getDataRadiusCacheResult = this.getDataRadiusCache.get(hashKey);
     if (getDataRadiusCacheResult) {
@@ -308,8 +310,7 @@ export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawab
     const world = this.options.world;
     const buffers = world.gridGl;
     let id: number;
-    const cells = this.changedCells.size ? this.changedCells : this.cells;
-    for (const cell of cells) {
+    for (const cell of this.changedCells) {
       id = cell.id;
       const c = this.gradient(cell.items.length).gl();
       buffers.color[id * 4] = c[0];
