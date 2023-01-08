@@ -1,7 +1,7 @@
 import { makeNoise2D } from 'fast-simplex-noise';
 import * as twgl from 'twgl.js';
 import { BufferInfo, m4, ProgramInfo } from 'twgl.js';
-import { AlignBehavior, AvoidWallsBehavior, CollisionBehavior, SeparateBehavior } from './behaviours';
+import { AlignBehavior, AvoidWallsBehavior, CollisionBehavior, FlowBehavior, SeparateBehavior } from './behaviours';
 import { Boid } from './Boid';
 import { GameClock } from './GameClock';
 import { BoidGrid, FlowGrid, HashGridOptions } from './HashGrid';
@@ -41,7 +41,7 @@ export class World {
   boidGridOptions: HashGridOptions;
   fieldScale: number = this.flowCellSize * 0.005;
   boids: Boid[] = [];
-  boidSize: number = 6;
+  boidSize: number = 8;
   drag = 1;
   maxSpeed = 100;
   showField = true;
@@ -183,7 +183,6 @@ ${this.commonVs}
     // FragColor = gl_FragColor * (0.95-r2);
   }`;
 
-    // compile shaders, link program, look up locations
     const programInfo = twgl.createProgramInfo(this.ctx, [vs, fs]);
 
     this.boidGl = {
@@ -192,13 +191,6 @@ ${this.commonVs}
       programInfo: programInfo,
       bufferInfo: undefined
     };
-    // for (let i = 0; i < this.numBoids / 2; i += 2) {
-    //   this.gl_locations[i] = Math.random() * this.canvas.width;
-    //   this.gl_locations[i + 1] = Math.random() * this.canvas.height;
-    // }
-    // for (let i = 0; i < this.gl_angles.length; ++i) {
-    //   this.gl_angles[i] = Math.PI*2;
-    // }
     const x = 1;
 
     this.boidGl.bufferInfo = twgl.createBufferInfoFromArrays(
@@ -256,10 +248,10 @@ out vec4 v_color;
 
 void main() {
   vec2 ot = vec2(
-    float(gl_InstanceID % int(gridWidth))*gridCellSize+(gridCellSize*0.5),
-    trunc(float(gl_InstanceID) / gridWidth)*gridCellSize+(gridCellSize*0.5)
+    float(gl_InstanceID % int(gridWidth)) * gridCellSize + (gridCellSize * 0.5),
+    trunc(float(gl_InstanceID) / gridWidth) * gridCellSize + (gridCellSize * 0.5)
   );
-  vec2 p = vert_pos * vec2(gridCellSize*0.85, gridCellSize*0.85) + ot;
+  vec2 p = vert_pos * vec2(gridCellSize * 0.85, gridCellSize * 0.85) + ot;
   gl_Position = u_matrix * vec4(p, 0, 1);
   v_color = color;
 }`;
@@ -419,7 +411,7 @@ void main() {
         r: this.boidSize
       });
       b.maxSpeed = this.maxSpeed;
-      // b.behaviors.set('FlowBehavior', new FlowBehavior(b, {flowGrid: this.flowGrid, normalize: true, scale: 1}));
+      b.behaviors.set('FlowBehavior', new FlowBehavior(b, {flowGrid: this.flowGrid, normalize: true, scale: 1}));
       b.behaviors.set('AlignBehavior', new AlignBehavior(b, 50));
       b.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 20));
       b.behaviors.set('CollisionBehavior', new CollisionBehavior(b, 20));
