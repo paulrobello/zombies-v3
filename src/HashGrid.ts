@@ -137,33 +137,33 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
     }
     const radius2 = radius * radius;
     let hashKey = `${c.id}|${(self?.id || 0)}|${closest ? 1 : 0}`;
-    // let getDataRadiusCacheResult = this.getDataRadiusCache.get(hashKey);
-    // // if we look for cache hit with closest, but don't find it, broaden key to query that includes more
-    // if (!getDataRadiusCacheResult && closest) {
-    //   getDataRadiusCacheResult = this.getDataRadiusCache.get(`${c.id}|${(self?.id || 0)}|0`);
-    // }
-    //
-    // // check if we have cache hit
-    // if (getDataRadiusCacheResult) {
-    //   // ensure the cache has not expired
-    //   if (this.options.world.CurrentFrame - getDataRadiusCacheResult.frame < this.options.maxQueryCacheFrames) {
-    //     // cache query did not have any results just return the empty array
-    //     if (!getDataRadiusCacheResult.data.length) {
-    //       return getDataRadiusCacheResult.data;
-    //     }
-    //     // current query is for closest but results are not for closest then just return first result from cache
-    //     if (closest && !getDataRadiusCacheResult.closest) {
-    //       return [getDataRadiusCacheResult.data[0]];
-    //     }
-    //     if (radius < getDataRadiusCacheResult.radius) {
-    //       getDataRadiusCacheResult.data.filter(i => i.dist2 <= radius2);
-    //     }
-    //     return getDataRadiusCacheResult.data;
-    //   } else {
-    //     // cache expired remove it
-    //     this.getDataRadiusCache.delete(hashKey);
-    //   }
-    // }
+    let getDataRadiusCacheResult = this.getDataRadiusCache.get(hashKey);
+    // if we look for cache hit with closest, but don't find it, broaden key to query that includes more
+    if (!getDataRadiusCacheResult && closest) {
+      getDataRadiusCacheResult = this.getDataRadiusCache.get(`${c.id}|${(self?.id || 0)}|0`);
+    }
+
+    // check if we have cache hit
+    if (getDataRadiusCacheResult) {
+      // ensure the cache has not expired
+      if (this.options.world.CurrentFrame - getDataRadiusCacheResult.frame < this.options.maxQueryCacheFrames) {
+        // cache query did not have any results just return the empty array
+        if (!getDataRadiusCacheResult.data.length) {
+          return getDataRadiusCacheResult.data;
+        }
+        // current query is for closest but results are not for closest then just return first result from cache
+        if (closest && !getDataRadiusCacheResult.closest) {
+          return [getDataRadiusCacheResult.data[0]];
+        }
+        if (radius < getDataRadiusCacheResult.radius) {
+          getDataRadiusCacheResult.data.filter(i => i.dist2 <= radius2);
+        }
+        return getDataRadiusCacheResult.data;
+      } else {
+        // cache expired remove it
+        this.getDataRadiusCache.delete(hashKey);
+      }
+    }
 
     const cellSize = this.options.cellSize;
     const v = new vec2(x * (worldSpace ? 1 : cellSize), y * (worldSpace ? 1 : cellSize));

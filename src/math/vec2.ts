@@ -346,7 +346,7 @@ export class vec2 implements Ivec2 {
     return dest;
   }
 
-  static difference(vector: Ivec2, vector2: Ivec2, dest?: vec2): Ivec2 {
+  static difference(vector: Ivec2, vector2: Ivec2, dest?: vec2): vec2 {
     if (!dest) {
       dest = new vec2();
     }

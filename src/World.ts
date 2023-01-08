@@ -1,7 +1,14 @@
 import { makeNoise2D } from 'fast-simplex-noise';
 import * as twgl from 'twgl.js';
 import { BufferInfo, m4, ProgramInfo } from 'twgl.js';
-import { AlignBehavior, AvoidBoundaryBehavior, CollisionBehavior, FlowBehavior, SeparateBehavior } from './behaviours';
+import {
+  AlignBehavior,
+  AttractionPointBehavior,
+  AvoidBoundaryBehavior,
+  CollisionBehavior,
+  FlowBehavior,
+  SeparateBehavior
+} from './behaviours';
 import { Boid } from './Boid';
 import { GameClock } from './GameClock';
 import { BoidGrid, FlowGrid, HashGridOptions } from './HashGrid';
@@ -22,9 +29,11 @@ export interface IGridGl {
   programInfo: ProgramInfo;
   bufferInfo: BufferInfo;
 }
-export interface IFlowGridGl extends IGridGl{
+
+export interface IFlowGridGl extends IGridGl {
   v: Float32Array;
 }
+
 export class World {
   canvas: HTMLCanvasElement;
   ctx: WebGL2RenderingContext;
@@ -47,7 +56,7 @@ export class World {
   drag = 1;
   maxSpeed = 100;
   showField = true;
-  numBoids = 500;
+  numBoids = 2000;
   wheelInc = 0.001;
   gameClock: GameClock;
   fieldRandomScale: number = 0.001;
@@ -383,7 +392,7 @@ void main() {
           numComponents: 4,
           data: this.flowGridGl.v,
           divisor: 1
-        },
+        }
       });
 
   }
@@ -494,6 +503,7 @@ void main() {
       b.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 1));
       b.behaviors.set('AlignBehavior', new AlignBehavior(b, 1));
       b.behaviors.set('CollisionBehavior', new CollisionBehavior(b, 1));
+      b.behaviors.set('AttractionPointBehavior', new AttractionPointBehavior(b, 0.1, {target: {p: new vec2(this.widthD2, this.heightD2)}}));
       b.behaviors.set('AvoidBoundaryBehavior', new AvoidBoundaryBehavior(b, 10));
       this.boids.push(b);
     }
@@ -507,7 +517,7 @@ void main() {
     this.boidGrid.reposition();
   }
 
-  drawBoidGrid(){
+  drawBoidGrid() {
     const gameClock = this.gameClock;
 
     const ctx = this.ctx;
@@ -535,7 +545,7 @@ void main() {
     this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.boidGrid.cells.length);
   }
 
-  drawFlowGrid(){
+  drawFlowGrid() {
     const gameClock = this.gameClock;
     const ctx = this.ctx;
 
@@ -564,7 +574,7 @@ void main() {
     this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.flowGrid.cells.length);
   }
 
-  drawBoids(){
+  drawBoids() {
     const gameClock = this.gameClock;
     const ctx = this.ctx;
 
@@ -584,6 +594,7 @@ void main() {
     twgl.setBuffersAndAttributes(ctx, this.boidGl.programInfo, this.boidGl.bufferInfo);
     this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.numBoids);
   }
+
   public draw() {
     const gameClock = this.gameClock;
 
@@ -603,8 +614,8 @@ void main() {
       b.draw(ctx);
     }
 
-   this.drawBoids()
-    if (Math.random()<0.001){
+    this.drawBoids();
+    if (Math.random() < 0.001) {
       this.genField();
     }
     // // draw fps on screen
