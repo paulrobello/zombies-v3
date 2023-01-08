@@ -8,8 +8,8 @@ export interface ICollisionBehaviorOptions {
 }
 
 export const collisionBehaviorDefaultOptions: ICollisionBehaviorOptions = {
-  margin: 0,
-  iterations: 1
+  margin: 1,
+  iterations: 2
 };
 
 export class CollisionBehavior extends BoidBehavior {
@@ -25,7 +25,7 @@ export class CollisionBehavior extends BoidBehavior {
     const b = this.boid;
     const p: vec2 = b.p;
     const grid = b.options.grid;
-    const nearest = grid.getDataRadius(p.x, p.y, grid.options.cellSize, true, b, false);
+    const nearest = grid.getDataRadius(p.x, p.y, grid.options.cellSize*2, true, b, false);
     if (!nearest.length) return;
 
     const dTemp = new vec2();
@@ -42,8 +42,8 @@ export class CollisionBehavior extends BoidBehavior {
           d.scale(1 / l);
 
           const pd = r - l;
-          p.x += d.x * pd * gameTime.deltaTime * this.scale;
-          p.y += d.y * pd * gameTime.deltaTime * this.scale;
+          p.x += d.x * pd * this.scale;
+          p.y += d.y * pd * this.scale;
           break;
         }
       }

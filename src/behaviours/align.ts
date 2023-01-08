@@ -23,7 +23,8 @@ export class AlignBehavior extends BoidBehavior {
     this.neighbor = n;
 
     // if (Math.random()<0.0001) console.log(nearest[0].data)
-    b.v.x += n.v.x / n.speed;
-    b.v.y += n.v.y / n.speed;
+    // normalize direction of neighbor and scale then add it to ours
+    b.v.x += (n.v.x / n.speed) * this.scale;
+    b.v.y += (n.v.y / n.speed) * this.scale;
   }
 }

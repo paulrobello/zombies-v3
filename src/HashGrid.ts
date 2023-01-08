@@ -19,6 +19,8 @@ export type IDataRadiusResults<T> = IDataRadiusResult<T>[];
 
 export interface IDataCacheResult<T> {
   frame: number;
+  radius: number;
+  closest: boolean;
   data: IDataRadiusResults<T>;
 }
 
@@ -133,16 +135,35 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
       console.warn('getDataRadius no cell found at', x, y, radius, worldSpace);
       return data;
     }
-    const hashKey = `${c.id}|${(self?.id || 0)}|${closest ? 1 : 0}`;
-    // const hashKey = closest ? `${c.id}|${(self?.id || 0)}` : `${c.id}`;
-    // const hashKey = `${c.id}|${closest ? 1 : 0}`;
-    const getDataRadiusCacheResult = this.getDataRadiusCache.get(hashKey);
-    if (getDataRadiusCacheResult) {
-      if (this.options.world.CurrentFrame - getDataRadiusCacheResult.frame < this.options.maxQueryCacheFrames) {
-        return getDataRadiusCacheResult.data;
-      }
-      this.getDataRadiusCache.delete(hashKey);
-    }
+    const radius2 = radius * radius;
+    let hashKey = `${c.id}|${(self?.id || 0)}|${closest ? 1 : 0}`;
+    // let getDataRadiusCacheResult = this.getDataRadiusCache.get(hashKey);
+    // // if we look for cache hit with closest, but don't find it, broaden key to query that includes more
+    // if (!getDataRadiusCacheResult && closest) {
+    //   getDataRadiusCacheResult = this.getDataRadiusCache.get(`${c.id}|${(self?.id || 0)}|0`);
+    // }
+    //
+    // // check if we have cache hit
+    // if (getDataRadiusCacheResult) {
+    //   // ensure the cache has not expired
+    //   if (this.options.world.CurrentFrame - getDataRadiusCacheResult.frame < this.options.maxQueryCacheFrames) {
+    //     // cache query did not have any results just return the empty array
+    //     if (!getDataRadiusCacheResult.data.length) {
+    //       return getDataRadiusCacheResult.data;
+    //     }
+    //     // current query is for closest but results are not for closest then just return first result from cache
+    //     if (closest && !getDataRadiusCacheResult.closest) {
+    //       return [getDataRadiusCacheResult.data[0]];
+    //     }
+    //     if (radius < getDataRadiusCacheResult.radius) {
+    //       getDataRadiusCacheResult.data.filter(i => i.dist2 <= radius2);
+    //     }
+    //     return getDataRadiusCacheResult.data;
+    //   } else {
+    //     // cache expired remove it
+    //     this.getDataRadiusCache.delete(hashKey);
+    //   }
+    // }
 
     const cellSize = this.options.cellSize;
     const v = new vec2(x * (worldSpace ? 1 : cellSize), y * (worldSpace ? 1 : cellSize));
@@ -176,19 +197,18 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
     if (closest) {
       if (!nearest || !nearestData) {
         data = [];
-        this.getDataRadiusCache.set(hashKey, {frame: this.options.world.CurrentFrame, data});
+        this.getDataRadiusCache.set(hashKey, {frame: this.options.world.CurrentFrame, closest, radius, data});
         return data;
       }
       data = [{data: nearestData, dist2: nearest}];
-      this.getDataRadiusCache.set(hashKey, {frame: this.options.world.CurrentFrame, data});
+      this.getDataRadiusCache.set(hashKey, {frame: this.options.world.CurrentFrame, closest, radius, data});
       return data;
     }
 
-    const radius2 = radius * radius;
     data = data
       .filter(i => i.dist2 <= radius2)
       .sort((a, b) => a.dist2 > b.dist2 ? 1 : -1);
-    this.getDataRadiusCache.set(hashKey, {frame: this.options.world.CurrentFrame, data});
+    this.getDataRadiusCache.set(hashKey, {frame: this.options.world.CurrentFrame, closest, radius, data});
     return data;
   }
 
@@ -257,28 +277,28 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
     this.changedCells.add(cell);
   }
 
-  removeCelData(x: number, y: number, worldSpace: boolean, v: T): boolean {
+  removeCelData(x: number, y: number, worldSpace: boolean, data: T): boolean {
     const cellIndex = this.getCellIndex(x, y, worldSpace);
     if (cellIndex === undefined) {
       return false;
     }
-    return this.removeCelDataByIndex(cellIndex, v);
+    return this.removeCelDataByIndex(cellIndex, data);
   }
 
-  removeCelDataByIndex(cellIndex: number, v: T): boolean {
+  removeCelDataByIndex(cellIndex: number, data: T): boolean {
     if (cellIndex < 0 || cellIndex >= this.cells.length) {
       return false;
     }
     const cell = this.cells[cellIndex];
     const items = cell.items;
-    const i = items.indexOf(v);
+    const i = items.indexOf(data);
     if (i === -1) {
       return false;
 
     }
     items.splice(i, 1);
-    this.allData.delete(v);
-    v.cellIndex = -1;
+    this.allData.delete(data);
+    data.cellIndex = -1;
     this.changedCells.add(cell);
     return true;
   }
@@ -291,12 +311,14 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
     for (const d of this.cells[cellIndex].items) {
       this.allData.delete(d);
     }
+    this.changedCells.add(this.cells[cellIndex]);
     return this.cells[cellIndex].clear();
   }
 
   public clear() {
     for (const c of this.cells) {
       c.clear();
+      this.changedCells.add(c);
     }
     this.allData.clear();
   }
@@ -304,6 +326,7 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
   public reposition() {
     for (const c of this.cells) {
       c.clear();
+      this.changedCells.add(c);
     }
     for (const d of this.allData) {
       this.addCelData(d.p.x, d.p.y, true, d);

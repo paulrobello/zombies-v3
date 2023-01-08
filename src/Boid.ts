@@ -84,6 +84,7 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
     }
     const p: Ivec2 = this.p;
     const v: Ivec2 = this.v;
+    const r: number = this.r;
     const world = this.options.world;
     const grid = this.options.grid;
     const maxSpeed = this.maxSpeed;
@@ -96,8 +97,10 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
 
     p.x += v.x * gameTime.deltaTime;
     p.y += v.y * gameTime.deltaTime;
-    p.x = clamp(p.x, 0, world.width - 1);
-    p.y = clamp(p.y, 0, world.height - 1);
+    // keep on screen
+    p.x = clamp(p.x, r, world.width - r);
+    p.y = clamp(p.y, r, world.height - r);
+
     v.scale(world.drag);
     const newCellIndex = grid.getCellIndex(p.x, p.y, true);
     if (newCellIndex === undefined) {

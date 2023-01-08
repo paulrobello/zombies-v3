@@ -7,7 +7,7 @@ export interface IAvoidBoundaryBehaviorOptions {
 }
 
 export const AvoidBoundaryBehaviorDefaultOptions: IAvoidBoundaryBehaviorOptions = {
-  margin: 20
+  margin: 64
 };
 
 export class AvoidBoundaryBehavior extends BoidBehavior {
@@ -23,22 +23,26 @@ export class AvoidBoundaryBehavior extends BoidBehavior {
     const b = this.boid;
     const p: vec2 = b.p;
     const v: vec2 = b.v;
-    const r2 = b.r * 2 + this.options.margin;
+    const r2 = b.r + this.options.margin;
     let d: number;
     if (p.x < r2) {
       v.x += (r2 - p.x) / r2 * this.scale;
+      v.y -= 0.1 * this.scale;
     } else {
       d = b.options.world.width - p.x;
       if (d < r2) {
         v.x -= (r2 - d) / r2 * this.scale;
+        v.y += 0.1 * this.scale;
       }
     }
     if (p.y < r2) {
       v.y += (r2 - p.y) / r2 * this.scale;
+      v.x += 0.1 * this.scale;
     } else {
       d = b.options.world.height - p.y;
       if (d < r2) {
         v.y -= (r2 - d) / r2 * this.scale;
+        v.x -= 0.1 * this.scale;
       }
     }
   }

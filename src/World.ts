@@ -50,7 +50,7 @@ export class World {
   numBoids = 500;
   wheelInc = 0.001;
   gameClock: GameClock;
-  fieldRandomScale: number = Math.random() * 0.0001;
+  fieldRandomScale: number = 0.001;
   u_matrix: m4.Mat4 = m4.identity();
   boidGl: IBoidGl;
   gridGl: IGridGl;
@@ -268,7 +268,7 @@ void main() {
     float(gl_InstanceID % int(gridWidth)) * gridCellSize + (gridCellSize * 0.5),
     trunc(float(gl_InstanceID) / gridWidth) * gridCellSize + (gridCellSize * 0.5)
   );
-  vec2 p = vert_pos * vec2(gridCellSize * 0.85, gridCellSize * 0.85) + ot;
+  vec2 p = vert_pos * vec2(gridCellSize * 0.95, gridCellSize * 0.95) + ot;
   gl_Position = u_matrix * vec4(p, 0, 1);
   v_color = color;
   v_angle = vel_len.xy;
@@ -433,6 +433,9 @@ void main() {
   }
 
   genField() {
+    console.log('genField');
+    this.fieldRandomScale = Math.random() * 0.001;
+    this.flowGrid.clear();
     for (let y = 0; y < this.gridYW; y += 1) {
       for (let x = 0; x < this.gridXW; x += 1) {
         this.flowGrid.addCelData(x, y, false, this.getFlowFieldValue(x, y));
@@ -487,11 +490,11 @@ void main() {
         r: this.boidSize
       });
       b.maxSpeed = this.maxSpeed;
-      b.behaviors.set('FlowBehavior', new FlowBehavior(b, {flowGrid: this.flowGrid, normalize: true, scale: 1}));
-      b.behaviors.set('AlignBehavior', new AlignBehavior(b, 50));
-      b.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 20));
-      b.behaviors.set('CollisionBehavior', new CollisionBehavior(b, 20));
-      b.behaviors.set('AvoidBoundaryBehavior', new AvoidBoundaryBehavior(b, 20));
+      b.behaviors.set('FlowBehavior', new FlowBehavior(b, {flowGrid: this.flowGrid, normalize: true, scale: 0.5}));
+      b.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 1));
+      b.behaviors.set('AlignBehavior', new AlignBehavior(b, 1));
+      b.behaviors.set('CollisionBehavior', new CollisionBehavior(b, 1));
+      b.behaviors.set('AvoidBoundaryBehavior', new AvoidBoundaryBehavior(b, 10));
       this.boids.push(b);
     }
   }
@@ -592,8 +595,8 @@ void main() {
     ctx.clear(ctx.COLOR_BUFFER_BIT);
 
     m4.ortho(0, ctx.canvas.width, ctx.canvas.height, 0, -1, 1, this.u_matrix);
-    // this.drawBoidGrid();
-    this.drawFlowGrid();
+    this.drawBoidGrid();
+    // this.drawFlowGrid();
 
     for (const b of boids) {
       b.tick(gameClock.gameTime);
@@ -601,7 +604,9 @@ void main() {
     }
 
    this.drawBoids()
-
+    if (Math.random()<0.001){
+      this.genField();
+    }
     // // draw fps on screen
     // ctx.textAlign = 'left';
     // ctx.textBaseline = 'top';
