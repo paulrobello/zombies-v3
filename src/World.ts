@@ -1,7 +1,7 @@
 import { makeNoise2D } from 'fast-simplex-noise';
 import * as twgl from 'twgl.js';
 import { BufferInfo, m4, ProgramInfo } from 'twgl.js';
-import { AlignBehavior, AvoidWallsBehavior, CollisionBehavior, FlowBehavior, SeparateBehavior } from './behaviours';
+import { AlignBehavior, AvoidBoundaryBehavior, CollisionBehavior, FlowBehavior, SeparateBehavior } from './behaviours';
 import { Boid } from './Boid';
 import { GameClock } from './GameClock';
 import { BoidGrid, FlowGrid, HashGridOptions } from './HashGrid';
@@ -491,7 +491,7 @@ void main() {
       b.behaviors.set('AlignBehavior', new AlignBehavior(b, 50));
       b.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 20));
       b.behaviors.set('CollisionBehavior', new CollisionBehavior(b, 20));
-      b.behaviors.set('AvoidWallsBehavior', new AvoidWallsBehavior(b, 20));
+      b.behaviors.set('AvoidBoundaryBehavior', new AvoidBoundaryBehavior(b, 20));
       this.boids.push(b);
     }
   }

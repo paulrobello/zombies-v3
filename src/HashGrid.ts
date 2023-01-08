@@ -312,8 +312,7 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
   }
 
   draw(ctx: WebGL2RenderingContext): void {
-    const world = this.options.world;
-    const buffers = world.gridGl;
+    const buffers = this.options.world.gridGl;
     let id: number;
     for (const cell of this.changedCells) {
       id = cell.id * 4;
@@ -336,9 +335,12 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
     }
     // if (Math.random() > 0.99) console.log('changed', this.getDataRadiusCache.size);
   }
-  cleanCache(){
+
+  cleanCache() {
+    const currFrame = this.options.world.CurrentFrame;
+    const maxFrames = this.options.maxQueryCacheFrames;
     for (const [key, value] of this.getDataRadiusCache.entries()) {
-      if (this.options.world.CurrentFrame - value.frame > this.options.maxQueryCacheFrames) {
+      if (currFrame - value.frame > maxFrames) {
         this.getDataRadiusCache.delete(key);
       }
     }
@@ -351,7 +353,6 @@ export class FlowGrid extends HashGrid<IFlowValue> {
     .domain([0, 0.2, 0.5, 0.6, 0.75, 1.0]);
 
   override draw(ctx: WebGL2RenderingContext): void {
-    // super.draw(ctx);
     const buffers = this.options.world.flowGridGl;
 
     let id: number;
@@ -378,8 +379,7 @@ export class BoidGrid extends HashGrid<Boid> {
     .domain([0, 1, 2, 3, 4, 5]);
 
   override draw(ctx: WebGL2RenderingContext): void {
-    const world = this.options.world;
-    const buffers = world.gridGl;
+    const buffers = this.options.world.gridGl;
     let id: number;
     for (const cell of this.changedCells) {
       id = cell.id * 4;

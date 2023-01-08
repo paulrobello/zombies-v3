@@ -1,21 +1,21 @@
 import { Boid, BoidBehavior } from '../Boid';
 import { IGameTime } from '../GameClock';
-import { vec2, epsilon } from '../math';
+import { vec2 } from '../math';
 
-export interface IAvoidWallsBehaviorOptions {
+export interface IAvoidBoundaryBehaviorOptions {
   margin: number;
 }
 
-export const AvoidWallsBehaviorDefaultOptions: IAvoidWallsBehaviorOptions = {
-  margin: 50
+export const AvoidBoundaryBehaviorDefaultOptions: IAvoidBoundaryBehaviorOptions = {
+  margin: 20
 };
 
-export class AvoidWallsBehavior extends BoidBehavior {
-  options: IAvoidWallsBehaviorOptions;
+export class AvoidBoundaryBehavior extends BoidBehavior {
+  options: IAvoidBoundaryBehaviorOptions;
 
-  constructor(boid: Boid, scale: number = 1, options: IAvoidWallsBehaviorOptions = AvoidWallsBehaviorDefaultOptions) {
+  constructor(boid: Boid, scale: number = 1, options: IAvoidBoundaryBehaviorOptions = AvoidBoundaryBehaviorDefaultOptions) {
     super(boid, scale);
-    this.name = 'AvoidWallsBehavior';
+    this.name = 'AvoidBoundaryBehavior';
     this.options = options;
   }
 
