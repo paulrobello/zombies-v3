@@ -5,6 +5,10 @@ import { IDrawable, IFlowValue, IPositional } from './interfaces';
 import { vec2, wrap } from './math';
 import { World } from './World';
 
+export interface IGridQueryable {
+  layer: number;
+  id: number;
+}
 export interface IDataRadiusResult<T> {
   data: T;
   dist2: number;
@@ -26,7 +30,7 @@ export interface HashGridOptions {
   computeNeighborRadius: number;
 }
 
-export class HashGrid<T extends IPositional & ICellIndexable> implements IDrawable {
+export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> implements IDrawable {
   options: HashGridOptions;
   cells: Cell<T>[];
   allData: Set<T> = new Set<T>();

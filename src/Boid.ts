@@ -1,8 +1,8 @@
 import { ICellIndexable } from './Cell';
 import { IGameTime } from './GameClock';
-import { HashGrid } from './HashGrid';
+import { HashGrid, IGridQueryable } from './HashGrid';
 import { IDrawable, IPositional, IProgressible } from './interfaces';
-import { clamp, epsilon, TWO_PI } from './math';
+import { clamp } from './math';
 import { vec2, Ivec2 } from './math';
 import { World } from './World';
 
@@ -12,7 +12,8 @@ export interface IBoidOptions {
   grid: HashGrid<Boid>,
   p?: vec2,
   v?: vec2,
-  r?: number
+  r?: number,
+  layer?: number;
 }
 
 export class BoidBehavior implements IProgressible {
@@ -31,7 +32,7 @@ export class BoidBehavior implements IProgressible {
 
 let id = 0;
 
-export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawable {
+export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawable, IGridQueryable {
   public id: number;
   public p: vec2;
   public v: vec2;
@@ -45,13 +46,22 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
   public grid: HashGrid<Boid>;
   public lastCellIndex: number = -1;
   public cellIndex: number = -1;
-  public type: number = 1;
+  public layer: number = 0;
 
   options: IBoidOptions;
+
+  get World(): World {
+    return this.options.world;
+  }
+
+  get Grid(): HashGrid<Boid> {
+    return this.options.grid;
+  }
 
   constructor(options: IBoidOptions) {
     this.options = options;
     this.id = id++;
+    this.layer = options.layer || 0;
     this.p = options.p || new vec2();
     this.v = options.v || new vec2();
     this.a = new vec2();
@@ -103,13 +113,14 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
     const p: Ivec2 = this.p;
     const v: Ivec2 = this.v;
     const buffers = this.options.world.boidGl;
-    buffers.pos_vel[this.id * 4] = p.x;
-    buffers.pos_vel[this.id * 4 + 1] = p.y;
-    buffers.pos_vel[this.id * 4 + 2] = v.x;
-    buffers.pos_vel[this.id * 4 + 3] = v.y;
-    buffers.color_rad[this.id * 4] = 0;
-    buffers.color_rad[this.id * 4 + 1] = 1;
-    buffers.color_rad[this.id * 4 + 2] = 0;
-    buffers.color_rad[this.id * 4 + 3] = this.r;
+    const i = this.id * 4;
+    buffers.pos_vel[i] = p.x;
+    buffers.pos_vel[i + 1] = p.y;
+    buffers.pos_vel[i + 2] = v.x;
+    buffers.pos_vel[i + 3] = v.y;
+    buffers.color_rad[i] = 0;
+    buffers.color_rad[i + 1] = 1;
+    buffers.color_rad[i + 2] = 0;
+    buffers.color_rad[i + 3] = this.r;
   }
 }

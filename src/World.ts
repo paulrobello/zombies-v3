@@ -5,7 +5,7 @@ import { AlignBehavior, AvoidWallsBehavior, CollisionBehavior, FlowBehavior, Sep
 import { Boid } from './Boid';
 import { GameClock } from './GameClock';
 import { BoidGrid, FlowGrid, HashGridOptions } from './HashGrid';
-import { IFlowValue } from './interfaces';
+import { IFlowValue, QueryLayerByName } from './interfaces';
 import { epsilon, Ivec2, map, vec2 } from './math';
 
 const noise = makeNoise2D();
@@ -55,7 +55,7 @@ export class World {
   commonVs: string;
   mousePos: vec2 = new vec2();
   glMousePos: [number, number] = [0, 0];
-
+  layers: QueryLayerByName = new Map<string, number>();
 
   constructor() {
     this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -118,6 +118,14 @@ uniform vec2   iMousePos;    // mouse position in world coordinates
 
   get FPS(): number {
     return this.gameClock.gameTime.fps;
+  }
+
+  addLayerName(name: string): number {
+    let id: number | undefined = this.layers.get(name);
+    if (id) return id;
+    id = Math.pow(2, this.layers.size);
+    this.layers.set(name, id);
+    return id;
   }
 
   initBoidGl() {
@@ -394,6 +402,7 @@ void main() {
     const l = p.length() + epsilon;
     return {
       id: 0,
+      layer: 0,
       p: p.scale(1 / l),
       l,
       lastCellIndex: -1,
@@ -491,7 +500,7 @@ void main() {
     // ctx.fillText('' + gameClock.gameTime.fps.toFixed(0), 5, 5);
 
 
-    document.title = gameClock.gameTime.fps.toFixed(0);
+    document.title = this.FPS.toFixed(0);
     requestAnimationFrame(() => {
       this.draw();
     });
