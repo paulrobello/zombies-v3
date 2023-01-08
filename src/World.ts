@@ -45,7 +45,7 @@ export class World {
   drag = 1;
   maxSpeed = 100;
   showField = true;
-  numBoids = 1000;
+  numBoids = 500;
   wheelInc = 0.001;
   gameClock: GameClock;
   fieldRandomScale: number = Math.random() * 0.0001;
@@ -124,24 +124,21 @@ uniform vec2   iMousePos;    // mouse position in world coordinates
     console.log('initBoidGl');
 
     const vs = `
+#version 300 es
+precision mediump float;
+
 ${this.commonVs}
-attribute vec4 vert_pos;
-attribute vec2 texcoord;
-attribute vec4 pos_vel;
-attribute vec4 color_rad;
 
-varying vec2 v_texcoord;
-varying vec4 v_color;
-varying vec2 v_angle;
-varying float v_speed;
-varying float v_radius;
+in vec4 vert_pos;
+in vec2 texcoord;
+in vec4 pos_vel;
+in vec4 color_rad;
 
-vec3 hsv2rgb(vec3 c) {
-  c = vec3(c.x, clamp(c.yz, 0.0, 1.0));
-  vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-  vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-  return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-}
+out vec2 v_texcoord;
+out vec4 v_color;
+out vec2 v_angle;
+out float v_speed;
+out float v_radius;
 
 void main() {
   gl_Position = u_matrix * (vert_pos * vec4(color_rad.w,color_rad.w,1.0,1.0) + vec4(pos_vel.xy, 0, 0));
@@ -154,12 +151,18 @@ void main() {
 }`;
 
     const fs = `
-  precision mediump float;
-  varying vec2 v_texcoord;
-  varying vec4 v_color;
-  varying vec2 v_angle;
-  varying float v_speed;
-  varying float v_radius;
+#version 300 es
+precision mediump float;
+
+${this.commonVs}
+
+  in vec2 v_texcoord;
+  in vec4 v_color;
+  in vec2 v_angle;
+  in float v_speed;
+  in float v_radius;
+
+  out vec4 FragColor;
 
   void main() {
     vec2 dir = vec2(0.5, 0.5) - v_texcoord;
@@ -170,14 +173,14 @@ void main() {
     vec4 color = mix(vec4(1.0,0.0,0.0,1.0), v_color, v_speed/100.0);
     if (dot(vec2(-v_angle.x,v_angle.y), dir)>0.0) {
       if (abs(dot(vec2(v_angle.y,v_angle.x), dir))<0.1) {
-        gl_FragColor = vec4(1.0,0.0,0.0,1.0);
+        FragColor = vec4(1.0,0.0,0.0,1.0);
       }else{
-        gl_FragColor = color;
+        FragColor = color;
       }
     }else{
-      gl_FragColor = color;
+      FragColor = color;
     }
-    // gl_FragColor = gl_FragColor * (0.95-r2);
+    // FragColor = gl_FragColor * (0.95-r2);
   }`;
 
     // compile shaders, link program, look up locations
@@ -258,23 +261,25 @@ void main() {
   );
   vec2 p = vert_pos * vec2(gridCellSize*0.85, gridCellSize*0.85) + ot;
   gl_Position = u_matrix * vec4(p, 0, 1);
-  float l = length(p - iMousePos);
-  if (l<gridCellSize) {
-    v_color = vec4(1.0, 0.0, 0.0, 1.0);
-  } else {
-    v_color = color;
-  }
-  // v_color = vec4(1.0, 1.0, 1.0, 1.0);
-
+  v_color = color;
 }`;
 
     const fs = `
 #version 300 es
 precision mediump float;
+${this.commonVs}
+uniform float gridCellSize;
 
 in vec4 v_color;
 out vec4 FragColor;
 void main() {
+  // vec2 mp = vec2(iMousePos.x, iDimensions.y-iMousePos.y);
+  // float l = (gridCellSize*1.75) - length(gl_FragCoord - vec4(mp, 0.0, 0.0));
+  //   if (l>0.0) {
+  //   FragColor = vec4(1., 0.0, 0.0, 1.0);
+  // } else {
+  //   FragColor = v_color;
+  // }
   FragColor = v_color;
 }`;
 
@@ -343,7 +348,7 @@ void main() {
       height: this.height,
       cellSize: this.boidCellSize,
       wrap: false,
-      computeNeighborRadius: 2
+      computeNeighborRadius: 3
     };
     if (!this.flowGrid) {
       this.flowGrid = new FlowGrid(this.flowGridOptions);
