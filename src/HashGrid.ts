@@ -29,6 +29,7 @@ export interface HashGridOptions {
   cellSize: number;
   wrap: boolean;
   computeNeighborRadius: number;
+  maxQueryCacheFrames: number;
 }
 
 export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> implements IDrawable {
@@ -139,7 +140,7 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
     // const hashKey = `${c.id}|${closest ? 1 : 0}`;
     const getDataRadiusCacheResult = this.getDataRadiusCache.get(hashKey);
     if (getDataRadiusCacheResult) {
-      if (this.options.world.CurrentFrame - getDataRadiusCacheResult.frame < 2) {
+      if (this.options.world.CurrentFrame - getDataRadiusCacheResult.frame < this.options.maxQueryCacheFrames) {
         return getDataRadiusCacheResult.data;
       }
       this.getDataRadiusCache.delete(hashKey);
@@ -338,7 +339,7 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
     }
     // if (Math.random() > 0.99) console.log('changed', this.getDataRadiusCache.size);
     for (const [key, value] of this.getDataRadiusCache.entries()) {
-      if (this.options.world.CurrentFrame - value.frame > 4) {
+      if (this.options.world.CurrentFrame - value.frame > this.options.maxQueryCacheFrames) {
         this.getDataRadiusCache.delete(key);
       }
     }
@@ -356,8 +357,8 @@ export class FlowGrid extends HashGrid<IFlowValue> {
 
     let id: number;
     for (const cell of this.changedCells) {
-      id = cell.id * 4;
       const cv = cell.items[0];
+      id = cell.id * 4;
       const c = this.flowGradient(cv.l).gl();
 
       buffers.color[id] = c[0];
@@ -371,60 +372,11 @@ export class FlowGrid extends HashGrid<IFlowValue> {
       buffers.v[id + 3] = 0;
     }
     this.changedCells.clear();
-
-    // ctx.beginPath();
-    // ctx.fillStyle = '#009900';
-    // ctx.strokeStyle = '#FFF';
-    // ctx.lineWidth = 1;
-    // let x, y, cx, cy, tx, ty;
-    // for (x = 0; x < this.gridXW; x++) {
-    //   for (y = 0; y < this.gridYW; y++) {
-    //     let d: IPositional = this.getCellValue(x, y);
-    //     if (!d) continue;
-    //     cx = x * cellSize;
-    //     cy = y * cellSize;
-    //     // context.beginPath();
-    //     // context.rect(cx, cy, flowGrid.celSize,flowGrid.celSize);
-    //     // context.stroke();
-    //     cx = ~~(cx + this.cellSizeD2);
-    //     cy = ~~(cy + this.cellSizeD2);
-    //
-    //     // ctx.beginPath();
-    //
-    //     // let l = d.p.length();
-    //     let p = d.p.copy().normalize().scale(this.cellSizeD2);
-    //
-    //     tx = ~~p.x;
-    //     ty = ~~p.y;
-    //     ctx.moveTo(cx, cy);
-    //     ctx.lineTo(cx + tx, cy + ty);
-    //     ctx.fillRect(cx - 2, cy - 2, 4, 4);
-    //   } // for y
-    // } // for x
-    // ctx.stroke();
   }
 }
 
 export class BoidGrid extends HashGrid<Boid> {
   override draw(ctx: WebGL2RenderingContext): void {
     super.draw(ctx);
-    // const cellSize = this.options.cellSize;
-    // ctx.beginPath();
-    // ctx.textAlign = 'center';
-    // ctx.textBaseline = 'middle';
-    // ctx.font = 'bold 24px serif';
-    // ctx.fillStyle = '#A00';
-    // ctx.strokeStyle = '#FFF';
-    // ctx.lineWidth = 1;
-    //
-    // for (let x = 0; x < this.gridXW; x++) {
-    //   for (let y = 0; y < this.gridYW; y++) {
-    //     const boids = this.getCellValues(x, y, false);
-    //     const nb = boids.length;
-    //     let cx = ~~(x * cellSize);
-    //     let cy = ~~(y * cellSize);
-    //     ctx.fillText('' + nb, cx + cellSize / 2, cy + cellSize / 2);
-    //   }
-    // }
   }
 }

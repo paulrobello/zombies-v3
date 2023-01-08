@@ -404,7 +404,8 @@ void main() {
       height: this.height,
       cellSize: this.flowCellSize,
       wrap: false,
-      computeNeighborRadius: 0
+      computeNeighborRadius: 0,
+      maxQueryCacheFrames: 0
     };
     this.boidGridOptions = {
       world: this,
@@ -412,7 +413,8 @@ void main() {
       height: this.height,
       cellSize: this.boidCellSize,
       wrap: false,
-      computeNeighborRadius: 3
+      computeNeighborRadius: 3,
+      maxQueryCacheFrames: 2
     };
     if (!this.flowGrid) {
       this.flowGrid = new FlowGrid(this.flowGridOptions);
