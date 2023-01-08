@@ -41,8 +41,6 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
   cellSizeD2: number;
   getDataRadiusCache: Map<string, IDataCacheResult<T>> = new Map<string, IDataCacheResult<T>>();
   changedCells: Set<Cell<T>> = new Set<Cell<T>>();
-  gradient = scale(['#131313', '#002300', '#005b00', '#007700', '#8d3100', '#8d0000'])
-    .domain([0, 1, 2, 3, 4, 5]);
   drpc = '#8d3100';
 
   constructor(options: HashGridOptions) {
@@ -319,10 +317,9 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
     let id: number;
     for (const cell of this.changedCells) {
       id = cell.id * 4;
-      const c = this.gradient(cell.items.length).gl();
-      buffers.color[id] = c[0];
-      buffers.color[id + 1] = c[1];
-      buffers.color[id + 2] = c[2];
+      buffers.color[id] = 0.1;
+      buffers.color[id + 1] = 0.1;
+      buffers.color[id + 2] = 0.1;
       buffers.color[id + 3] = 1;
       // if (cell.wp.x === 0) {
       //   buffers.color[id * 4] = 0.5;
@@ -338,6 +335,8 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
       // }
     }
     // if (Math.random() > 0.99) console.log('changed', this.getDataRadiusCache.size);
+  }
+  cleanCache(){
     for (const [key, value] of this.getDataRadiusCache.entries()) {
       if (this.options.world.CurrentFrame - value.frame > this.options.maxQueryCacheFrames) {
         this.getDataRadiusCache.delete(key);
@@ -371,12 +370,36 @@ export class FlowGrid extends HashGrid<IFlowValue> {
       buffers.v[id + 2] = cv.l;
       buffers.v[id + 3] = 0;
     }
-    this.changedCells.clear();
   }
 }
 
 export class BoidGrid extends HashGrid<Boid> {
+  private gradient = scale(['#131313', '#002300', '#005b00', '#007700', '#8d3100', '#8d0000'])
+    .domain([0, 1, 2, 3, 4, 5]);
+
   override draw(ctx: WebGL2RenderingContext): void {
-    super.draw(ctx);
+    const world = this.options.world;
+    const buffers = world.gridGl;
+    let id: number;
+    for (const cell of this.changedCells) {
+      id = cell.id * 4;
+      const c = this.gradient(cell.items.length).gl();
+      buffers.color[id] = c[0];
+      buffers.color[id + 1] = c[1];
+      buffers.color[id + 2] = c[2];
+      buffers.color[id + 3] = 1;
+      // if (cell.wp.x === 0) {
+      //   buffers.color[id * 4] = 0.5;
+      //   buffers.color[id * 4 + 1] = 0.5;
+      //   buffers.color[id * 4 + 2] = 0;
+      //   buffers.color[id * 4 + 3] = 1;
+      // }
+      // if (cell.wp.y === 0) {
+      //   buffers.color[id * 4] = 0;
+      //   buffers.color[id * 4 + 1] = 0.5;
+      //   buffers.color[id * 4 + 2] = 0.5;
+      //   buffers.color[id * 4 + 3] = 1;
+      // }
+    }
   }
 }

@@ -1,6 +1,6 @@
 import { ICellIndexable } from './Cell';
 import { IGameTime } from './GameClock';
-import { HashGrid, IGridQueryable } from './HashGrid';
+import { BoidGrid, HashGrid, IGridQueryable } from './HashGrid';
 import { IDrawable, IPositional, IProgressible } from './interfaces';
 import { clamp } from './math';
 import { vec2, Ivec2 } from './math';
@@ -9,7 +9,7 @@ import { World } from './World';
 
 export interface IBoidOptions {
   world: World,
-  grid: HashGrid<Boid>,
+  grid: BoidGrid,
   p?: vec2,
   v?: vec2,
   r?: number,

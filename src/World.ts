@@ -525,6 +525,7 @@ void main() {
       gridMode: 1
     });
     this.boidGrid.draw(ctx);
+    this.boidGrid.cleanCache();
     twgl.setAttribInfoBufferFromArray(ctx, this.gridGl.bufferInfo.attribs.color, this.gridGl.color);
     twgl.setBuffersAndAttributes(ctx, this.gridGl.programInfo, this.gridGl.bufferInfo);
 
@@ -551,6 +552,7 @@ void main() {
       gridMode: 2
     });
     this.flowGrid.draw(ctx);
+    this.flowGrid.cleanCache();
     twgl.setAttribInfoBufferFromArray(ctx, this.flowGridGl.bufferInfo.attribs.color, this.flowGridGl.color);
     twgl.setAttribInfoBufferFromArray(ctx, this.flowGridGl.bufferInfo.attribs.vel_len, this.flowGridGl.v);
 
