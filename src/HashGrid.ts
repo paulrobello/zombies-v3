@@ -9,6 +9,7 @@ export interface IGridQueryable {
   layer: number;
   id: number;
 }
+
 export interface IDataRadiusResult<T> {
   data: T;
   dist2: number;
@@ -42,6 +43,7 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
   gradient = scale(['#131313', '#002300', '#005b00', '#007700', '#8d3100', '#8d0000'])
     .domain([0, 1, 2, 3, 4, 5]);
   drpc = '#8d3100';
+
   constructor(options: HashGridOptions) {
     options.width = Math.floor(options.width);
     options.height = Math.floor(options.height);
@@ -315,12 +317,12 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
     const buffers = world.gridGl;
     let id: number;
     for (const cell of this.changedCells) {
-      id = cell.id;
+      id = cell.id * 4;
       const c = this.gradient(cell.items.length).gl();
-      buffers.color[id * 4] = c[0];
-      buffers.color[id * 4 + 1] = c[1];
-      buffers.color[id * 4 + 2] = c[2];
-      buffers.color[id * 4 + 3] = 1;
+      buffers.color[id] = c[0];
+      buffers.color[id + 1] = c[1];
+      buffers.color[id + 2] = c[2];
+      buffers.color[id + 3] = 1;
       // if (cell.wp.x === 0) {
       //   buffers.color[id * 4] = 0.5;
       //   buffers.color[id * 4 + 1] = 0.5;
@@ -345,12 +347,31 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
 }
 
 export class FlowGrid extends HashGrid<IFlowValue> {
-  // gradient = scale(['#000000', '#00FF00', '#0000FF', '#FFFF00', '#FF8700', '#FF0000'])
-  //   .domain([0, 0.2, 0.5, 0.6, 0.75, 1.0]);
+  flowGradient = scale(['#000000', '#00FF00', '#0000FF', '#FFFF00', '#FF8700', '#FF0000'])
+    .domain([0, 0.2, 0.5, 0.6, 0.75, 1.0]);
 
   override draw(ctx: WebGL2RenderingContext): void {
     // super.draw(ctx);
-    const cellSize = this.options.cellSize;
+    const buffers = this.options.world.flowGridGl;
+
+    let id: number;
+    for (const cell of this.changedCells) {
+      id = cell.id * 4;
+      const cv = cell.items[0];
+      const c = this.flowGradient(cv.l).gl();
+
+      buffers.color[id] = c[0];
+      buffers.color[id + 1] = c[1];
+      buffers.color[id + 2] = c[2];
+      buffers.color[id + 3] = 1;
+
+      buffers.v[id] = cv.p.x;
+      buffers.v[id + 1] = cv.p.y;
+      buffers.v[id + 2] = cv.l;
+      buffers.v[id + 3] = 0;
+    }
+    this.changedCells.clear();
+
     // ctx.beginPath();
     // ctx.fillStyle = '#009900';
     // ctx.strokeStyle = '#FFF';

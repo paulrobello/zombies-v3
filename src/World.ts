@@ -22,7 +22,9 @@ export interface IGridGl {
   programInfo: ProgramInfo;
   bufferInfo: BufferInfo;
 }
-
+export interface IFlowGridGl extends IGridGl{
+  v: Float32Array;
+}
 export class World {
   canvas: HTMLCanvasElement;
   ctx: WebGL2RenderingContext;
@@ -31,7 +33,7 @@ export class World {
   widthD2: number;
   heightD2: number;
   dimensions: [number, number] = [0, 0];
-  flowCellSize: number = 128;
+  flowCellSize: number = 32;
   boidCellSize: number = 32;
   gridXW: number;
   gridYW: number;
@@ -52,6 +54,7 @@ export class World {
   u_matrix: m4.Mat4 = m4.identity();
   boidGl: IBoidGl;
   gridGl: IGridGl;
+  flowGridGl: IFlowGridGl;
   commonVs: string;
   mousePos: vec2 = new vec2();
   glMousePos: [number, number] = [0, 0];
@@ -248,11 +251,17 @@ ${this.commonVs}
 uniform float gridCellSize;
 uniform float gridWidth;
 uniform float gridHeight;
+uniform int gridMode;
 
 in vec2 vert_pos;
 in vec2 texcoord;
 in vec4 color;
+in vec4 vel_len;
+
 out vec4 v_color;
+out vec2 v_angle;
+out float v_speed;
+out vec2 v_texcoord;
 
 void main() {
   vec2 ot = vec2(
@@ -262,6 +271,9 @@ void main() {
   vec2 p = vert_pos * vec2(gridCellSize * 0.85, gridCellSize * 0.85) + ot;
   gl_Position = u_matrix * vec4(p, 0, 1);
   v_color = color;
+  v_angle = vel_len.xy;
+  v_speed = vel_len.z;
+  v_texcoord = texcoord;
 }`;
 
     const fs = `
@@ -269,29 +281,46 @@ void main() {
 precision mediump float;
 ${this.commonVs}
 uniform float gridCellSize;
-
+uniform int gridMode;
+in vec2 v_angle;
 in vec4 v_color;
+in float v_speed;
+in vec2 v_texcoord;
+
 out vec4 FragColor;
 void main() {
-  // vec2 mp = vec2(iMousePos.x, iDimensions.y-iMousePos.y);
-  // float l = (gridCellSize*1.75) - length(gl_FragCoord - vec4(mp, 0.0, 0.0));
-  //   if (l>0.0) {
-  //   FragColor = vec4(1., 0.0, 0.0, 1.0);
-  // } else {
-  //   FragColor = v_color;
-  // }
-  FragColor = v_color;
+  switch (gridMode) {
+  case 1 : {
+    FragColor = v_color;
+    break;}
+  case 2 : {
+    vec2 dir = vec2(0.5, 0.5) - v_texcoord;
+    if (dot(vec2(-v_angle.x,v_angle.y), dir)>0.0) {
+      if (abs(dot(vec2(v_angle.y,v_angle.x), dir))<0.05) {
+        FragColor = v_color;
+      }else{
+        FragColor = vec4(0.1,0.1,0.1,1.0);
+      }
+    }else{
+      FragColor = vec4(0.1,0.1,0.1,1.0);
+    }
+    break;}
+   }
 }`;
 
     // compile shaders, link program, look up locations
     const programInfo = twgl.createProgramInfo(this.ctx, [vs, fs]);
-    console.log('cells num', this.boidGrid.cells.length);
     this.gridGl = {
       color: new Float32Array(this.boidGrid.cells.length * 4),
       programInfo: programInfo,
       bufferInfo: undefined
     };
-
+    this.flowGridGl = {
+      color: new Float32Array(this.flowGrid.cells.length * 4),
+      v: new Float32Array(this.flowGrid.cells.length * 4),
+      programInfo: programInfo,
+      bufferInfo: undefined
+    };
     const x = 0.5;
 
     this.gridGl.bufferInfo = twgl.createBufferInfoFromArrays(
@@ -322,6 +351,41 @@ void main() {
           divisor: 1
         }
       });
+
+    this.flowGridGl.bufferInfo = twgl.createBufferInfoFromArrays(
+      this.ctx,
+      {
+        vert_pos: {
+          numComponents: 2,
+          data: [
+            -x, -x,
+            x, -x,
+            -x, x,
+            -x, x,
+            x, -x,
+            x, x
+          ]
+        },
+        texcoord: [
+          0, 1,
+          1, 1,
+          0, 0,
+          0, 0,
+          1, 1,
+          1, 0
+        ],
+        color: {
+          numComponents: 4,
+          data: this.flowGridGl.color,
+          divisor: 1
+        },
+        vel_len: {
+          numComponents: 4,
+          data: this.flowGridGl.v,
+          divisor: 1
+        },
+      });
+
   }
 
   resize() {
@@ -363,6 +427,7 @@ void main() {
 
     this.genField();
     twgl.resizeCanvasToDisplaySize(this.canvas);
+    this.ctx.viewport(0, 0, this.width, this.height);
   }
 
   genField() {
@@ -437,18 +502,10 @@ void main() {
     this.boidGrid.reposition();
   }
 
-  public draw() {
+  drawBoidGrid(){
     const gameClock = this.gameClock;
 
-    gameClock.tick();
-
-    const m4 = twgl.m4;
     const ctx = this.ctx;
-    const boids = this.boids;
-    ctx.viewport(0, 0, this.width, this.height);
-    ctx.clear(ctx.COLOR_BUFFER_BIT);
-
-    m4.ortho(0, ctx.canvas.width, ctx.canvas.height, 0, -1, 1, this.u_matrix);
 
     this.ctx.useProgram(this.gridGl.programInfo.program);
 
@@ -462,19 +519,47 @@ void main() {
       iMousePos: this.glMousePos,
       gridCellSize: this.boidCellSize,
       gridWidth: this.boidGrid.gridXW,
-      gridHeight: this.boidGrid.gridYW
+      gridHeight: this.boidGrid.gridYW,
+      gridMode: 1
     });
     this.boidGrid.draw(ctx);
-
     twgl.setAttribInfoBufferFromArray(ctx, this.gridGl.bufferInfo.attribs.color, this.gridGl.color);
     twgl.setBuffersAndAttributes(ctx, this.gridGl.programInfo, this.gridGl.bufferInfo);
 
     this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.boidGrid.cells.length);
+  }
 
-    for (const b of boids) {
-      b.tick(gameClock.gameTime);
-      b.draw(ctx);
-    }
+  drawFlowGrid(){
+    const gameClock = this.gameClock;
+    const ctx = this.ctx;
+
+    this.ctx.useProgram(this.flowGridGl.programInfo.program);
+
+    twgl.setUniforms(this.flowGridGl.programInfo, {
+      u_matrix: this.u_matrix,
+      iDimensions: this.dimensions,   // viewport resolution (in pixels)
+      iTime: gameClock.gameTime.currentTime,    // shader playback time (in seconds)
+      iTimeDelta: gameClock.gameTime.deltaTime, // render time (in seconds)
+      iFrameRate: gameClock.gameTime.fps,       // shader frame rate
+      iFrame: gameClock.gameTime.currentFrame,   // shader playback frame
+      iMousePos: this.glMousePos,
+      gridCellSize: this.flowCellSize,
+      gridWidth: this.flowGrid.gridXW,
+      gridHeight: this.flowGrid.gridYW,
+      gridMode: 2
+    });
+    this.flowGrid.draw(ctx);
+    twgl.setAttribInfoBufferFromArray(ctx, this.flowGridGl.bufferInfo.attribs.color, this.flowGridGl.color);
+    twgl.setAttribInfoBufferFromArray(ctx, this.flowGridGl.bufferInfo.attribs.vel_len, this.flowGridGl.v);
+
+    twgl.setBuffersAndAttributes(ctx, this.flowGridGl.programInfo, this.flowGridGl.bufferInfo);
+
+    this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.flowGrid.cells.length);
+  }
+
+  drawBoids(){
+    const gameClock = this.gameClock;
+    const ctx = this.ctx;
 
     this.ctx.useProgram(this.boidGl.programInfo.program);
 
@@ -491,6 +576,27 @@ void main() {
     twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.color_rad, this.boidGl.color_rad);
     twgl.setBuffersAndAttributes(ctx, this.boidGl.programInfo, this.boidGl.bufferInfo);
     this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.numBoids);
+  }
+  public draw() {
+    const gameClock = this.gameClock;
+
+    gameClock.tick();
+
+    const m4 = twgl.m4;
+    const ctx = this.ctx;
+    const boids = this.boids;
+    ctx.clear(ctx.COLOR_BUFFER_BIT);
+
+    m4.ortho(0, ctx.canvas.width, ctx.canvas.height, 0, -1, 1, this.u_matrix);
+    // this.drawBoidGrid();
+    this.drawFlowGrid();
+
+    for (const b of boids) {
+      b.tick(gameClock.gameTime);
+      b.draw(ctx);
+    }
+
+   this.drawBoids()
 
     // // draw fps on screen
     // ctx.textAlign = 'left';
