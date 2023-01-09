@@ -202,7 +202,7 @@ export class vec2 implements Ivec2 {
     return dest;
   }
 
-  normalize(dest?: vec2): Ivec2 {
+  normalize(dest?: vec2): vec2 {
     if (!dest) {
       dest = this;
     }

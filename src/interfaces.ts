@@ -7,6 +7,11 @@ export interface IPositional {
   p: Ivec2;
 }
 
+export interface IDirectional {
+  d: Ivec2;
+}
+
+
 export interface IProgressible {
   tick: (gameTime: IGameTime) => void;
 }

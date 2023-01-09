@@ -1,8 +1,8 @@
 import { ICellIndexable } from './Cell';
 import { IGameTime } from './GameClock';
 import { BoidGrid, HashGrid, IGridQueryable } from './HashGrid';
-import { IDrawable, IPositional, IProgressible } from './interfaces';
-import { clamp } from './math';
+import { IDirectional, IDrawable, IPositional, IProgressible } from './interfaces';
+import { clamp, epsilon } from './math';
 import { vec2, Ivec2 } from './math';
 import { World } from './World';
 
@@ -12,6 +12,8 @@ export interface IBoidOptions {
   grid: BoidGrid,
   p?: vec2,
   v?: vec2,
+  d?: vec2,
+  a?: vec2,
   r?: number,
   layer?: number;
 }
@@ -32,10 +34,11 @@ export class BoidBehavior implements IProgressible {
 
 let id = 0;
 
-export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawable, IGridQueryable {
+export class Boid implements IPositional, IDirectional, ICellIndexable, IProgressible, IDrawable, IGridQueryable {
   public id: number;
   public p: vec2;
   public v: vec2;
+  public d: vec2;
   public a: vec2;
   public r: number;
   public r2: number;
@@ -65,7 +68,12 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
     this.layer = options.layer || 0;
     this.p = options.p || new vec2();
     this.v = options.v || new vec2();
-    this.a = new vec2();
+    this.a = options.a || new vec2();
+    if (this.v.squaredLength()) {
+      this.d = this.v.normalize();
+    } else {
+      this.d = new vec2();
+    }
     this.r = options.r || 5;
     this.r2 = this.r * this.r;
   }
@@ -95,6 +103,9 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
       l = maxSpeed;
     }
     this.speed = l;
+    if (l > epsilon) {
+      this.d.set_xy(this.v.x / l, this.v.y / l);
+    }
 
     p.x += v.x * gameTime.deltaTime;
     p.y += v.y * gameTime.deltaTime;
