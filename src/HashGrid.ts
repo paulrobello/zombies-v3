@@ -412,7 +412,6 @@ export class BoidGrid extends HashGrid<Boid> {
     .domain([0, 1, 2, 3, 4, 5]);
   // private gradient = scale(['#131313', '#000931', '#001270', '#002277', '#8d3100', '#8d0000'])
   //   .domain([0, 1, 2, 3, 4, 5]);
-  tc: '#8d0000';
 
   override draw(ctx: WebGL2RenderingContext): void {
     const buffers = this.options.world.gridGl;

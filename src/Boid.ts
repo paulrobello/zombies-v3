@@ -69,10 +69,9 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     this.p = options.p || new vec2();
     this.v = options.v || new vec2();
     this.a = options.a || new vec2();
+    this.d = new vec2();
     if (this.v.squaredLength()) {
-      this.d = this.v.normalize();
-    } else {
-      this.d = new vec2();
+      this.v.normalize(this.d);
     }
     this.r = options.r || 5;
     this.r2 = this.r * this.r;
@@ -104,7 +103,7 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     }
     this.speed = l;
     if (l > epsilon) {
-      this.d.set_xy(this.v.x / l, this.v.y / l);
+      this.d.set_xy(v.x / l, v.y / l);
     }
 
     p.x += v.x * gameTime.deltaTime;

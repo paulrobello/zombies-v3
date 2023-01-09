@@ -56,7 +56,7 @@ export class World {
   drag = 1;
   maxSpeed = 100;
   showField = true;
-  numBoids = 2000;
+  numBoids = 500;
   wheelInc = 0.001;
   gameClock: GameClock;
   fieldRandomScale: number = 0.001;
@@ -98,7 +98,9 @@ export class World {
     this.ctx.clearColor(0, 0, 0, 1);
     this.resize();
 
-    this.commonVs = `
+    this.commonVs = `#version 300 es
+precision highp float;
+
 #define PI2         6.28318530718
 #define PI          3.14159265358
 
@@ -144,9 +146,6 @@ uniform vec2   iMousePos;    // mouse position in world coordinates
     console.log('initBoidGl');
 
     const vs = `
-#version 300 es
-precision mediump float;
-
 ${this.commonVs}
 
 in vec4 vert_pos;
@@ -171,9 +170,6 @@ void main() {
 }`;
 
     const fs = `
-#version 300 es
-precision mediump float;
-
 ${this.commonVs}
 
   in vec2 v_texcoord;
@@ -252,9 +248,6 @@ ${this.commonVs}
   initGridGl() {
     console.log('initGridGl');
     const vs = `
-#version 300 es
-precision mediump float;
-
 ${this.commonVs}
 
 uniform float gridCellSize;
@@ -279,15 +272,13 @@ void main() {
   );
   vec2 p = vert_pos * vec2(gridCellSize * 0.95, gridCellSize * 0.95) + ot;
   gl_Position = u_matrix * vec4(p, 0, 1);
+  v_texcoord = texcoord;
   v_color = color;
   v_angle = vel_len.xy;
   v_speed = vel_len.z;
-  v_texcoord = texcoord;
 }`;
 
     const fs = `
-#version 300 es
-precision mediump float;
 ${this.commonVs}
 uniform float gridCellSize;
 uniform int gridMode;
@@ -357,6 +348,11 @@ void main() {
         color: {
           numComponents: 4,
           data: this.gridGl.color,
+          divisor: 1
+        },
+        vel_len: {
+          numComponents: 4,
+          data: new Float32Array(this.flowGrid.cells.length * 4),
           divisor: 1
         }
       });
@@ -499,12 +495,12 @@ void main() {
         r: this.boidSize
       });
       b.maxSpeed = this.maxSpeed;
-      b.behaviors.set('FlowBehavior', new FlowBehavior(b, 0.15, {flowGrid: this.flowGrid, normalize: true}));
-      b.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 0.5));
-      b.behaviors.set('AlignBehavior', new AlignBehavior(b, 1.1));
-      b.behaviors.set('AttractionPointBehavior', new AttractionPointBehavior(b, 0.01, {target: {p: new vec2(this.widthD2, this.heightD2)}}));
+      b.behaviors.set('FlowBehavior', new FlowBehavior(b, 0.25, {flowGrid: this.flowGrid, normalize: true}));
+      b.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 1));
+      b.behaviors.set('AlignBehavior', new AlignBehavior(b, 1.0));
+      b.behaviors.set('AttractionPointBehavior', new AttractionPointBehavior(b, 0.1, {target: {p: new vec2(this.widthD2, this.heightD2)}}));
       b.behaviors.set('CollisionBehavior', new CollisionBehavior(b, 1));
-      b.behaviors.set('AvoidBoundaryBehavior', new AvoidBoundaryBehavior(b, 50, {margin: this.boidCellSize * 5}));
+      b.behaviors.set('AvoidBoundaryBehavior', new AvoidBoundaryBehavior(b, 50, {margin: this.boidCellSize * 2}));
       this.boids.push(b);
     }
   }
@@ -519,7 +515,6 @@ void main() {
 
   drawBoidGrid() {
     const gameClock = this.gameClock;
-
     const ctx = this.ctx;
 
     this.ctx.useProgram(this.gridGl.programInfo.program);
@@ -540,6 +535,8 @@ void main() {
     this.boidGrid.draw(ctx);
     this.boidGrid.cleanCache();
     twgl.setAttribInfoBufferFromArray(ctx, this.gridGl.bufferInfo.attribs.color, this.gridGl.color);
+    // twgl.setAttribInfoBufferFromArray(ctx, this.gridGl.bufferInfo.attribs.vel_len, []);
+
     twgl.setBuffersAndAttributes(ctx, this.gridGl.programInfo, this.gridGl.bufferInfo);
 
     this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.boidGrid.cells.length);
