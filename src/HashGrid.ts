@@ -137,31 +137,33 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
     }
     const radius2 = radius * radius;
     let hashKey = `${c.id}|${(self?.id || 0)}|${closest ? 1 : 0}`;
-    let getDataRadiusCacheResult = this.getDataRadiusCache.get(hashKey);
-    // if we look for cache hit with closest, but don't find it, broaden key to query that includes more
-    if (!getDataRadiusCacheResult && closest) {
-      getDataRadiusCacheResult = this.getDataRadiusCache.get(`${c.id}|${(self?.id || 0)}|0`);
-    }
+    if (this.options.maxQueryCacheFrames) {
+      let getDataRadiusCacheResult = this.getDataRadiusCache.get(hashKey);
+      // if we look for cache hit with closest, but don't find it, broaden key to query that includes more
+      if (!getDataRadiusCacheResult && closest) {
+        getDataRadiusCacheResult = this.getDataRadiusCache.get(`${c.id}|${(self?.id || 0)}|0`);
+      }
 
-    // check if we have cache hit
-    if (getDataRadiusCacheResult) {
-      // ensure the cache has not expired
-      if (this.options.world.CurrentFrame - getDataRadiusCacheResult.frame < this.options.maxQueryCacheFrames) {
-        // cache query did not have any results just return the empty array
-        if (!getDataRadiusCacheResult.data.length) {
+      // check if we have cache hit
+      if (getDataRadiusCacheResult) {
+        // ensure the cache has not expired
+        if (this.options.world.CurrentFrame - getDataRadiusCacheResult.frame < this.options.maxQueryCacheFrames) {
+          // cache query did not have any results just return the empty array
+          if (!getDataRadiusCacheResult.data.length) {
+            return getDataRadiusCacheResult.data;
+          }
+          // current query is for closest but results are not for closest then just return first result from cache
+          if (closest && !getDataRadiusCacheResult.closest) {
+            return [getDataRadiusCacheResult.data[0]];
+          }
+          if (radius < getDataRadiusCacheResult.radius) {
+            getDataRadiusCacheResult.data.filter(i => i.dist2 <= radius2);
+          }
           return getDataRadiusCacheResult.data;
+        } else {
+          // cache expired remove it
+          this.getDataRadiusCache.delete(hashKey);
         }
-        // current query is for closest but results are not for closest then just return first result from cache
-        if (closest && !getDataRadiusCacheResult.closest) {
-          return [getDataRadiusCacheResult.data[0]];
-        }
-        if (radius < getDataRadiusCacheResult.radius) {
-          getDataRadiusCacheResult.data.filter(i => i.dist2 <= radius2);
-        }
-        return getDataRadiusCacheResult.data;
-      } else {
-        // cache expired remove it
-        this.getDataRadiusCache.delete(hashKey);
       }
     }
 
@@ -185,7 +187,7 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
       for (const i of n.items) {
         if (i === self) continue;
         dist = i.p.squaredDistanceTo(v);
-        if (dist < nearest) {
+        if (dist <= radius2 && dist < nearest) {
           nearest = dist;
           nearestData = i;
         }
@@ -197,18 +199,24 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
     if (closest) {
       if (!nearest || !nearestData) {
         data = [];
-        this.getDataRadiusCache.set(hashKey, {frame: this.options.world.CurrentFrame, closest, radius, data});
+        if (this.options.maxQueryCacheFrames) {
+          this.getDataRadiusCache.set(hashKey, {frame: this.options.world.CurrentFrame, closest, radius, data});
+        }
         return data;
       }
       data = [{data: nearestData, dist2: nearest}];
-      this.getDataRadiusCache.set(hashKey, {frame: this.options.world.CurrentFrame, closest, radius, data});
+      if (this.options.maxQueryCacheFrames) {
+        this.getDataRadiusCache.set(hashKey, {frame: this.options.world.CurrentFrame, closest, radius, data});
+      }
       return data;
     }
 
     data = data
       .filter(i => i.dist2 <= radius2)
       .sort((a, b) => a.dist2 > b.dist2 ? 1 : -1);
-    this.getDataRadiusCache.set(hashKey, {frame: this.options.world.CurrentFrame, closest, radius, data});
+    if (this.options.maxQueryCacheFrames) {
+      this.getDataRadiusCache.set(hashKey, {frame: this.options.world.CurrentFrame, closest, radius, data});
+    }
     return data;
   }
 
@@ -360,11 +368,13 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
   }
 
   cleanCache() {
-    const currFrame = this.options.world.CurrentFrame;
     const maxFrames = this.options.maxQueryCacheFrames;
-    for (const [key, value] of this.getDataRadiusCache.entries()) {
-      if (currFrame - value.frame > maxFrames) {
-        this.getDataRadiusCache.delete(key);
+    if (maxFrames) {
+      const currFrame = this.options.world.CurrentFrame;
+      for (const [key, value] of this.getDataRadiusCache.entries()) {
+        if (currFrame - value.frame > maxFrames) {
+          this.getDataRadiusCache.delete(key);
+        }
       }
     }
     this.changedCells.clear();
@@ -398,8 +408,11 @@ export class FlowGrid extends HashGrid<IFlowValue> {
 }
 
 export class BoidGrid extends HashGrid<Boid> {
-  private gradient = scale(['#131313', '#002300', '#005b00', '#007700', '#8d3100', '#8d0000'])
+  gradient = scale(['#131313', '#002300', '#005b00', '#007700', '#8d3100', '#8d0000'])
     .domain([0, 1, 2, 3, 4, 5]);
+  // private gradient = scale(['#131313', '#000931', '#001270', '#002277', '#8d3100', '#8d0000'])
+  //   .domain([0, 1, 2, 3, 4, 5]);
+  tc: '#8d0000';
 
   override draw(ctx: WebGL2RenderingContext): void {
     const buffers = this.options.world.gridGl;

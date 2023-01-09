@@ -1,14 +1,14 @@
 import { Boid, BoidBehavior } from '../Boid';
 import { IGameTime } from '../GameClock';
 import { IPositional } from '../interfaces';
-import { epsilon, Ivec2, vec2 } from '../math';
+import { clamp, epsilon, Ivec2, vec2 } from '../math';
 
 export interface IAttractionPointBehaviorOptions {
   target: IPositional;
 }
 
 export const AttractionPointBehaviorDefaultOptions: IAttractionPointBehaviorOptions = {
-  target: {p:new vec2(0, 0)}
+  target: {p: new vec2(0, 0)}
 };
 
 export class AttractionPointBehavior extends BoidBehavior {
@@ -25,8 +25,10 @@ export class AttractionPointBehavior extends BoidBehavior {
     const p: vec2 = b.p;
     const v: vec2 = b.v;
     const d: vec2 = vec2.difference(this.options.target.p, p);
-    const l: number = d.length() + epsilon;
-    d.scale(1 / l * this.scale);
+    const l: number = d.length();
+    const m: number = Math.max(b.grid.width, b.grid.height);
+    const ml: number = clamp(d.length(), m/4, m);
+    d.scale((1 / l) * (m - ml) / m * this.scale);
     v.add(d);
   }
 }

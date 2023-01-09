@@ -61,6 +61,7 @@ export class Boid implements IPositional, ICellIndexable, IProgressible, IDrawab
   constructor(options: IBoidOptions) {
     this.options = options;
     this.id = id++;
+    this.grid = options.grid;
     this.layer = options.layer || 0;
     this.p = options.p || new vec2();
     this.v = options.v || new vec2();

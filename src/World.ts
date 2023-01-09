@@ -422,8 +422,8 @@ void main() {
       height: this.height,
       cellSize: this.boidCellSize,
       wrap: false,
-      computeNeighborRadius: 3,
-      maxQueryCacheFrames: 2
+      computeNeighborRadius: 8,
+      maxQueryCacheFrames: 0
     };
     if (!this.flowGrid) {
       this.flowGrid = new FlowGrid(this.flowGridOptions);
@@ -499,12 +499,12 @@ void main() {
         r: this.boidSize
       });
       b.maxSpeed = this.maxSpeed;
-      b.behaviors.set('FlowBehavior', new FlowBehavior(b, {flowGrid: this.flowGrid, normalize: true, scale: 0.5}));
-      b.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 1));
-      b.behaviors.set('AlignBehavior', new AlignBehavior(b, 1));
+      b.behaviors.set('FlowBehavior', new FlowBehavior(b, 0.15, {flowGrid: this.flowGrid, normalize: true}));
+      b.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 0.5));
+      b.behaviors.set('AlignBehavior', new AlignBehavior(b, 1.1));
+      b.behaviors.set('AttractionPointBehavior', new AttractionPointBehavior(b, 0.01, {target: {p: new vec2(this.widthD2, this.heightD2)}}));
       b.behaviors.set('CollisionBehavior', new CollisionBehavior(b, 1));
-      b.behaviors.set('AttractionPointBehavior', new AttractionPointBehavior(b, 0.1, {target: {p: new vec2(this.widthD2, this.heightD2)}}));
-      b.behaviors.set('AvoidBoundaryBehavior', new AvoidBoundaryBehavior(b, 10));
+      b.behaviors.set('AvoidBoundaryBehavior', new AvoidBoundaryBehavior(b, 50, {margin: this.boidCellSize * 5}));
       this.boids.push(b);
     }
   }

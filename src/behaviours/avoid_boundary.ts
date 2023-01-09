@@ -7,7 +7,7 @@ export interface IAvoidBoundaryBehaviorOptions {
 }
 
 export const AvoidBoundaryBehaviorDefaultOptions: IAvoidBoundaryBehaviorOptions = {
-  margin: 64
+  margin: 32
 };
 
 export class AvoidBoundaryBehavior extends BoidBehavior {

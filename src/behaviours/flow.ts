@@ -7,30 +7,27 @@ import { Ivec2 } from '../math';
 export interface IFlowBehaviorOptions {
   flowGrid: HashGrid<IFlowValue>;
   normalize: boolean;
-  scale: number;
 }
 
 export class FlowBehavior extends BoidBehavior {
-  public flowGrid: HashGrid<IFlowValue>;
   options: IFlowBehaviorOptions;
 
-  constructor(boid: Boid, options: IFlowBehaviorOptions) {
-    super(boid);
+  constructor(boid: Boid, scale: number, options: IFlowBehaviorOptions) {
+    super(boid, scale);
     this.name = 'FlowBehavior';
     this.options = options;
-    this.flowGrid = options.flowGrid;
   }
 
   public override tick(gameTime: IGameTime): void {
     const b: Boid = this.boid;
     const p: Ivec2 = b.p;
     const v: Ivec2 = b.v;
-    const d: IFlowValue = this.flowGrid.getCellValue(p.x, p.y, true);
+    const d: IFlowValue = this.options.flowGrid.getCellValue(p.x, p.y, true);
     if (!d) {
       console.warn('no flow cell at', p.x, p.y);
       return;
     }
-    const scale = this.options.scale;
+    const scale = this.scale;
     // console.log(d)
     if (!d.l || this.options.normalize) {
       v.x += d.p.x * scale;
