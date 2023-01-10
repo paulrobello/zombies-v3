@@ -432,13 +432,14 @@ export class FlowGrid extends HashGrid<IFlowValue> {
   }
 
   override tick(gameTime: IGameTime): void {
-    this.fadeCells(gameTime, 0.5);
+    this.fadeCells(gameTime, 0.1);
     const pm = this.options.world.paintMode;
-    if (pm === 'none') {
+    const mouse: IMouse = this.options.world.mouse;
+
+    if (pm === 'none' || !mouse.buttons[0]) {
       return;
     }
     const ps = this.options.world.paintSize;
-    const mouse: IMouse = this.options.world.mouse;
     const t = new vec2();
 
     const cell: Cell<IFlowValue> = this.getCell(mouse.p.x, mouse.p.y, true);
@@ -456,20 +457,19 @@ export class FlowGrid extends HashGrid<IFlowValue> {
       // }
       const cv = n.items[0];
       const v = cv.p;
-      if (mouse.buttons[0]) {
-        if (pm === 'stroke') {
-          mouse.d.scale((i === 0 ? 1 : gameTime.deltaTime * 2), t);
-        } else {
-          vec2.difference(mouse.p, n.wc, t);
-          if (pm === 'repel') {
-            t.scale(-1);
-          }
+      if (pm === 'stroke') {
+        mouse.d.scale((i === 0 ? 1 : gameTime.deltaTime * 2), t);
+      } else {
+        vec2.difference(mouse.p, n.wc, t);
+        if (pm === 'repel') {
+          t.scale(-1);
         }
-        const ml = ps;
-        l = clamp(t.length(), epsilon, ml);
-        t.scale(1 / l * (ml - l) * gameTime.deltaTime);
-        v.add(t);
       }
+      const ml = ps;
+      l = clamp(t.length(), epsilon, ml);
+      t.scale(1 / l * (ml - l) * gameTime.deltaTime);
+      v.add(t);
+
 
       l = v.length();
       if (l > 1) {

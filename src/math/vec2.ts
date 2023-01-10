@@ -379,7 +379,7 @@ export class vec2 implements Ivec2 {
     return dest;
   }
 
-  static angle2Vec(rad: number): Ivec2 {
+  static angle2Vec(rad: number): vec2 {
     if (!isFinite(rad)) {
       rad = 0;
     }

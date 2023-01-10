@@ -514,44 +514,24 @@ void main() {
     console.log('genField');
     this.fieldRandomScale = Math.random() * 0.001;
     this.flowGrid.clear();
-    for (let y = 0; y < this.gridYW; y += 1) {
-      for (let x = 0; x < this.gridXW; x += 1) {
+    for (let y = 0; y < this.gridYW; y++) {
+      for (let x = 0; x < this.gridXW; x++) {
         this.flowGrid.addCelData(x, y, false, this.getFlowFieldValue(x, y));
       }
     }
   }
 
   getFlowFieldValue(x: number, y: number): IFlowValue {
-    let p: Ivec2 = new vec2();
-    let border = false;
-    if (x === 0) {
-      p.x = 1;
-      border = true;
-    } else if (x === this.gridXW - 1) {
-      p.x = -1;
-      border = true;
-    }
-    if (y === 0) {
-      p.y = 1;
-      border = true;
-    } else if (y === this.gridYW - 1) {
-      p.y = -1;
-      border = true;
-    }
     const scale = this.fieldScale + this.fieldRandomScale;
     x = (x - this.widthD2) * scale;
     y = (y - this.heightD2) * scale;
     const rad = noise(x, y);
-    if (border) {
-      p.add(vec2.rand(0.1, 0.5));
-    } else {
-      p = vec2.angle2Vec(rad * Math.PI).scale(map(rad, -1, 1, 0.01, 1));
-    }
-    const l = p.length() + epsilon;
+    const p = vec2.angle2Vec(rad * Math.PI);
+
     return {
       id: 0,
       layer: 0,
-      p: p.scale(1 / l),
+      p,
       l: 1.0,
       lastCellIndex: -1,
       cellIndex: -1
@@ -568,9 +548,9 @@ void main() {
         r: this.boidSize
       });
       b.maxSpeed = this.maxSpeed;
-      b.behaviors.set('FlowBehavior', new FlowBehavior(b, 1, {flowGrid: this.flowGrid, normalize: true}));
-      b.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 2, {margin: 100}));
-      b.behaviors.set('AlignBehavior', new AlignBehavior(b, 1.0, {margin: 100}));
+      b.behaviors.set('FlowBehavior', new FlowBehavior(b, 1, {flowGrid: this.flowGrid, normalize: false}));
+      b.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 1, {margin: 32}));
+      // b.behaviors.set('AlignBehavior', new AlignBehavior(b, 1.0, {margin: 100}));
       // b.behaviors.set('AttractionPointBehavior', new AttractionPointBehavior(b, 1, {target: {p: new vec2(this.widthD2, this.heightD2)}}));
       b.behaviors.set('CollisionBehavior', new CollisionBehavior(b, 1));
       b.behaviors.set('AvoidBoundaryBehavior', new AvoidBoundaryBehavior(b, 50, {margin: this.boidCellSize * 2}));

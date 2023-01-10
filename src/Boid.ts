@@ -136,9 +136,8 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     const flowGrid = this.options.world.flowGrid;
     const cell: Cell<IFlowValue> = flowGrid.getCell(p.x, p.y, true);
     const cv = cell.items[0];
-    cv.p.add(this.d.scale(gameTime.deltaTime * 0.5, t));
-    cv.l += this.speed * gameTime.deltaTime * 0.1;
-    cv.p.normalize();
+    cv.p.add(this.d.scale(gameTime.deltaTime * 0.4, t)).normalize();
+    cv.l += this.speed * gameTime.deltaTime * 0.01;
     flowGrid.changedCells.add(cell);
     // if (world.mouse.p.squaredDistanceTo(this.p) < 1000) {
     //   this.alive = false;
