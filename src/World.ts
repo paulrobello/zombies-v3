@@ -108,6 +108,11 @@ export class World {
     this.canvas.addEventListener('click', mouseClickHandler);
     this.canvas.addEventListener('auxclick', mouseClickHandler);
 
+    this.canvas.addEventListener('mouseleave', (event: MouseEvent) => {
+      for (let i = 0; i < this.mouse.buttons.length; i++) {
+        this.mouse.buttons[i] = false;
+      }
+    });
     this.canvas.addEventListener('mousemove', (event: MouseEvent) => {
       this.mouse.op.x = this.mouse.p.x;
       this.mouse.op.y = this.mouse.p.y;
