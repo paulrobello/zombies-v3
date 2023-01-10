@@ -104,6 +104,7 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     const v: Ivec2 = this.v;
     const r: number = this.r;
     const world = this.options.world;
+    const t: vec2 = new vec2();
 
     const maxSpeed = this.maxSpeed;
     let l: number = v.length();
@@ -132,19 +133,16 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
       grid.removeCelDataByIndex(this.lastCellIndex, this);
       grid.addCelDataByIndex(newCellIndex, this);
     }
-    const cell: Cell<IFlowValue> = this.options.world.flowGrid.getCell(p.x, p.y, true);
+    const flowGrid = this.options.world.flowGrid;
+    const cell: Cell<IFlowValue> = flowGrid.getCell(p.x, p.y, true);
     const cv = cell.items[0];
-    cv.p.x += this.d.x * gameTime.deltaTime * 0.1;
-    cv.p.y += this.d.y * gameTime.deltaTime * 0.1;
-    l = cv.p.length();
-    if (l > 1) {
-      cv.p.scale(1 / l);
-    }
-    cv.l = l;
-    this.options.world.flowGrid.changedCells.add(cell);
-    if (world.mouse.p.squaredDistanceTo(this.p) < 1000) {
-      this.alive = false;
-    }
+    cv.p.add(this.d.scale(gameTime.deltaTime * 0.5, t));
+    cv.l += this.speed * gameTime.deltaTime * 0.1;
+    cv.p.normalize();
+    flowGrid.changedCells.add(cell);
+    // if (world.mouse.p.squaredDistanceTo(this.p) < 1000) {
+    //   this.alive = false;
+    // }
     // if (world.mouse.p.squaredDistanceTo(this.p) < 10000) {
     //   this.color.rgb = [1, 1, 1];
     // }else{

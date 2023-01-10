@@ -420,20 +420,27 @@ export class FlowGrid extends HashGrid<IFlowValue> {
     }
   }
 
+  fadeCells(gameTime: IGameTime, speed: number) {
+    for (const cell of this.cells) {
+      const cv = cell.items[0];
+      if (cv.l) {
+        this.changedCells.add(cell);
+        cv.l *= 1 - gameTime.deltaTime * speed;
+        if (cv.l < epsilon) cv.l = 0;
+      }
+    }
+  }
+
   override tick(gameTime: IGameTime): void {
-    const mouse: IMouse = this.options.world.mouse;
+    this.fadeCells(gameTime, 0.5);
     const pm = this.options.world.paintMode;
     if (pm === 'none') {
       return;
     }
     const ps = this.options.world.paintSize;
-
+    const mouse: IMouse = this.options.world.mouse;
     const t = new vec2();
-    for (const cell of this.cells) {
-      cell.items[0].p.scale(1-gameTime.deltaTime);
-    //   cell.color.rgba = [0.1, 0.1, 0.1, 1.0];
-      this.changedCells.add(cell);
-    }
+
     const cell: Cell<IFlowValue> = this.getCell(mouse.p.x, mouse.p.y, true);
     let l: number;
 

@@ -345,7 +345,7 @@ void main() {
       } // switch
     } // if len
   } // if paintMode
-  v_speed = length(vel_len.xy);
+  v_speed = length(vel_len.z);
   v_angle = normalize(vel_len.xy);
   v_gridMode = gridMode;
   v_paintMode = paintMode;
@@ -366,20 +366,16 @@ in vec2 v_texcoord;
 
 out vec4 FragColor;
 void main() {
+  FragColor = v_color;
   switch (v_gridMode) {
   case 1 : {
-    FragColor = v_color;
     break;}
   case 2 : {
     vec2 dir = vec2(0.5, 0.5) - v_texcoord;
-    if (dot(vec2(-v_angle.x,v_angle.y), dir)>0.0) {
+    if (v_speed>0.001 && dot(vec2(-v_angle.x,v_angle.y), dir)>0.0) {
       if (abs(dot(vec2(v_angle.y,v_angle.x), dir))<0.05) {
-        FragColor = vec4(0.75,0.0,0.0,1.0);
-      }else{
-        FragColor = v_color;
+        FragColor = vec4(clamp(v_speed,0.0,1.0),0.0,0.0,1.0);
       }
-    }else{
-      FragColor = v_color;
     }
     break;}
    }
