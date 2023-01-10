@@ -148,7 +148,7 @@ export class mat2 {
     return this;
   }
 
-  multiplyVec2(vector: Ivec2, result: vec2): Ivec2 {
+  multiplyVec2(vector: Ivec2, result: vec2): vec2 {
     const x = vector.x;
     const y = vector.y;
 

@@ -2,23 +2,23 @@ import { makeNoise2D } from 'fast-simplex-noise';
 import { throttle } from 'underscore';
 import * as twgl from 'twgl.js';
 import { BufferInfo, m4, ProgramInfo } from 'twgl.js';
+import { HashGridOptions, BoidGrid, FlowGrid, IFlowValue } from './grids';
 import {
   AlignBehavior,
   AttractionPointBehavior,
   AvoidBoundaryBehavior,
   CollisionBehavior,
-  FlowBehavior,
+  FlowBehavior, ForwardBehavior,
   SeparateBehavior
 } from './behaviours';
 import { Boid } from './Boid';
 import { GameClock } from './GameClock';
-import { BoidGrid, FlowGrid, HashGridOptions } from './HashGrid';
-import { IFlowValue, QueryLayerByName } from './interfaces';
-import { clamp, epsilon, Ivec2, map, vec2 } from './math';
+import { QueryLayerByName } from './interfaces';
+import { clamp, vec2 } from './math';
 
 const noise = makeNoise2D();
-export type PaintMode = 'none' | 'stroke' | 'attract' | 'repel';
-const PaintModes: PaintMode[] = ['none', 'stroke', 'attract', 'repel'];
+export type PaintMode = 'none' | 'wall' | 'stroke' | 'attract' | 'repel';
+const PaintModes: PaintMode[] = ['none', 'wall', 'stroke', 'attract', 'repel'];
 
 export interface IBoidGl {
   pos_vel: Float32Array;
@@ -65,7 +65,7 @@ export class World {
   boids: Boid[] = [];
   boidSize: number = 8;
   drag = 1;
-  maxSpeed = 100;
+  maxSpeed = 50;
   showField = true;
   numBoids = 500;
   wheelInc = this.flowCellSize;
@@ -86,7 +86,7 @@ export class World {
 
   layers: QueryLayerByName = new Map<string, number>();
   public paintMode: PaintMode = 'none';
-  public paintSize: number = this.flowCellSize * 3;
+  public paintSize: number = this.flowCellSize * 8;
 
   constructor() {
     this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -325,6 +325,7 @@ out vec2 v_texcoord;
 flat out int v_gridMode;
 flat out int v_paintMode;
 flat out float v_paintSize;
+flat out float v_solid;
 
 void main() {
   vec2 ot = vec2(
@@ -335,23 +336,34 @@ void main() {
   gl_Position = u_matrix * vec4(p, 0, 1);
   v_texcoord = texcoord;
   v_color = color;
+  float ps = paintSize+(gridCellSize);
+  if (paintMode==1){
+    ps = gridCellSize/2.0;
+  }
   if (paintMode > 0) {
-    if (length(ot - iMousePos.xy)<=paintSize+(gridCellSize)){
+    if (length(ot - iMousePos.xy)<=ps){
       switch (paintMode) {
         case 1 : {
-          v_color = vec4(0,0,0.5,1);
+          v_color = vec4(0.5,0.5,0.5,1);
           break;}
         case 2 : {
-          v_color = vec4(0,0.5,0,1);
+          v_color = vec4(0,0,0.5,1);
           break;}
         case 3 : {
+          v_color = vec4(0,0.5,0,1);
+          break;}
+        case 4 : {
           v_color = vec4(0.5,0,0,1);
           break;}
       } // switch
+      if (vel_len.w>0.0){
+        v_color = v_color * vec4(1.5,1.5,1.5,1.0);
+      }
     } // if len
   } // if paintMode
   v_speed = length(vel_len.z);
   v_angle = normalize(vel_len.xy);
+  v_solid = vel_len.w;
   v_gridMode = gridMode;
   v_paintMode = paintMode;
   v_paintSize = paintSize;
@@ -363,8 +375,7 @@ uniform float gridCellSize;
 flat in int v_gridMode;
 flat in int v_paintMode;
 flat in float v_paintSize;
-
-in vec2 v_angle;
+flat in float v_solid;in vec2 v_angle;
 in vec4 v_color;
 in float v_speed;
 in vec2 v_texcoord;
@@ -376,10 +387,12 @@ void main() {
   case 1 : {
     break;}
   case 2 : {
-    vec2 dir = vec2(0.5, 0.5) - v_texcoord;
-    if (v_speed>0.001 && dot(vec2(-v_angle.x,v_angle.y), dir)>0.0) {
-      if (abs(dot(vec2(v_angle.y,v_angle.x), dir))<0.05) {
-        FragColor = vec4(clamp(v_speed,0.0,1.0),0.0,0.0,1.0);
+    if (v_solid<0.001){
+      vec2 dir = vec2(0.5, 0.5) - v_texcoord;
+      if (v_speed>0.001 && dot(vec2(-v_angle.x,v_angle.y), dir)>0.0) { // forward half
+        if (abs(dot(vec2(v_angle.y,v_angle.x), dir))<0.05) { // dir line
+          FragColor = vec4(clamp(v_speed,0.0,1.0),0.0,0.0,1.0);
+        }
       }
     }
     break;}
@@ -521,25 +534,26 @@ void main() {
     this.flowGrid.clear();
     for (let y = 0; y < this.gridYW; y++) {
       for (let x = 0; x < this.gridXW; x++) {
-        this.flowGrid.addCelData(x, y, false, this.getFlowFieldValue(x, y));
+        this.flowGrid.addCelData(x, y, false, this.getFlowFieldValue(x, y, x === 0 || y === 0 || x === this.gridXW - 1 || y === this.gridYW - 1));
       }
     }
   }
 
-  getFlowFieldValue(x: number, y: number): IFlowValue {
+  getFlowFieldValue(x: number, y: number, s: boolean): IFlowValue {
     const scale = this.fieldScale + this.fieldRandomScale;
-    x = (x - this.widthD2) * scale;
-    y = (y - this.heightD2) * scale;
-    const rad = noise(x, y);
+    const nx = (x - this.widthD2) * scale;
+    const ny = (y - this.heightD2) * scale;
+    const rad = noise(nx, ny);
     const p = vec2.angle2Vec(rad * Math.PI);
-
     return {
       id: 0,
       layer: 0,
       p,
       l: 1.0,
       lastCellIndex: -1,
-      cellIndex: -1
+      cellIndex: -1,
+      static: s,
+      solid: s
     };
   }
 
@@ -548,17 +562,21 @@ void main() {
       let b = new Boid({
         world: this,
         grid: this.boidGrid,
-        p: new vec2(Math.random() * this.width, Math.random() * this.height),
+        p: new vec2(
+          clamp(Math.random() * this.width, this.boidCellSize, this.width - this.boidCellSize),
+          clamp(Math.random() * this.height, this.boidCellSize, this.height - this.boidCellSize)
+        ),
         v: new vec2().random(10, 100),
         r: this.boidSize
       });
       b.maxSpeed = this.maxSpeed;
+      b.behaviors.set('ForwardBehavior', new ForwardBehavior(b, 1));
       b.behaviors.set('FlowBehavior', new FlowBehavior(b, 1, {flowGrid: this.flowGrid, normalize: false}));
-      b.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 1, {margin: 32}));
+      // b.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 1, {margin: 32}));
       // b.behaviors.set('AlignBehavior', new AlignBehavior(b, 1.0, {margin: 100}));
       // b.behaviors.set('AttractionPointBehavior', new AttractionPointBehavior(b, 1, {target: {p: new vec2(this.widthD2, this.heightD2)}}));
       b.behaviors.set('CollisionBehavior', new CollisionBehavior(b, 1));
-      b.behaviors.set('AvoidBoundaryBehavior', new AvoidBoundaryBehavior(b, 50, {margin: this.boidCellSize * 2}));
+      b.behaviors.set('AvoidBoundaryBehavior', new AvoidBoundaryBehavior(b, 100, {margin: this.boidCellSize * 3}));
       this.boids.push(b);
     }
   }

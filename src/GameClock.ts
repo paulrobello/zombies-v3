@@ -14,7 +14,7 @@ export interface IGameTime {
 
 export const GameClockDefaultOptions: IGameClockOptions = {
   minDeltaTime: 0.01,
-  maxDeltaTime: 1
+  maxDeltaTime: 0.1
 };
 
 export class GameClock {

@@ -1,10 +1,8 @@
-import { scale } from 'chroma-js';
-import { Boid } from './Boid';
-import { Cell, ICellIndexable } from './Cell';
-import { IGameTime } from './GameClock';
-import { IDrawable, IFlowValue, IPositional, IProgressible } from './interfaces';
-import { clamp, epsilon, vec2, wrap } from './math';
-import { IMouse, World } from './World';
+import { Cell, ICellIndexable } from '../Cell';
+import { IGameTime } from '../GameClock';
+import { IDrawable, IPositional, IProgressible } from '../interfaces';
+import { vec2, wrap } from '../math';
+import { World } from '../World';
 
 export interface IGridQueryable {
   layer: number;
@@ -14,6 +12,7 @@ export interface IGridQueryable {
 export interface IDataRadiusResult<T> {
   data: T;
   dist2: number;
+  dv: vec2;
 }
 
 export type IDataRadiusResults<T> = IDataRadiusResult<T>[];
@@ -193,20 +192,25 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
     }
 
     const cellSize = this.options.cellSize;
-    const v = new vec2(x * (worldSpace ? 1 : cellSize), y * (worldSpace ? 1 : cellSize));
-    let dist, nearest = Infinity, nearestData: T | undefined;
+    const p = new vec2(x * (worldSpace ? 1 : cellSize), y * (worldSpace ? 1 : cellSize));
+    let dist2: number;
+    let nearest: number = Infinity;
+    let nearestData: T | undefined;
+    let nearestDv: vec2;
     const numNeighbors = this.numNeighbors(c, radius, true);
     for (let ni = 0; ni < numNeighbors; ni++) {
       const n = c.neighbors[ni];
       for (const i of n.items) {
         if (i === self) continue;
-        dist = i.p.squaredDistanceTo(v);
-        if (dist <= radius2 && dist < nearest) {
-          nearest = dist;
+        const dv = vec2.difference(i.p, p);
+        dist2 = dv.squaredLength();
+        if (dist2 <= radius2 && dist2 < nearest) {
+          nearest = dist2;
           nearestData = i;
+          nearestDv = dv;
         }
         if (!closest) {
-          data.push({data: i, dist2: dist});
+          data.push({data: i, dv, dist2});
         }
       }
     }
@@ -218,7 +222,7 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
         }
         return data;
       }
-      data = [{data: nearestData, dist2: nearest}];
+      data = [{data: nearestData, dist2: nearest, dv: nearestDv}];
       if (this.options.maxQueryCacheFrames) {
         this.getDataRadiusCache.set(hashKey, {frame: this.options.world.CurrentFrame, closest, radius, data});
       }
@@ -227,7 +231,7 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
 
     data = data
       .filter(i => i.dist2 <= radius2)
-      .sort((a, b) => a.dist2 > b.dist2 ? 1 : -1);
+      .sort((a, b) => a.dist2 - b.dist2);
     if (this.options.maxQueryCacheFrames) {
       this.getDataRadiusCache.set(hashKey, {frame: this.options.world.CurrentFrame, closest, radius, data});
     }
@@ -395,122 +399,3 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
   }
 }
 
-export class FlowGrid extends HashGrid<IFlowValue> {
-  flowGradient = scale(['#000000', '#00FF00', '#0000FF', '#FFFF00', '#FF8700', '#FF0000'])
-    .domain([0, 0.2, 0.5, 0.6, 0.75, 1.0]);
-
-  override draw(ctx: WebGL2RenderingContext): void {
-    const buffers = this.options.world.flowGridGl;
-
-    let id: number;
-    for (const cell of this.changedCells) {
-      const cv = cell.items[0];
-      id = cell.id * 4;
-      // const c = this.flowGradient(cv.l).gl();
-
-      buffers.color[id] = cell.color.r;
-      buffers.color[id + 1] = cell.color.g;
-      buffers.color[id + 2] = cell.color.b;
-      buffers.color[id + 3] = 1;
-
-      buffers.v[id] = cv.p.x;
-      buffers.v[id + 1] = cv.p.y;
-      buffers.v[id + 2] = cv.l;
-      buffers.v[id + 3] = 0;
-    }
-  }
-
-  fadeCells(gameTime: IGameTime, speed: number) {
-    for (const cell of this.cells) {
-      const cv = cell.items[0];
-      if (cv.l) {
-        this.changedCells.add(cell);
-        cv.l *= 1 - gameTime.deltaTime * speed;
-        if (cv.l < epsilon) cv.l = 0;
-      }
-    }
-  }
-
-  override tick(gameTime: IGameTime): void {
-    this.fadeCells(gameTime, 0.1);
-    const pm = this.options.world.paintMode;
-    const mouse: IMouse = this.options.world.mouse;
-
-    if (pm === 'none' || !mouse.buttons[0]) {
-      return;
-    }
-    const ps = this.options.world.paintSize;
-    const t = new vec2();
-
-    const cell: Cell<IFlowValue> = this.getCell(mouse.p.x, mouse.p.y, true);
-    let l: number;
-
-    const numNeighbors = this.numNeighbors(cell, ps, true);
-    for (let i = 0; i < numNeighbors; i++) {
-      const n: Cell<IFlowValue> = cell.neighbors[i];
-      // if (pm === 'attract') {
-      //   n.color.rgba = [0.3, 0.5, 0.3, 1.0];
-      // } else if (pm === 'repel') {
-      //   n.color.rgba = [0.5, 0.3, 0.3, 1.0];
-      // } else {
-      //   n.color.rgba = [0.3, 0.3, 0.5, 1.0];
-      // }
-      const cv = n.items[0];
-      const v = cv.p;
-      if (pm === 'stroke') {
-        mouse.d.scale((i === 0 ? 1 : gameTime.deltaTime * 2), t);
-      } else {
-        vec2.difference(mouse.p, n.wc, t);
-        if (pm === 'repel') {
-          t.scale(-1);
-        }
-      }
-      const ml = ps;
-      l = clamp(t.length(), epsilon, ml);
-      t.scale(1 / l * (ml - l) * gameTime.deltaTime);
-      v.add(t);
-
-
-      l = v.length();
-      if (l > 1) {
-        v.scale(1 / l);
-      }
-      cv.l = l;
-
-      this.changedCells.add(n);
-    }
-  }
-}
-
-export class BoidGrid extends HashGrid<Boid> {
-  gradient = scale(['#131313', '#002300', '#005b00', '#007700', '#8d3100', '#8d0000'])
-    .domain([0, 1, 2, 3, 4, 5]);
-  // private gradient = scale(['#131313', '#000931', '#001270', '#002277', '#8d3100', '#8d0000'])
-  //   .domain([0, 1, 2, 3, 4, 5]);
-  deadBoids: Set<Boid> = new Set<Boid>();
-
-  override draw(ctx: WebGL2RenderingContext): void {
-    const buffers = this.options.world.gridGl;
-    let id: number;
-    for (const cell of this.changedCells) {
-      id = cell.id * 4;
-      cell.color.rgba = this.gradient(cell.items.length).gl();
-      buffers.color[id] = cell.color.r;
-      buffers.color[id + 1] = cell.color.g;
-      buffers.color[id + 2] = cell.color.b;
-      buffers.color[id + 3] = 1;
-      // if (cell.wp.x === 0) {
-      //   buffers.color[id * 4] = 0.5;
-      //   buffers.color[id * 4 + 1] = 0.5;
-      //   buffers.color[id * 4 + 2] = 0;
-      //   buffers.color[id * 4 + 3] = 1;
-      // }
-      // if (cell.wp.y === 0) {
-      //   buffers.color[id * 4] = 0;
-      //   buffers.color[id * 4 + 1] = 0.5;
-      //   buffers.color[id * 4 + 2] = 0.5;
-      //   buffers.color[id * 4 + 3] = 1;
-      // }
-    }
-  }
-}

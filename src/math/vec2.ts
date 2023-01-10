@@ -45,7 +45,9 @@ export interface Ivec2 {
 
   isFinite(): boolean;
 
-  rotate90(dest?: vec2): Ivec2;
+  rotateRight(dest?: vec2): Ivec2;
+
+  rotateLeft(dest?: vec2): Ivec2;
 }
 
 export class vec2 implements Ivec2 {
@@ -89,13 +91,13 @@ export class vec2 implements Ivec2 {
 
   static readonly rand = (min: number, max: number) => (new vec2()).random(min, max);
 
-  reset(): Ivec2 {
+  reset(): vec2 {
     this.x = 0;
     this.y = 0;
     return this;
   }
 
-  copy(dest?: Ivec2): Ivec2 {
+  copy(dest?: vec2): vec2 {
     if (!dest) {
       dest = new vec2();
     }
@@ -106,7 +108,7 @@ export class vec2 implements Ivec2 {
     return dest;
   }
 
-  negate(dest?: vec2): Ivec2 {
+  negate(dest?: vec2): vec2 {
     if (!dest) {
       dest = this;
     }
@@ -151,7 +153,7 @@ export class vec2 implements Ivec2 {
     return Math.atan2(this.y, this.x);
   }
 
-  clamp(maxLen: number, dest?: vec2): Ivec2 {
+  clamp(maxLen: number, dest?: vec2): vec2 {
     if (!dest) {
       dest = this;
     }
@@ -163,32 +165,44 @@ export class vec2 implements Ivec2 {
     return dest;
   }
 
-  add(vector: Ivec2): Ivec2 {
-    this.x += vector.x;
-    this.y += vector.y;
+  add(vector: Ivec2, dest?: vec2): vec2 {
+    if (!dest) {
+      dest = this;
+    }
+    dest.x = this.x + vector.x;
+    dest.y = this.y + vector.y;
 
-    return this;
+    return dest;
   }
 
-  subtract(vector: Ivec2): Ivec2 {
-    this.x -= vector.x;
-    this.y -= vector.y;
+  subtract(vector: Ivec2, dest?: vec2): vec2 {
+    if (!dest) {
+      dest = this;
+    }
+    dest.x = this.x - vector.x;
+    dest.y = this.y - vector.y;
 
-    return this;
+    return dest;
   }
 
-  multiply(vector: Ivec2): Ivec2 {
-    this.x *= vector.x;
-    this.y *= vector.y;
+  multiply(vector: Ivec2, dest?: vec2): vec2 {
+    if (!dest) {
+      dest = this;
+    }
+    dest.x = this.x * vector.x;
+    dest.y = this.y * vector.y;
 
-    return this;
+    return dest;
   }
 
-  divide(vector: Ivec2): Ivec2 {
+  divide(vector: Ivec2, dest?: vec2): vec2 {
+    if (!dest) {
+      dest = this;
+    }
     this.x /= vector.x;
     this.y /= vector.y;
 
-    return this;
+    return dest;
   }
 
   scale(value: number, dest?: vec2): vec2 {
@@ -236,11 +250,11 @@ export class vec2 implements Ivec2 {
     return vec2.squaredDistance(this, target);
   }
 
-  directionTo(vector: vec2, dest?: vec2): Ivec2 {
+  directionTo(vector: vec2, dest?: vec2): vec2 {
     return vec2.direction(this, vector, dest);
   }
 
-  multiplyMat2(matrix: mat2, dest?: vec2): Ivec2 {
+  multiplyMat2(matrix: mat2, dest?: vec2): vec2 {
     if (!dest) {
       dest = this;
     }
@@ -248,7 +262,7 @@ export class vec2 implements Ivec2 {
     return matrix.multiplyVec2(this, dest);
   }
 
-  multiplyMat3(matrix: mat3, dest?: vec2): Ivec2 {
+  multiplyMat3(matrix: mat3, dest?: vec2): vec2 {
     if (!dest) {
       dest = this;
     }
@@ -256,13 +270,23 @@ export class vec2 implements Ivec2 {
     return matrix.multiplyVec2(this, dest);
   }
 
-  rotate90(dest?: vec2): Ivec2 {
+  rotateRight(dest?: vec2): vec2 {
     if (!dest) {
       dest = this;
     }
     const y = this.y;
     dest.y = -this.x;
     dest.x = y;
+    return dest;
+  }
+
+  rotateLeft(dest?: vec2): vec2 {
+    if (!dest) {
+      dest = this;
+    }
+    const y = this.y;
+    dest.y = this.x;
+    dest.x = -y;
     return dest;
   }
 
@@ -293,7 +317,7 @@ export class vec2 implements Ivec2 {
     return (x * x + y * y);
   }
 
-  static direction(vector: Ivec2, vector2: Ivec2, dest?: vec2): Ivec2 {
+  static direction(vector: Ivec2, vector2: Ivec2, dest?: vec2): vec2 {
     if (!dest) {
       dest = new vec2();
     }
@@ -318,7 +342,7 @@ export class vec2 implements Ivec2 {
     return dest;
   }
 
-  static mix(vector: Ivec2, vector2: Ivec2, time: number, dest?: vec2): Ivec2 {
+  static mix(vector: Ivec2, vector2: Ivec2, time: number, dest?: vec2): vec2 {
     if (!dest) {
       dest = new vec2();
     }
@@ -335,7 +359,7 @@ export class vec2 implements Ivec2 {
     return dest;
   }
 
-  static sum(vector: Ivec2, vector2: Ivec2, dest?: vec2): Ivec2 {
+  static sum(vector: Ivec2, vector2: Ivec2, dest?: vec2): vec2 {
     if (!dest) {
       dest = new vec2();
     }
@@ -357,7 +381,7 @@ export class vec2 implements Ivec2 {
     return dest;
   }
 
-  static product(vector: Ivec2, vector2: Ivec2, dest?: vec2): Ivec2 {
+  static product(vector: Ivec2, vector2: Ivec2, dest?: vec2): vec2 {
     if (!dest) {
       dest = new vec2();
     }
@@ -368,7 +392,7 @@ export class vec2 implements Ivec2 {
     return dest;
   }
 
-  static quotient(vector: Ivec2, vector2: Ivec2, dest?: vec2): Ivec2 {
+  static quotient(vector: Ivec2, vector2: Ivec2, dest?: vec2): vec2 {
     if (!dest) {
       dest = new vec2();
     }

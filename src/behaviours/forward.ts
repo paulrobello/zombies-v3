@@ -11,7 +11,7 @@ export class ForwardBehavior extends BoidBehavior {
   public override tick(gameTime: IGameTime): void {
     if (!this.enabled) return;
     const b = this.boid;
-    b.v.x += (b.d.x) * this.scale;
-    b.v.y += (b.d.y) * this.scale;
+    b.v.x += b.d.x * gameTime.deltaTime * this.scale;
+    b.v.y += b.d.y * gameTime.deltaTime * this.scale;
   }
 }

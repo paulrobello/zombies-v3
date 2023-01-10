@@ -1,6 +1,6 @@
 import { Boid, BoidBehavior } from '../Boid';
 import { IGameTime } from '../GameClock';
-import { vec2, epsilon } from '../math';
+import { vec2, epsilon, clamp } from '../math';
 
 export interface ISeparateBehaviorOptions {
   margin: number;
@@ -33,8 +33,8 @@ export class SeparateBehavior extends BoidBehavior {
       if (!this.enabled) return;
       const n = na.data;
       const d2 = na.dist2;
-      let dist = Math.sqrt(d2) + epsilon;
-      const d = vec2.difference(n.p, p, tempD).scale(1 / dist).rotate90();
+      let dist = clamp(Math.sqrt(d2), epsilon, 1000);
+      const d = vec2.difference(n.p, p, tempD).scale(1 / dist).rotateRight();
       dist = (r - dist) / r;
       v.x += d.x * dist * this.scale;
       v.y += d.y * dist * this.scale;

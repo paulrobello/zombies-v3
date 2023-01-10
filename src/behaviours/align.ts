@@ -1,6 +1,6 @@
+import { BoidGrid } from '../grids/BoidGrid';
 import { Boid, BoidBehavior } from '../Boid';
 import { IGameTime } from '../GameClock';
-import { BoidGrid } from '../HashGrid';
 import { epsilon } from '../math';
 
 export interface IAlignBehaviorOptions {
