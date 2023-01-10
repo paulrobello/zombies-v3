@@ -1,3 +1,4 @@
+import '../static/css/main.css';
 import { World } from './World';
 
 const world: World = new World();
