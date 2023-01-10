@@ -1,4 +1,5 @@
 import { makeNoise2D } from 'fast-simplex-noise';
+import { throttle } from 'underscore';
 import * as twgl from 'twgl.js';
 import { BufferInfo, m4, ProgramInfo } from 'twgl.js';
 import {
@@ -13,9 +14,11 @@ import { Boid } from './Boid';
 import { GameClock } from './GameClock';
 import { BoidGrid, FlowGrid, HashGridOptions } from './HashGrid';
 import { IFlowValue, QueryLayerByName } from './interfaces';
-import { epsilon, Ivec2, map, vec2 } from './math';
+import { clamp, epsilon, Ivec2, map, vec2 } from './math';
 
 const noise = makeNoise2D();
+export type PaintMode = 'none' | 'stroke' | 'attract' | 'repel';
+const PaintModes: PaintMode[] = ['none', 'stroke', 'attract', 'repel'];
 
 export interface IBoidGl {
   pos_vel: Float32Array;
@@ -32,6 +35,14 @@ export interface IGridGl {
 
 export interface IFlowGridGl extends IGridGl {
   v: Float32Array;
+}
+
+export interface IMouse {
+  p: vec2;
+  op: vec2;
+  d: vec2;
+  glP: [number, number, number, number];
+  buttons: [boolean, boolean, boolean, boolean];
 }
 
 export class World {
@@ -57,7 +68,7 @@ export class World {
   maxSpeed = 100;
   showField = true;
   numBoids = 500;
-  wheelInc = 0.001;
+  wheelInc = this.flowCellSize;
   gameClock: GameClock;
   fieldRandomScale: number = 0.001;
   u_matrix: m4.Mat4 = m4.identity();
@@ -65,41 +76,73 @@ export class World {
   gridGl: IGridGl;
   flowGridGl: IFlowGridGl;
   commonVs: string;
-  mousePos: vec2 = new vec2();
-  glMousePos: [number, number] = [0, 0];
+  mouse: IMouse = {
+    p: new vec2(),
+    op: new vec2(),
+    d: new vec2(),
+    glP: [0, 0, 0, 0],
+    buttons: [false, false, false, false]
+  };
+
   layers: QueryLayerByName = new Map<string, number>();
+  public paintMode: PaintMode = 'none';
+  public paintSize: number = this.flowCellSize * 3;
 
   constructor() {
     this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
     this.ctx = this.canvas.getContext('webgl2');
 
     this.gameClock = new GameClock();
+    document.addEventListener('contextmenu', event => event.preventDefault());
+    const mouseClickHandler = (event: MouseEvent) => {
+      console.log('button click ', event.button);
+      if (event.button === 1) {
+        let i = (PaintModes.indexOf(this.paintMode) + 1) % PaintModes.length;
+        this.paintMode = PaintModes[i];
+        console.log(this.paintMode);
+      }
+      event.preventDefault();
+      return false;
+      // this.randomizeBoids();
+    };
+    this.canvas.addEventListener('click', mouseClickHandler);
+    this.canvas.addEventListener('auxclick', mouseClickHandler);
 
-    this.canvas.addEventListener('click', (event: MouseEvent) => {
-      this.randomizeBoids();
-    });
     this.canvas.addEventListener('mousemove', (event: MouseEvent) => {
-      this.mousePos.x = event.x;
-      this.mousePos.y = event.y;
-      this.glMousePos[0] = event.x;
-      this.glMousePos[1] = event.y;
+      this.mouse.op.x = this.mouse.p.x;
+      this.mouse.op.y = this.mouse.p.y;
+      this.mouse.p.x = event.x;
+      this.mouse.p.y = event.y;
+      this.mouse.glP[2] = this.mouse.glP[0];
+      this.mouse.glP[3] = this.mouse.glP[1];
+      this.mouse.glP[0] = this.mouse.p.x;
+      this.mouse.glP[1] = this.mouse.p.y;
+      vec2.direction(this.mouse.p, this.mouse.op, this.mouse.d);
+    });
+    this.canvas.addEventListener('mouseup', (event: MouseEvent) => {
+      this.mouse.buttons[event.button] = false;
+    });
+    this.canvas.addEventListener('mousedown', (event: MouseEvent) => {
+      this.mouse.buttons[event.button] = true;
     });
     window.addEventListener('resize', (event: UIEvent) => () => {
       // this.resize();
     });
-    // window.addEventListener('wheel', (event: WheelEvent) => {
-//   fieldScale += event.deltaY > 0 ? wheelInc : -wheelInc;
-//   fieldScale = Math.max(Math.min(fieldScale, 1), wheelInc);
-//   genField();
-//   console.log(fieldScale + a);
-//     });
+    window.addEventListener('wheel', throttle((event: WheelEvent) => {
+      this.paintSize = clamp(
+        this.paintSize + (event.deltaY < 0 ? this.wheelInc : -this.wheelInc),
+        0,
+        this.flowGrid.options.computeNeighborRadius * this.flowGrid.options.cellSize
+      );
+      console.log(this.paintSize);
+    }, 2000, {leading: true, trailing: false}));
     twgl.addExtensionsToContext(this.ctx);
     this.ctx.disable(this.ctx.DEPTH_TEST);
     this.ctx.clearColor(0, 0, 0, 1);
     this.resize();
 
     this.commonVs = `#version 300 es
-precision highp float;
+precision mediump float;
 
 #define PI2         6.28318530718
 #define PI          3.14159265358
@@ -110,7 +153,7 @@ uniform float  iTime;        // shader playback time (in seconds)
 uniform float  iTimeDelta;   // render time (in seconds)
 uniform float  iFrameRate;   // shader frame rate
 uniform int    iFrame;       // shader playback frame
-uniform vec2   iMousePos;    // mouse position in world coordinates
+uniform vec4   iMousePos;    // mouse position in world coordinates
 `;
     this.initBoidGl();
     this.initBoids();
@@ -160,7 +203,11 @@ out float v_speed;
 out float v_radius;
 
 void main() {
-  gl_Position = u_matrix * (vert_pos * vec4(color_rad.w,color_rad.w,1.0,1.0) + vec4(pos_vel.xy, 0, 0));
+  if (color_rad.w<0.0001){
+    gl_Position = vec4(0,0,0,1);
+  } else {
+    gl_Position = u_matrix * (vert_pos * vec4(color_rad.w,color_rad.w,1.0,1.0) + vec4(pos_vel.xy, 0, 0));
+  }
   v_texcoord = texcoord;
   v_color = vec4(color_rad.xyz, 1);
   float l = length(pos_vel.zw);
@@ -181,12 +228,16 @@ ${this.commonVs}
   out vec4 FragColor;
 
   void main() {
+    if (v_radius<0.0001){
+      discard;
+    }
     vec2 dir = vec2(0.5, 0.5) - v_texcoord;
     float r2=dot(dir, dir);
     if (r2 >= 0.25) {
       discard;
     }
-    vec4 color = mix(vec4(1.0,0.0,0.0,1.0), v_color, v_speed/100.0);
+    // vec4 color = mix(vec4(1.0,0.0,0.0,1.0), v_color, v_speed/100.0);
+    vec4 color = v_color;
     if (dot(vec2(-v_angle.x,v_angle.y), dir)>0.0) {
       if (abs(dot(vec2(v_angle.y,v_angle.x), dir))<0.1) {
         FragColor = vec4(1.0,0.0,0.0,1.0);
@@ -254,6 +305,8 @@ uniform float gridCellSize;
 uniform float gridWidth;
 uniform float gridHeight;
 uniform int gridMode;
+uniform int paintMode;
+uniform float paintSize;
 
 in vec2 vert_pos;
 in vec2 texcoord;
@@ -264,6 +317,9 @@ out vec4 v_color;
 out vec2 v_angle;
 out float v_speed;
 out vec2 v_texcoord;
+flat out int v_gridMode;
+flat out int v_paintMode;
+flat out float v_paintSize;
 
 void main() {
   vec2 ot = vec2(
@@ -274,14 +330,35 @@ void main() {
   gl_Position = u_matrix * vec4(p, 0, 1);
   v_texcoord = texcoord;
   v_color = color;
-  v_angle = vel_len.xy;
-  v_speed = vel_len.z;
+  if (paintMode > 0) {
+    if (length(ot - iMousePos.xy)<=paintSize+(gridCellSize)){
+      switch (paintMode) {
+        case 1 : {
+          v_color = vec4(0,0,0.5,1);
+          break;}
+        case 2 : {
+          v_color = vec4(0,0.5,0,1);
+          break;}
+        case 3 : {
+          v_color = vec4(0.5,0,0,1);
+          break;}
+      } // switch
+    } // if len
+  } // if paintMode
+  v_speed = length(vel_len.xy);
+  v_angle = normalize(vel_len.xy);
+  v_gridMode = gridMode;
+  v_paintMode = paintMode;
+  v_paintSize = paintSize;
 }`;
 
     const fs = `
 ${this.commonVs}
 uniform float gridCellSize;
-uniform int gridMode;
+flat in int v_gridMode;
+flat in int v_paintMode;
+flat in float v_paintSize;
+
 in vec2 v_angle;
 in vec4 v_color;
 in float v_speed;
@@ -289,7 +366,7 @@ in vec2 v_texcoord;
 
 out vec4 FragColor;
 void main() {
-  switch (gridMode) {
+  switch (v_gridMode) {
   case 1 : {
     FragColor = v_color;
     break;}
@@ -297,12 +374,12 @@ void main() {
     vec2 dir = vec2(0.5, 0.5) - v_texcoord;
     if (dot(vec2(-v_angle.x,v_angle.y), dir)>0.0) {
       if (abs(dot(vec2(v_angle.y,v_angle.x), dir))<0.05) {
-        FragColor = v_color;
+        FragColor = vec4(0.75,0.0,0.0,1.0);
       }else{
-        FragColor = vec4(0.1,0.1,0.1,1.0);
+        FragColor = v_color;
       }
     }else{
-      FragColor = vec4(0.1,0.1,0.1,1.0);
+      FragColor = v_color;
     }
     break;}
    }
@@ -409,7 +486,7 @@ void main() {
       height: this.height,
       cellSize: this.flowCellSize,
       wrap: false,
-      computeNeighborRadius: 0,
+      computeNeighborRadius: 8,
       maxQueryCacheFrames: 0
     };
     this.boidGridOptions = {
@@ -479,7 +556,7 @@ void main() {
       id: 0,
       layer: 0,
       p: p.scale(1 / l),
-      l,
+      l: 1.0,
       lastCellIndex: -1,
       cellIndex: -1
     };
@@ -495,10 +572,10 @@ void main() {
         r: this.boidSize
       });
       b.maxSpeed = this.maxSpeed;
-      b.behaviors.set('FlowBehavior', new FlowBehavior(b, 0.25, {flowGrid: this.flowGrid, normalize: true}));
-      b.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 1));
-      b.behaviors.set('AlignBehavior', new AlignBehavior(b, 1.0));
-      b.behaviors.set('AttractionPointBehavior', new AttractionPointBehavior(b, 0.1, {target: {p: new vec2(this.widthD2, this.heightD2)}}));
+      b.behaviors.set('FlowBehavior', new FlowBehavior(b, 1, {flowGrid: this.flowGrid, normalize: true}));
+      b.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 2, {margin: 100}));
+      b.behaviors.set('AlignBehavior', new AlignBehavior(b, 1.0, {margin: 100}));
+      // b.behaviors.set('AttractionPointBehavior', new AttractionPointBehavior(b, 1, {target: {p: new vec2(this.widthD2, this.heightD2)}}));
       b.behaviors.set('CollisionBehavior', new CollisionBehavior(b, 1));
       b.behaviors.set('AvoidBoundaryBehavior', new AvoidBoundaryBehavior(b, 50, {margin: this.boidCellSize * 2}));
       this.boids.push(b);
@@ -526,11 +603,13 @@ void main() {
       iTimeDelta: gameClock.gameTime.deltaTime, // render time (in seconds)
       iFrameRate: gameClock.gameTime.fps,       // shader frame rate
       iFrame: gameClock.gameTime.currentFrame,   // shader playback frame
-      iMousePos: this.glMousePos,
+      iMousePos: this.mouse.glP,
       gridCellSize: this.boidCellSize,
       gridWidth: this.boidGrid.gridXW,
       gridHeight: this.boidGrid.gridYW,
-      gridMode: 1
+      gridMode: 1,
+      paintMode: PaintModes.indexOf(this.paintMode),
+      paintSize: this.paintSize
     });
     this.boidGrid.draw(ctx);
     this.boidGrid.cleanCache();
@@ -555,11 +634,13 @@ void main() {
       iTimeDelta: gameClock.gameTime.deltaTime, // render time (in seconds)
       iFrameRate: gameClock.gameTime.fps,       // shader frame rate
       iFrame: gameClock.gameTime.currentFrame,   // shader playback frame
-      iMousePos: this.glMousePos,
+      iMousePos: this.mouse.glP,
       gridCellSize: this.flowCellSize,
       gridWidth: this.flowGrid.gridXW,
       gridHeight: this.flowGrid.gridYW,
-      gridMode: 2
+      gridMode: 2,
+      paintMode: PaintModes.indexOf(this.paintMode),
+      paintSize: this.paintSize
     });
     this.flowGrid.draw(ctx);
     this.flowGrid.cleanCache();
@@ -584,7 +665,7 @@ void main() {
       iTimeDelta: gameClock.gameTime.deltaTime, // render time (in seconds)
       iFrameRate: gameClock.gameTime.fps,       // shader frame rate
       iFrame: gameClock.gameTime.currentFrame,   // shader playback frame
-      iMousePos: this.glMousePos
+      iMousePos: this.mouse.glP
     });
     twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.pos_vel, this.boidGl.pos_vel);
     twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.color_rad, this.boidGl.color_rad);
@@ -603,8 +684,10 @@ void main() {
     ctx.clear(ctx.COLOR_BUFFER_BIT);
 
     m4.ortho(0, ctx.canvas.width, ctx.canvas.height, 0, -1, 1, this.u_matrix);
-    this.drawBoidGrid();
-    // this.drawFlowGrid();
+    this.flowGrid.tick(gameClock.gameTime);
+    this.boidGrid.tick(gameClock.gameTime);
+    // this.drawBoidGrid();
+    this.drawFlowGrid();
 
     for (const b of boids) {
       b.tick(gameClock.gameTime);
@@ -612,9 +695,9 @@ void main() {
     }
 
     this.drawBoids();
-    if (Math.random() < 0.001) {
-      this.genField();
-    }
+    // if (Math.random() < 0.001) {
+    //   this.genField();
+    // }
     // // draw fps on screen
     // ctx.textAlign = 'left';
     // ctx.textBaseline = 'top';

@@ -1,8 +1,8 @@
-import { ICellIndexable } from './Cell';
+import { Cell, ICellIndexable } from './Cell';
 import { IGameTime } from './GameClock';
 import { BoidGrid, HashGrid, IGridQueryable } from './HashGrid';
-import { IDirectional, IDrawable, IPositional, IProgressible } from './interfaces';
-import { clamp, epsilon } from './math';
+import { IDirectional, IDrawable, IFlowValue, IPositional, IProgressible } from './interfaces';
+import { clamp, epsilon, vec4 } from './math';
 import { vec2, Ivec2 } from './math';
 import { World } from './World';
 
@@ -20,6 +20,7 @@ export interface IBoidOptions {
 
 export class BoidBehavior implements IProgressible {
   public name: string;
+  public enabled: boolean = true;
   public boid: Boid;
   public scale: number;
 
@@ -36,6 +37,7 @@ let id = 0;
 
 export class Boid implements IPositional, IDirectional, ICellIndexable, IProgressible, IDrawable, IGridQueryable {
   public id: number;
+  public alive: boolean = true;
   public p: vec2;
   public v: vec2;
   public d: vec2;
@@ -50,6 +52,7 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
   public lastCellIndex: number = -1;
   public cellIndex: number = -1;
   public layer: number = 0;
+  public color: vec4 = new vec4([0, 1, 0, 1]);
 
   options: IBoidOptions;
 
@@ -87,6 +90,13 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
   // }
 
   tick(gameTime: IGameTime): void {
+    const grid = this.options.grid;
+    if (!this.alive) {
+      if (this.cellIndex !== -1) {
+        grid.removeCelDataByIndex(this.lastCellIndex, this);
+      }
+      return;
+    }
     for (const b of this.behaviors.values()) {
       b.tick(gameTime);
     }
@@ -94,7 +104,7 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     const v: Ivec2 = this.v;
     const r: number = this.r;
     const world = this.options.world;
-    const grid = this.options.grid;
+
     const maxSpeed = this.maxSpeed;
     let l: number = v.length();
     if (l > maxSpeed) {
@@ -113,6 +123,7 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     p.y = clamp(p.y, r, world.height - r);
 
     v.scale(world.drag);
+
     const newCellIndex = grid.getCellIndex(p.x, p.y, true);
     if (newCellIndex === undefined) {
       throw new Error(`newCellIndex is undefined for ${p.x} and ${p.y}`);
@@ -121,6 +132,24 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
       grid.removeCelDataByIndex(this.lastCellIndex, this);
       grid.addCelDataByIndex(newCellIndex, this);
     }
+    const cell: Cell<IFlowValue> = this.options.world.flowGrid.getCell(p.x, p.y, true);
+    const cv = cell.items[0];
+    cv.p.x += this.d.x * gameTime.deltaTime * 0.1;
+    cv.p.y += this.d.y * gameTime.deltaTime * 0.1;
+    l = cv.p.length();
+    if (l > 1) {
+      cv.p.scale(1 / l);
+    }
+    cv.l = l;
+    this.options.world.flowGrid.changedCells.add(cell);
+    if (world.mouse.p.squaredDistanceTo(this.p) < 1000) {
+      this.alive = false;
+    }
+    // if (world.mouse.p.squaredDistanceTo(this.p) < 10000) {
+    //   this.color.rgb = [1, 1, 1];
+    // }else{
+    //   this.color.rgb = [0, 1, 0];
+    // }
   }
 
   draw(ctx: WebGL2RenderingContext): void {
@@ -128,13 +157,15 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     const v: Ivec2 = this.v;
     const buffers = this.options.world.boidGl;
     const i = this.id * 4;
-    buffers.pos_vel[i] = p.x;
-    buffers.pos_vel[i + 1] = p.y;
-    buffers.pos_vel[i + 2] = v.x;
-    buffers.pos_vel[i + 3] = v.y;
-    buffers.color_rad[i] = 0;
-    buffers.color_rad[i + 1] = 1;
-    buffers.color_rad[i + 2] = 0;
-    buffers.color_rad[i + 3] = this.r;
+    if (this.alive) {
+      buffers.pos_vel[i] = p.x;
+      buffers.pos_vel[i + 1] = p.y;
+      buffers.pos_vel[i + 2] = v.x;
+      buffers.pos_vel[i + 3] = v.y;
+      buffers.color_rad[i] = this.color.r;
+      buffers.color_rad[i + 1] = this.color.g;
+      buffers.color_rad[i + 2] = this.color.b;
+    }
+    buffers.color_rad[i + 3] = this.alive ? this.r : 0;
   }
 }

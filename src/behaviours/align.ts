@@ -3,17 +3,28 @@ import { IGameTime } from '../GameClock';
 import { BoidGrid } from '../HashGrid';
 import { epsilon } from '../math';
 
-export class AlignBehavior extends BoidBehavior {
+export interface IAlignBehaviorOptions {
+  margin: number;
+}
 
-  constructor(boid: Boid, scale: number = 1) {
+export const AlignBehaviorOptionsDefault: IAlignBehaviorOptions = {
+  margin: 10
+};
+
+export class AlignBehavior extends BoidBehavior {
+  options: IAlignBehaviorOptions;
+
+  constructor(boid: Boid, scale: number = 1, options: IAlignBehaviorOptions = AlignBehaviorOptionsDefault) {
     super(boid, scale);
     this.name = 'AlignBehavior';
+    this.options = options;
   }
 
   public override tick(gameTime: IGameTime): void {
+    if (!this.enabled) return;
     const b = this.boid;
     const grid: BoidGrid = b.options.grid;
-    const r = b.r * 3;
+    const r = b.r * 2 + this.options.margin;
     const nearest = grid.getDataRadius(b.p.x, b.p.y, r, true, b, true);
     if (!nearest.length) return;
     const n = nearest[0].data;

@@ -2,10 +2,21 @@ import { Boid, BoidBehavior } from '../Boid';
 import { IGameTime } from '../GameClock';
 import { vec2, epsilon } from '../math';
 
+export interface ISeparateBehaviorOptions {
+  margin: number;
+}
+
+export const DefaultSeparateBehaviorOptions: ISeparateBehaviorOptions = {
+  margin: 10
+};
+
 export class SeparateBehavior extends BoidBehavior {
-  constructor(boid: Boid, scale: number = 1) {
+  options: ISeparateBehaviorOptions;
+
+  constructor(boid: Boid, scale: number = 1, options: ISeparateBehaviorOptions = DefaultSeparateBehaviorOptions) {
     super(boid, scale);
     this.name = 'SeparateBehavior';
+    this.options = options;
   }
 
   public override tick(gameTime: IGameTime): void {
@@ -13,12 +24,13 @@ export class SeparateBehavior extends BoidBehavior {
     const p: vec2 = b.p;
     const v: vec2 = b.v;
     const grid = b.options.grid;
-    const r = b.r * 2.5;
+    const r = b.r * 2 + this.options.margin;
     const nearest = grid.getDataRadius(p.x, p.y, r, true, b, false);
     if (!nearest.length) return;
 
     const tempD = new vec2();
     for (const na of nearest) {
+      if (!this.enabled) return;
       const n = na.data;
       const d2 = na.dist2;
       let dist = Math.sqrt(d2) + epsilon;

@@ -21,6 +21,7 @@ export class AttractionPointBehavior extends BoidBehavior {
   }
 
   public override tick(gameTime: IGameTime): void {
+    if (!this.enabled) return;
     const b = this.boid;
     const p: vec2 = b.p;
     const v: vec2 = b.v;

@@ -19,6 +19,7 @@ export class FlowBehavior extends BoidBehavior {
   }
 
   public override tick(gameTime: IGameTime): void {
+    if (!this.enabled) return;
     const b: Boid = this.boid;
     const p: Ivec2 = b.p;
     const v: Ivec2 = b.v;

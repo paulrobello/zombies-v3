@@ -191,13 +191,13 @@ export class vec2 implements Ivec2 {
     return this;
   }
 
-  scale(value: number, dest?: vec2): Ivec2 {
+  scale(value: number, dest?: vec2): vec2 {
     if (!dest) {
       dest = this;
     }
 
-    dest.x *= value;
-    dest.y *= value;
+    dest.x = this.x * value;
+    dest.y = this.y * value;
 
     return dest;
   }

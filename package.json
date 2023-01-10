@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "@types/chroma-js": "^2.1.4",
+    "@types/underscore": "^1.11.4",
     "@types/webpack-env": "^1.18.0",
     "css-loader": "^6.7.3",
     "fork-ts-checker-webpack-plugin": "^7.2.14",
@@ -30,6 +31,7 @@
     "chroma-js": "^2.4.2",
     "fast-simplex-noise": "^4.0.0",
     "ts-loader": "^9.4.2",
-    "twgl.js": "^5.3.0"
+    "twgl.js": "^5.3.0",
+    "underscore": "^1.13.6"
   }
 }

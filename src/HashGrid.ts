@@ -1,9 +1,10 @@
 import { scale } from 'chroma-js';
 import { Boid } from './Boid';
 import { Cell, ICellIndexable } from './Cell';
-import { IDrawable, IFlowValue, IPositional } from './interfaces';
-import { vec2, wrap } from './math';
-import { World } from './World';
+import { IGameTime } from './GameClock';
+import { IDrawable, IFlowValue, IPositional, IProgressible } from './interfaces';
+import { clamp, epsilon, vec2, wrap } from './math';
+import { IMouse, World } from './World';
 
 export interface IGridQueryable {
   layer: number;
@@ -34,7 +35,7 @@ export interface HashGridOptions {
   maxQueryCacheFrames: number;
 }
 
-export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> implements IDrawable {
+export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> implements IDrawable, IProgressible {
   options: HashGridOptions;
   cells: Cell<T>[];
   allData: Set<T> = new Set<T>();
@@ -53,6 +54,10 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
     this.gridXW = Math.ceil(options.width / options.cellSize);
     this.gridYW = Math.ceil(options.height / options.cellSize);
     this.resize(options);
+  }
+
+  tick(gameTime: IGameTime): void {
+
   }
 
   get width(): number {
@@ -76,13 +81,18 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
     );
     this.options = {...options};
     if (recompute) {
-      this.gridXW = Math.ceil(options.width / options.cellSize);
-      this.gridYW = Math.ceil(options.height / options.cellSize);
+      const cellSize = options.cellSize;
+      this.gridXW = Math.ceil(options.width / cellSize);
+      this.gridYW = Math.ceil(options.height / cellSize);
       this.cellSizeD2 = Math.floor(options.cellSize / 2);
 
       this.cells = new Array(this.gridXW * this.gridYW);
       for (let i = 0; i < this.cells.length; i++) {
         this.cells[i] = new Cell<T>(i);
+        const c = this.cells[i];
+        c.p.set_xy(i % this.gridXW, Math.floor(i / this.gridXW));
+        c.wp.set_xy(c.p.x * cellSize, c.p.y * cellSize);
+        c.wc.set_xy(c.p.x * cellSize + this.cellSizeD2, c.p.y * cellSize + this.cellSizeD2);
         this.changedCells.add(this.cells[i]);
       }
       this.computeNeighbors(this.options.computeNeighborRadius);
@@ -100,10 +110,7 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
     let x, y, xc, yc, nx, ny;
     for (x = 0; x < w; x++) {
       for (y = 0; y < h; y++) {
-        let c = this.getCell(x, y);
-        c.p.set_xy(x, y);
-        c.wp.set_xy(x * cellSize, y * cellSize);
-        c.wc.set_xy(x * cellSize + cellSizeD2, y * cellSize + cellSizeD2);
+        let c = this.getCell(x, y, false);
         c.neighbors.length = 0;
 
         for (xc = -radius; xc <= radius; xc++) {
@@ -121,11 +128,29 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
               continue;
             }
             c.neighbors.push(this.getCell(nx, ny));
-          }
-        }
-        c.neighbors.sort((a, b) => c.p.squaredDistanceTo(a.p) > c.p.squaredDistanceTo(b.p) ? 1 : -1);
-      }
+          } // yc
+        } // xc
+        c.neighbors.sort((a, b) => c.wc.squaredDistanceTo(a.wc) - c.wc.squaredDistanceTo(b.wc));
+      } // y
+    } // x
+  }
+
+  numNeighbors(cell: Cell<T>, radius: number, worldSpace: boolean): number {
+    const cellSize = this.options.cellSize;
+    let blockRadius;
+    if (worldSpace) {
+      blockRadius = Math.min(~~(radius / cellSize), this.options.computeNeighborRadius);
+    } else {
+      radius = radius * cellSize;
+      blockRadius = Math.min(radius, this.options.computeNeighborRadius);
     }
+
+    blockRadius = blockRadius * 2 + 1;
+    let numNeighbors = blockRadius * blockRadius;
+    if (numNeighbors > cell.neighbors.length) {
+      numNeighbors = cell.neighbors.length;
+    }
+    return numNeighbors;
   }
 
   getDataRadius(x: number, y: number, radius: number, worldSpace: boolean = false, self?: T, closest?: boolean): IDataRadiusResults<T> {
@@ -170,18 +195,7 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
     const cellSize = this.options.cellSize;
     const v = new vec2(x * (worldSpace ? 1 : cellSize), y * (worldSpace ? 1 : cellSize));
     let dist, nearest = Infinity, nearestData: T | undefined;
-    let blockRadius;
-    if (worldSpace) {
-      blockRadius = Math.min(~~(radius / cellSize), this.options.computeNeighborRadius);
-    } else {
-      radius = radius * cellSize;
-      blockRadius = Math.min(radius, this.options.computeNeighborRadius);
-    }
-    blockRadius = blockRadius * 2 + 1;
-    let numNeighbors = blockRadius * blockRadius;
-    if (numNeighbors > c.neighbors.length) {
-      numNeighbors = c.neighbors.length;
-    }
+    const numNeighbors = this.numNeighbors(c, radius, true);
     for (let ni = 0; ni < numNeighbors; ni++) {
       const n = c.neighbors[ni];
       for (const i of n.items) {
@@ -347,9 +361,9 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
     let id: number;
     for (const cell of this.changedCells) {
       id = cell.id * 4;
-      buffers.color[id] = 0.1;
-      buffers.color[id + 1] = 0.1;
-      buffers.color[id + 2] = 0.1;
+      buffers.color[id] = cell.color.r;
+      buffers.color[id + 1] = cell.color.g;
+      buffers.color[id + 2] = cell.color.b;
       buffers.color[id + 3] = 1;
       // if (cell.wp.x === 0) {
       //   buffers.color[id * 4] = 0.5;
@@ -392,17 +406,71 @@ export class FlowGrid extends HashGrid<IFlowValue> {
     for (const cell of this.changedCells) {
       const cv = cell.items[0];
       id = cell.id * 4;
-      const c = this.flowGradient(cv.l).gl();
+      // const c = this.flowGradient(cv.l).gl();
 
-      buffers.color[id] = c[0];
-      buffers.color[id + 1] = c[1];
-      buffers.color[id + 2] = c[2];
+      buffers.color[id] = cell.color.r;
+      buffers.color[id + 1] = cell.color.g;
+      buffers.color[id + 2] = cell.color.b;
       buffers.color[id + 3] = 1;
 
       buffers.v[id] = cv.p.x;
       buffers.v[id + 1] = cv.p.y;
       buffers.v[id + 2] = cv.l;
       buffers.v[id + 3] = 0;
+    }
+  }
+
+  override tick(gameTime: IGameTime): void {
+    const mouse: IMouse = this.options.world.mouse;
+    const pm = this.options.world.paintMode;
+    if (pm === 'none') {
+      return;
+    }
+    const ps = this.options.world.paintSize;
+
+    const t = new vec2();
+    for (const cell of this.cells) {
+      cell.items[0].p.scale(1-gameTime.deltaTime);
+    //   cell.color.rgba = [0.1, 0.1, 0.1, 1.0];
+      this.changedCells.add(cell);
+    }
+    const cell: Cell<IFlowValue> = this.getCell(mouse.p.x, mouse.p.y, true);
+    let l: number;
+
+    const numNeighbors = this.numNeighbors(cell, ps, true);
+    for (let i = 0; i < numNeighbors; i++) {
+      const n: Cell<IFlowValue> = cell.neighbors[i];
+      // if (pm === 'attract') {
+      //   n.color.rgba = [0.3, 0.5, 0.3, 1.0];
+      // } else if (pm === 'repel') {
+      //   n.color.rgba = [0.5, 0.3, 0.3, 1.0];
+      // } else {
+      //   n.color.rgba = [0.3, 0.3, 0.5, 1.0];
+      // }
+      const cv = n.items[0];
+      const v = cv.p;
+      if (mouse.buttons[0]) {
+        if (pm === 'stroke') {
+          mouse.d.scale((i === 0 ? 1 : gameTime.deltaTime * 2), t);
+        } else {
+          vec2.difference(mouse.p, n.wc, t);
+          if (pm === 'repel') {
+            t.scale(-1);
+          }
+        }
+        const ml = ps;
+        l = clamp(t.length(), epsilon, ml);
+        t.scale(1 / l * (ml - l) * gameTime.deltaTime);
+        v.add(t);
+      }
+
+      l = v.length();
+      if (l > 1) {
+        v.scale(1 / l);
+      }
+      cv.l = l;
+
+      this.changedCells.add(n);
     }
   }
 }
@@ -412,16 +480,17 @@ export class BoidGrid extends HashGrid<Boid> {
     .domain([0, 1, 2, 3, 4, 5]);
   // private gradient = scale(['#131313', '#000931', '#001270', '#002277', '#8d3100', '#8d0000'])
   //   .domain([0, 1, 2, 3, 4, 5]);
+  deadBoids: Set<Boid> = new Set<Boid>();
 
   override draw(ctx: WebGL2RenderingContext): void {
     const buffers = this.options.world.gridGl;
     let id: number;
     for (const cell of this.changedCells) {
       id = cell.id * 4;
-      const c = this.gradient(cell.items.length).gl();
-      buffers.color[id] = c[0];
-      buffers.color[id + 1] = c[1];
-      buffers.color[id + 2] = c[2];
+      cell.color.rgba = this.gradient(cell.items.length).gl();
+      buffers.color[id] = cell.color.r;
+      buffers.color[id + 1] = cell.color.g;
+      buffers.color[id + 2] = cell.color.b;
       buffers.color[id + 3] = 1;
       // if (cell.wp.x === 0) {
       //   buffers.color[id * 4] = 0.5;
