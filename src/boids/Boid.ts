@@ -63,7 +63,7 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     this.options = options;
     this.id = options.id === undefined ? id++ : options.id;
     this.grid = options.grid;
-    this.layer = options.layer || this.options.world.addLayerName('boid');
+    this.layer = options.layer || this.options.world.layerByName('boid');
     this.p = options.p || new vec2();
     this.v = options.v || new vec2();
     this.a = options.a || new vec2();
@@ -76,10 +76,6 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     this.r2 = this.r * this.r;
 
     this.behaviors.set('ForwardBehavior', new ForwardBehavior(this, 1));
-    this.behaviors.set('FlowBehavior', new FlowBehavior(this, 1, {
-        flowGrid: this.options.world.flowGrid, normalize: false
-      })
-    );
     // this.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 1, {margin: 32}));
     // this.behaviors.set('AlignBehavior', new AlignBehavior(b, 1.0, {margin: 100}));
     // this.behaviors.set('AttractionPointBehavior', new AttractionPointBehavior(b, 1, {target: {p: new vec2(this.options.world.widthD2, this.options.world.heightD2)}}));
@@ -149,7 +145,20 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     }
     const flowGrid = this.options.world.flowGrid;
     const cell: Cell<IFlowValue> = flowGrid.getCell(p.x, p.y, true);
-    const cv = cell.items[0];
+    let cv: IFlowValue | undefined = cell.items.find((i) => (i.layer & this.layer) !== 0);
+    if (!cv) {
+      cv = {
+        id: 0,
+        layer: this.layer,
+        p: new vec2(),
+        l: 0,
+        lastCellIndex: -1,
+        cellIndex: -1,
+        static: false,
+        solid: false
+      };
+      flowGrid.addCelData(p.x, p.y, true, cv);
+    }
     if (!cv.static) {
       if (cv.l < epsilon) {
         cv.p.set_xy(this.d.x, this.d.y);

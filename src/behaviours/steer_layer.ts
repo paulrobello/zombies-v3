@@ -10,14 +10,18 @@ export interface ISteerLayerBehaviorOptions {
 }
 
 export class SteerLayerBehavior extends BoidBehavior {
-  options: ISteerLayerBehaviorOptions;
   layerId: number;
+  radius: number;
+  layerName: string;
+  nearest: boolean;
 
   constructor(boid: Boid, scale: number = 1, options: ISteerLayerBehaviorOptions) {
     super(boid, scale);
     this.name = 'SteerLayerBehavior';
-    this.options = options;
-    this.layerId = boid.World.addLayerName(options.layerName);
+    this.radius = options.radius;
+    this.layerName = options.layerName;
+    this.nearest = options.nearest;
+    this.layerId = boid.World.layerByName(options.layerName);
   }
 
   public override tick(gameTime: IGameTime): void {
@@ -27,13 +31,12 @@ export class SteerLayerBehavior extends BoidBehavior {
     const p: vec2 = b.p;
     const v: vec2 = b.v;
     const grid = b.options.grid;
-    const r = b.r * 2 + this.options.radius;
-    const nearest = grid.getDataRadius(p.x, p.y, r, true, b, this.options.nearest, this.layerId);
+    const r = b.r * 2 + this.radius;
+    const nearest = grid.getDataRadius(p.x, p.y, r, true, b, this.nearest, this.layerId);
     if (!nearest.length) return;
 
     const t = new vec2();
     for (const na of nearest) {
-      const n = na.data;
       const d2 = na.dist2;
       let dist = clamp(Math.sqrt(d2), epsilon, 1000);
       const d = na.dv.scale(-1 / dist, t);//.rotateRight();

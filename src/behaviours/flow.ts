@@ -8,16 +8,18 @@ import { BoidBehavior } from './BoidBehavior';
 
 export interface IFlowBehaviorOptions {
   flowGrid: HashGrid<IFlowValue>;
-  normalize: boolean;
+  layer: number;
 }
 
 export class FlowBehavior extends BoidBehavior {
-  options: IFlowBehaviorOptions;
+  flowGrid: HashGrid<IFlowValue>;
+  layer: number;
 
   constructor(boid: Boid, scale: number, options: IFlowBehaviorOptions) {
     super(boid, scale);
     this.name = 'FlowBehavior';
-    this.options = options;
+    this.flowGrid = options.flowGrid;
+    this.layer = options.layer;
   }
 
   public override tick(gameTime: IGameTime): void {
@@ -25,11 +27,10 @@ export class FlowBehavior extends BoidBehavior {
     const b: Boid = this.boid;
     const p: Ivec2 = b.p;
     const v: Ivec2 = b.v;
-    const cell: Cell<IFlowValue> = this.options.flowGrid.getCell(p.x , p.y, true);
+    const cell: Cell<IFlowValue> = this.flowGrid.getCell(p.x, p.y, true);
     if (!cell || !cell.items.length) return;
-    const d: IFlowValue = cell.items[0];
+    const d: IFlowValue = cell.items.find(i => (i.layer & this.layer) !== 0);
     if (!d) {
-      console.warn('no flow cell at', p.x, p.y);
       return;
     }
     const scale = this.scale;
@@ -37,11 +38,11 @@ export class FlowBehavior extends BoidBehavior {
       const dv = vec2.difference(p, cell.wc);
       const l = clamp(dv.length(), epsilon, 1000);
       const d = dv.scale(1 / l);
-      v.add(d.scale((b.speed+10) * this.scale*gameTime.deltaTime*200, new vec2()));
+      v.add(d.scale((b.speed + 10) * this.scale * gameTime.deltaTime * 200, new vec2()));
       return;
     }
     // console.log(d)
-    if (!d.l || this.options.normalize) {
+    if (!d.l) {
       v.x += d.p.x * scale;
       v.y += d.p.y * scale;
     } else {

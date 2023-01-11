@@ -4,7 +4,10 @@ import { IGameTime } from '../GameClock';
 import { HashGrid, IGridQueryable } from './HashGrid';
 import { IPositional } from '../interfaces';
 import { clamp, epsilon, vec2 } from '../math';
-import { IMouse } from '../World';
+import { IMouse, World } from '../World';
+
+export type FlowType = 'boid' | 'human' | 'zombie' | 'food';
+export const FlowTypes: FlowType[] = ['boid', 'human', 'zombie', 'food'];
 
 export interface IFlowValue extends IPositional, ICellIndexable, IGridQueryable {
   l: number;
@@ -12,16 +15,33 @@ export interface IFlowValue extends IPositional, ICellIndexable, IGridQueryable 
   solid: boolean;
 }
 
+export const EmptyFlowValue: IFlowValue = {
+  id: 0,
+  layer: 0,
+  p: new vec2(),
+  l: 0,
+  lastCellIndex: -1,
+  cellIndex: -1,
+  static: false,
+  solid: false
+};
+
 export class FlowGrid extends HashGrid<IFlowValue> {
+  drawFlowType: FlowType = 'boid';
   flowGradient = scale(['#000000', '#00FF00', '#0000FF', '#FFFF00', '#FF8700', '#FF0000'])
     .domain([0, 0.2, 0.5, 0.6, 0.75, 1.0]);
 
   override draw(ctx: WebGL2RenderingContext): void {
-    const buffers = this.options.world.flowGridGl;
+    const world: World = this.World;
+    const buffers = world.flowGridGl;
+    const mask: number = this.drawFlowType === 'boid' ? world.layerByName('human') | world.layerByName('zombie') : world.layerByName(this.drawFlowType);
 
     let id: number;
     for (const cell of this.changedCells) {
-      const cv = cell.items[0];
+      let cv: IFlowValue | undefined = cell.items.find(i => (i.layer & mask) !== 0);
+      if (!cv) {
+        cv = EmptyFlowValue;
+      }
       id = cell.id * 4;
       // const c = this.flowGradient(cv.l).gl();
       if (cv.solid) {
@@ -45,11 +65,13 @@ export class FlowGrid extends HashGrid<IFlowValue> {
 
   fadeCells(gameTime: IGameTime, speed: number) {
     for (const cell of this.cells) {
-      const cv = cell.items[0];
-      if (cv.l) {
-        this.changedCells.add(cell);
-        cv.l *= 1 - gameTime.deltaTime * speed;
-        if (cv.l < epsilon) cv.l = 0;
+      for (const cv of cell.items) {
+        if (cv.static) continue;
+        if (cv.l) {
+          this.changedCells.add(cell);
+          cv.l *= 1 - gameTime.deltaTime * speed;
+          if (cv.l < epsilon) cv.l = 0;
+        }
       }
     }
   }

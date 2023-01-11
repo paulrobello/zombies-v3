@@ -305,3 +305,28 @@ textarea {
   z-index: 10;
   color: #33A;
 }
+
+#help {
+  position: absolute;
+  display: block;
+  top: 32px;
+  left: 0;
+  padding-left: 10px;
+  margin: 0;
+  overflow: hidden;
+  font-weight: bold;
+  font-size: 20px;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.25);
+  text-align: left;
+  vertical-align: middle;
+  z-index: 10;
+  color: #FFF;
+  background: rgba(0,0,0,0.85);
+  border: 2px solid white;
+}
+
+.prevent-select {
+  -webkit-user-select: none; /* Safari */
+  -ms-user-select: none; /* IE 10 and IE 11 */
+  user-select: none; /* Standard syntax */
+}

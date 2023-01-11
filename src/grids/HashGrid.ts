@@ -67,6 +67,10 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
     return this.options?.height || 0;
   }
 
+  get World(): World {
+    return this.options.world;
+  }
+
   get cellSize(): number {
     return this.options?.cellSize || 0;
   }

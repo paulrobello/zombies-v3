@@ -15,8 +15,10 @@ import { Ring } from './Ring';
 
 const noise = makeNoise2D();
 export type PaintMode = 'none' | 'wall' | 'stroke' | 'attract' | 'repel';
-const PaintModes: PaintMode[] = ['none', 'wall', 'stroke', 'attract', 'repel'];
+export const PaintModes: PaintMode[] = ['none', 'wall', 'stroke', 'attract', 'repel'];
 
+export type GridDrawMode = 'none' | 'flow' | 'boid';
+export const GridDrawModes: GridDrawMode[] = ['none', 'flow', 'boid'];
 
 export interface IRingGl {
   pos_rad: Float32Array;
@@ -49,6 +51,7 @@ export interface IMouse {
   d: vec2;
   glP: [number, number, number, number];
   buttons: [boolean, boolean, boolean, boolean];
+  clicked: [boolean, boolean, boolean, boolean];
 }
 
 export class World {
@@ -89,29 +92,55 @@ export class World {
     op: new vec2(),
     d: new vec2(),
     glP: [0, 0, 0, 0],
-    buttons: [false, false, false, false]
+    buttons: [false, false, false, false],
+    clicked: [false, false, false, false]
   };
 
   layers: QueryLayerByName = new Map<string, number>();
   public paintMode: PaintMode = 'none';
   public paintSize: number = this.flowCellSize * 8;
   statsEl: HTMLDivElement;
+  helpEl: HTMLDivElement;
   humans: Set<Human> = new Set<Human>();
   zombies: Set<Zombie> = new Set<Zombie>();
+  gridMode: GridDrawMode = 'flow';
+
 
   constructor() {
     this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
     this.ctx = this.canvas.getContext('webgl2');
     this.statsEl = document.getElementById('stats') as HTMLDivElement;
+    this.helpEl = document.getElementById('help') as HTMLDivElement;
+    setTimeout(()=>{
+      this.helpEl.classList.toggle('hidden');
+    }, 5000);
 
-    this.addLayerName('boid');
-    this.addLayerName('human');
-    this.addLayerName('zombie');
+    this.layerByName('boid');
+    this.layerByName('human');
+    this.layerByName('zombie');
+    this.layerByName('food');
 
     this.gameClock = new GameClock();
+
+
+    window.addEventListener('keypress', (event: KeyboardEvent) => {
+      console.log(event);
+      if (event.key >= '0' && event.key <= '9') {
+        this.paintSize = parseInt(event.key) * this.flowCellSize;
+      }
+      if (event.code === 'KeyG') {
+        this.gridMode = GridDrawModes[(GridDrawModes.indexOf(this.gridMode) + 1) % GridDrawModes.length];
+        console.log(this.gridMode);
+      }
+      if (event.code === 'KeyH') {
+        this.helpEl.classList.toggle('hidden');
+      }
+    });
+
     document.addEventListener('contextmenu', event => event.preventDefault());
     const mouseClickHandler = (event: MouseEvent) => {
       console.log('button click ', event.button);
+      this.mouse.clicked[event.button] = true;
       if (event.button === 1) {
         let i = (PaintModes.indexOf(this.paintMode) + 1) % PaintModes.length;
         this.paintMode = PaintModes[i];
@@ -125,9 +154,7 @@ export class World {
     this.canvas.addEventListener('auxclick', mouseClickHandler);
 
     this.canvas.addEventListener('mouseleave', (event: MouseEvent) => {
-      for (let i = 0; i < this.mouse.buttons.length; i++) {
-        this.mouse.buttons[i] = false;
-      }
+      this.mouse.buttons.fill(false);
     });
     this.canvas.addEventListener('mousemove', (event: MouseEvent) => {
       this.mouse.op.x = this.mouse.p.x;
@@ -149,14 +176,14 @@ export class World {
     window.addEventListener('resize', (event: UIEvent) => () => {
       // this.resize();
     });
-    window.addEventListener('wheel', throttle((event: WheelEvent) => {
-      this.paintSize = clamp(
-        this.paintSize + (event.deltaY < 0 ? this.wheelInc : -this.wheelInc),
-        0,
-        this.flowGrid.options.computeNeighborRadius * this.flowGrid.options.cellSize
-      );
-      console.log(this.paintSize);
-    }, 2000, {leading: true, trailing: false}));
+    // window.addEventListener('wheel', throttle((event: WheelEvent) => {
+    //   this.paintSize = clamp(
+    //     this.paintSize + (event.deltaY < 0 ? this.wheelInc : -this.wheelInc),
+    //     0,
+    //     this.flowGrid.options.computeNeighborRadius * this.flowGrid.options.cellSize
+    //   );
+    //   console.log(this.paintSize);
+    // }, 2000, {leading: true, trailing: false}));
     twgl.addExtensionsToContext(this.ctx);
     this.ctx.disable(this.ctx.DEPTH_TEST);
     this.ctx.clearColor(0, 0, 0, 1);
@@ -181,8 +208,8 @@ uniform vec4   iMousePos;    // mouse position in world coordinates
     this.initRingGl();
     this.initGridGl();
 
-    setInterval(()=>{
-      this.statsEl.innerText=`Humans: ${this.humans.size} Zombies: ${this.zombies.size}`;
+    setInterval(() => {
+      this.statsEl.innerText = `Humans: ${this.humans.size} Zombies: ${this.zombies.size}`;
     }, 1000);
   }
 
@@ -202,7 +229,7 @@ uniform vec4   iMousePos;    // mouse position in world coordinates
     return this.gameClock.gameTime.fps;
   }
 
-  addLayerName(name: string): number {
+  layerByName(name: string): number {
     let id: number | undefined = this.layers.get(name);
     if (id) return id;
     id = Math.pow(2, this.layers.size);
@@ -669,7 +696,7 @@ void main() {
     const p = vec2.angle2Vec(rad * Math.PI);
     return {
       id: 0,
-      layer: 0,
+      layer: this.layerByName('boid'),
       p,
       l: 1.0,
       lastCellIndex: -1,
@@ -832,8 +859,12 @@ void main() {
     m4.ortho(0, ctx.canvas.width, ctx.canvas.height, 0, -1, 1, this.u_matrix);
     this.flowGrid.tick(gameClock.gameTime);
     this.boidGrid.tick(gameClock.gameTime);
-    // this.drawBoidGrid();
-    this.drawFlowGrid();
+
+    if (this.gridMode === 'boid') {
+      this.drawBoidGrid();
+    } else if (this.gridMode === 'flow') {
+      this.drawFlowGrid();
+    }
 
     for (const b of boids) {
       b.tick(gameClock.gameTime);
@@ -845,17 +876,7 @@ void main() {
     }
     this.drawRings();
     this.drawBoids();
-    // if (Math.random() < 0.001) {
-    //   this.genField();
-    // }
-    // // draw fps on screen
-    // ctx.textAlign = 'left';
-    // ctx.textBaseline = 'top';
-    // ctx.font = 'bold 36px serif';
-    // ctx.fillStyle = '#FFFFFF';
-    // ctx.fillText('' + gameClock.gameTime.fps.toFixed(0), 5, 5);
-
-
+    this.mouse.clicked.fill(false);
     document.title = this.FPS.toFixed(0);
     requestAnimationFrame(() => {
       this.draw();
