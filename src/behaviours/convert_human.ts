@@ -25,7 +25,7 @@ export class ConvertHumanBehavior extends BoidBehavior {
 
     for (const na of nearest) {
       const n = na.data;
-      n.alive = false;
+      n.die();
       n.tick(gameTime);
       const o: IBoidOptions = {
         id: n.id,

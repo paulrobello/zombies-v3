@@ -95,10 +95,14 @@ export class World {
   layers: QueryLayerByName = new Map<string, number>();
   public paintMode: PaintMode = 'none';
   public paintSize: number = this.flowCellSize * 8;
+  statsEl: HTMLDivElement;
+  humans: Set<Human> = new Set<Human>();
+  zombies: Set<Zombie> = new Set<Zombie>();
 
   constructor() {
     this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
     this.ctx = this.canvas.getContext('webgl2');
+    this.statsEl = document.getElementById('stats') as HTMLDivElement;
 
     this.addLayerName('boid');
     this.addLayerName('human');
@@ -176,6 +180,10 @@ uniform vec4   iMousePos;    // mouse position in world coordinates
     this.initBoids();
     this.initRingGl();
     this.initGridGl();
+
+    setInterval(()=>{
+      this.statsEl.innerText=`Humans: ${this.humans.size} Zombies: ${this.zombies.size}`;
+    }, 1000);
   }
 
   get CurrentFrame(): number {

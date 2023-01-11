@@ -28,7 +28,6 @@ export interface IBoidOptions {
 }
 
 
-
 let id = 0;
 
 export class Boid implements IPositional, IDirectional, ICellIndexable, IProgressible, IDrawable, IGridQueryable {
@@ -100,6 +99,9 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
   //   console.log(v);
   //   throw new Error('Boid has infinite velocity');
   // }
+  die() {
+    this.alive = false;
+  }
 
   tick(gameTime: IGameTime): void {
     const grid = this.options.grid;

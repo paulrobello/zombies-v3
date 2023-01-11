@@ -5,11 +5,11 @@ import { Boid, IBoidOptions } from './Boid';
 export class Human extends Boid {
   constructor(options: IBoidOptions) {
     super(options);
-    this.maxSpeed=1;
+    this.maxSpeed = 1;
     this.layer = this.options.world.addLayerName('boid') | this.options.world.addLayerName('human');
     this.color.rgb = [0, 1, 1];
     this.behaviors.set('CollisionBehavior', new CollisionBehavior(this, 1, {
-      iterations:1,
+      iterations: 1,
       margin: 1,
       layerMask: this.World.addLayerName('human')
     }));
@@ -20,5 +20,11 @@ export class Human extends Boid {
         nearest: true
       })
     );
+    this.World.humans.add(this);
+  }
+
+  override die() {
+    super.die();
+    this.World.humans.delete(this);
   }
 }

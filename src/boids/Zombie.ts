@@ -22,5 +22,11 @@ export class Zombie extends Boid {
       })
     );
     this.behaviors.set('ConvertHumanBehavior', new ConvertHumanBehavior(this));
+    this.World.zombies.add(this);
+  }
+
+  override die() {
+    super.die();
+    this.World.zombies.delete(this);
   }
 }
