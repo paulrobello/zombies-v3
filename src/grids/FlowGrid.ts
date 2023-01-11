@@ -3,11 +3,23 @@ import { Cell, ICellIndexable } from './Cell';
 import { IGameTime } from '../GameClock';
 import { HashGrid, IGridQueryable } from './HashGrid';
 import { IPositional } from '../interfaces';
-import { clamp, epsilon, vec2 } from '../math';
+import { clamp, epsilon, vec2, vec4 } from '../math';
 import { IMouse, World } from '../World';
 
 export type FlowType = 'boid' | 'human' | 'zombie' | 'food';
 export const FlowTypes: FlowType[] = ['boid', 'human', 'zombie', 'food'];
+export const FlowTypeColor: Map<string, vec4> = new Map<string, vec4>([
+  ['boid', new vec4([1, 1, 1, 1])],
+  ['human', new vec4([0.1, 0.1, 1, 1])],
+  ['zombie', new vec4([0, 1, 0, 1])],
+  ['food', new vec4([1, 1, 0, 1])]
+]);
+export const FlowTypeFade: Map<string, number> = new Map<string, number>([
+  ['boid', 0.1],
+  ['human', 0.1],
+  ['zombie', 0.1],
+  ['food', 0.1]
+]);
 
 export interface IFlowValue extends IPositional, ICellIndexable, IGridQueryable {
   l: number;
@@ -77,7 +89,7 @@ export class FlowGrid extends HashGrid<IFlowValue> {
   }
 
   override tick(gameTime: IGameTime): void {
-    this.fadeCells(gameTime, 0.1);
+    this.fadeCells(gameTime, FlowTypeFade.get(this.drawFlowType) || 0);
     const pm = this.options.world.paintMode;
     const mouse: IMouse = this.options.world.mouse;
 
@@ -110,7 +122,21 @@ export class FlowGrid extends HashGrid<IFlowValue> {
       // } else {
       //   n.color.rgba = [0.3, 0.3, 0.5, 1.0];
       // }
-      const cv = n.items[0];
+      const mask: number = this.World.layerByName(this.drawFlowType) || 0;
+      let cv: IFlowValue | undefined = n.items.find(i => (i.layer & mask) !== 0);
+      if (!cv) {
+        cv = {
+          id: 0,
+          layer: mask,
+          p: new vec2(),
+          l: 0,
+          lastCellIndex: -1,
+          cellIndex: -1,
+          static: false,
+          solid: false
+        };
+        this.addCelData(n.wp.x, n.wp.y, true, cv);
+      }
       if (cv.static) {
         continue;
       }

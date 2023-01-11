@@ -7,7 +7,7 @@ import { Human } from './boids/Human';
 import { Zombie } from './boids/Zombie';
 import { GameClock } from './GameClock';
 import { BoidGrid } from './grids/BoidGrid';
-import { FlowGrid, IFlowValue } from './grids/FlowGrid';
+import { FlowGrid, FlowTypeColor, FlowTypes, IFlowValue } from './grids/FlowGrid';
 import { HashGridOptions } from './grids/HashGrid';
 import { QueryLayerByName } from './interfaces';
 import { clamp, vec2, vec4 } from './math';
@@ -54,6 +54,28 @@ export interface IMouse {
   clicked: [boolean, boolean, boolean, boolean];
 }
 
+const DefaultBufferValues = {
+  vert_pos: {
+    numComponents: 2,
+    data: [
+      -0.5, -0.5,
+      0.5, -0.5,
+      -0.5, 0.5,
+      -0.5, 0.5,
+      0.5, -0.5,
+      0.5, 0.5
+    ]
+  },
+  texcoord: [
+    0, 1,
+    1, 1,
+    0, 0,
+    0, 0,
+    1, 1,
+    1, 0
+  ]
+};
+
 export class World {
   canvas: HTMLCanvasElement;
   ctx: WebGL2RenderingContext;
@@ -73,7 +95,7 @@ export class World {
   fieldScale: number = this.flowCellSize * 0.005;
   boids: Boid[] = [];
   rings: Ring[] = [];
-  boidSize: number = 8;
+  boidSize: number = 32;
   drag = 1;
   maxSpeed = 50;
   showField = true;
@@ -101,9 +123,11 @@ export class World {
   public paintSize: number = this.flowCellSize * 8;
   statsEl: HTMLDivElement;
   helpEl: HTMLDivElement;
+  helpToggleEl: HTMLDivElement;
   humans: Set<Human> = new Set<Human>();
   zombies: Set<Zombie> = new Set<Zombie>();
   gridMode: GridDrawMode = 'flow';
+
 
 
   constructor() {
@@ -111,9 +135,10 @@ export class World {
     this.ctx = this.canvas.getContext('webgl2');
     this.statsEl = document.getElementById('stats') as HTMLDivElement;
     this.helpEl = document.getElementById('help') as HTMLDivElement;
-    setTimeout(()=>{
-      this.helpEl.classList.toggle('hidden');
-    }, 5000);
+    this.helpToggleEl = document.getElementById('helpToggle') as HTMLDivElement;
+    // setTimeout(() => {
+    //   this.helpEl.classList.toggle('hidden');
+    // }, 5000);
 
     this.layerByName('boid');
     this.layerByName('human');
@@ -123,6 +148,9 @@ export class World {
     this.gameClock = new GameClock();
 
 
+    this.helpToggleEl.addEventListener('click', () => {
+      this.helpEl.classList.toggle('hidden');
+    })
     window.addEventListener('keypress', (event: KeyboardEvent) => {
       console.log(event);
       if (event.key >= '0' && event.key <= '9') {
@@ -142,9 +170,14 @@ export class World {
       console.log('button click ', event.button);
       this.mouse.clicked[event.button] = true;
       if (event.button === 1) {
-        let i = (PaintModes.indexOf(this.paintMode) + 1) % PaintModes.length;
-        this.paintMode = PaintModes[i];
-        console.log(this.paintMode);
+        console.log(event);
+        if (event.shiftKey) {
+          this.flowGrid.drawFlowType = FlowTypes[(FlowTypes.indexOf(this.flowGrid.drawFlowType) + 1) % FlowTypes.length];
+          console.log(this.flowGrid.drawFlowType);
+        } else {
+          this.paintMode = PaintModes[(PaintModes.indexOf(this.paintMode) + 1) % PaintModes.length];
+          console.log(this.paintMode);
+        }
       }
       event.preventDefault();
       return false;
@@ -209,7 +242,7 @@ uniform vec4   iMousePos;    // mouse position in world coordinates
     this.initGridGl();
 
     setInterval(() => {
-      this.statsEl.innerText = `Humans: ${this.humans.size} Zombies: ${this.zombies.size}`;
+      this.statsEl.innerText = `Humans: ${this.humans.size} Zombies: ${this.zombies.size} FlowMode: ${this.flowGrid.drawFlowType} PaintMode: ${this.paintMode}`;
     }, 1000);
   }
 
@@ -411,30 +444,10 @@ ${this.commonVs}
       programInfo: programInfo,
       bufferInfo: undefined
     };
-    const x = 1;
-
     this.boidGl.bufferInfo = twgl.createBufferInfoFromArrays(
       this.ctx,
       {
-        vert_pos: {
-          numComponents: 2,
-          data: [
-            -x, -x,
-            x, -x,
-            -x, x,
-            -x, x,
-            x, -x,
-            x, x
-          ]
-        },
-        texcoord: [
-          0, 1,
-          1, 1,
-          0, 0,
-          0, 0,
-          1, 1,
-          1, 0
-        ],
+        ...DefaultBufferValues,
         pos_vel: {
           numComponents: 4,
           data: this.boidGl.pos_vel,
@@ -461,6 +474,7 @@ uniform float gridHeight;
 uniform int gridMode;
 uniform int paintMode;
 uniform float paintSize;
+uniform vec4 lineColor;
 
 in vec2 vert_pos;
 in vec2 texcoord;
@@ -468,6 +482,7 @@ in vec4 color;
 in vec4 vel_len;
 
 out vec4 v_color;
+out vec4 v_line_color;
 out vec2 v_angle;
 out float v_speed;
 out vec2 v_texcoord;
@@ -516,6 +531,7 @@ void main() {
   v_gridMode = gridMode;
   v_paintMode = paintMode;
   v_paintSize = paintSize;
+  v_line_color = lineColor;
 }`;
 
     const fs = `
@@ -524,8 +540,10 @@ uniform float gridCellSize;
 flat in int v_gridMode;
 flat in int v_paintMode;
 flat in float v_paintSize;
-flat in float v_solid;in vec2 v_angle;
+flat in float v_solid;
+in vec2 v_angle;
 in vec4 v_color;
+in vec4 v_line_color;
 in float v_speed;
 in vec2 v_texcoord;
 
@@ -536,16 +554,17 @@ void main() {
   case 1 : {
     break;}
   case 2 : {
-    if (v_solid<0.001){
+    if (v_solid < EPSILON){
       vec2 dir = vec2(0.5, 0.5) - v_texcoord;
-      if (v_speed>0.001 && dot(vec2(-v_angle.x,v_angle.y), dir)>0.0) { // forward half
-        if (abs(dot(vec2(v_angle.y,v_angle.x), dir))<0.05) { // dir line
-          FragColor = vec4(clamp(v_speed,0.0,1.0),0.0,0.0,1.0);
+      if (v_speed > EPSILON && dot(vec2(-v_angle.x, v_angle.y), dir) > 0.0) { // forward half
+        if (abs(dot(vec2(v_angle.y, v_angle.x), dir)) < 0.05) { // dir line
+          FragColor = v_line_color * clamp(v_speed, 0.0, 1.0);
         }
       }
     }
     break;}
    }
+   FragColor.a=1.0;
 }`;
 
     // compile shaders, link program, look up locations
@@ -561,30 +580,10 @@ void main() {
       programInfo: programInfo,
       bufferInfo: undefined
     };
-    const x = 0.5;
-
     this.gridGl.bufferInfo = twgl.createBufferInfoFromArrays(
       this.ctx,
       {
-        vert_pos: {
-          numComponents: 2,
-          data: [
-            -x, -x,
-            x, -x,
-            -x, x,
-            -x, x,
-            x, -x,
-            x, x
-          ]
-        },
-        texcoord: [
-          0, 1,
-          1, 1,
-          0, 0,
-          0, 0,
-          1, 1,
-          1, 0
-        ],
+        ...DefaultBufferValues,
         color: {
           numComponents: 4,
           data: this.gridGl.color,
@@ -600,25 +599,7 @@ void main() {
     this.flowGridGl.bufferInfo = twgl.createBufferInfoFromArrays(
       this.ctx,
       {
-        vert_pos: {
-          numComponents: 2,
-          data: [
-            -x, -x,
-            x, -x,
-            -x, x,
-            -x, x,
-            x, -x,
-            x, x
-          ]
-        },
-        texcoord: [
-          0, 1,
-          1, 1,
-          0, 0,
-          0, 0,
-          1, 1,
-          1, 0
-        ],
+        ...DefaultBufferValues,
         color: {
           numComponents: 4,
           data: this.flowGridGl.color,
@@ -716,10 +697,11 @@ void main() {
           clamp(Math.random() * this.height, this.boidCellSize, this.height - this.boidCellSize)
         ),
         v: new vec2().random(10, 100),
-        r: this.boidSize,
+        r: this.boidSize / 2,
         maxSpeed: this.maxSpeed
       };
-      const b: Boid = i < this.numBoids / 4 ? new Zombie(o) : new Human(o);
+      // const b: Boid = i < this.numBoids / 4 ? new Zombie(o) : new Human(o);
+      const b: Boid = new Human(o);
       this.boids.push(b);
       this.rings.push(new Ring({
         world: this,
@@ -792,7 +774,8 @@ void main() {
       gridHeight: this.flowGrid.gridYW,
       gridMode: 2,
       paintMode: PaintModes.indexOf(this.paintMode),
-      paintSize: this.paintSize
+      paintSize: this.paintSize,
+      lineColor: FlowTypeColor.get(this.flowGrid.drawFlowType).rgba
     });
     this.flowGrid.draw(ctx);
     this.flowGrid.cleanCache();

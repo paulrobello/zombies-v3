@@ -15,7 +15,8 @@ export class Human extends Boid {
       layerMask: this.World.layerByName('human')
     }));
     this.behaviors.set('FlowBehavior', new FlowBehavior(this, 1, {
-        flowGrid: this.options.world.flowGrid, layer: options.world.layerByName('boid') | options.world.layerByName('human')
+        flowGrid: this.options.world.flowGrid,
+        layer: options.world.layerByName('boid') // | options.world.layerByName('human')
       })
     );
 

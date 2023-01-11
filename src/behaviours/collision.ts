@@ -10,13 +10,17 @@ export interface ICollisionBehaviorOptions {
 }
 
 export class CollisionBehavior extends BoidBehavior {
-  options: ICollisionBehaviorOptions;
   checkedFrame: number = -1;
+  margin: number;
+  iterations: number;
+  layerMask: number;
 
-  constructor(boid: Boid, scale: number = 1, options: ICollisionBehaviorOptions) {
+  constructor(boid: Boid, scale: number, options: ICollisionBehaviorOptions) {
     super(boid, scale);
     this.name = 'CollisionBehavior';
-    this.options = options;
+    this.margin = options.margin;
+    this.iterations = options.iterations;
+    this.layerMask = options.layerMask;
   }
 
   public override tick(gameTime: IGameTime): void {
@@ -30,7 +34,7 @@ export class CollisionBehavior extends BoidBehavior {
     const grid = b.options.grid;
     // grab all neighbors within 4 times our radius
     let md = b.r * 4; // max distance
-    const nearest = grid.getDataRadius(p.x, p.y, md, true, b, false, this.options.layerMask);
+    const nearest = grid.getDataRadius(p.x, p.y, md, true, b, false, this.layerMask);
     if (!nearest.length) return;
     md += 10;
 
@@ -41,7 +45,7 @@ export class CollisionBehavior extends BoidBehavior {
     let d: vec2;
     let anyHit: boolean = false;
     let l: number;
-    for (let i = 0; i < this.options.iterations; i++) { // currently only 1 iteration
+    for (let i = 0; i < this.iterations; i++) { // currently only 1 iteration
       for (const na of nearest) { // loop over neighbors in range
         const n = na.data; // current neighbor
         // get neighbors behavior and marked it checked, so we can skip it this frame if we have not already processed it
@@ -68,7 +72,7 @@ export class CollisionBehavior extends BoidBehavior {
         n.v.add(d.scale(-1));
 
         // actual collision
-        let r = b.r + n.r + this.options.margin;
+        let r = b.r + n.r + this.margin;
         // vector from neighbor to us
         d = vec2.difference(p, n.p, dTemp);
         let l2 = d.squaredLength();

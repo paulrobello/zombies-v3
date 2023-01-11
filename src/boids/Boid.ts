@@ -1,7 +1,5 @@
 import { AvoidBoundaryBehavior } from '../behaviours/avoid_boundary';
 import { BoidBehavior } from '../behaviours/BoidBehavior';
-import { CollisionBehavior } from '../behaviours/collision';
-import { FlowBehavior } from '../behaviours/flow';
 import { ForwardBehavior } from '../behaviours/forward';
 import { BoidGrid } from '../grids/BoidGrid';
 import { Cell, ICellIndexable } from '../grids/Cell';

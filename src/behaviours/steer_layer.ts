@@ -15,7 +15,7 @@ export class SteerLayerBehavior extends BoidBehavior {
   layerName: string;
   nearest: boolean;
 
-  constructor(boid: Boid, scale: number = 1, options: ISteerLayerBehaviorOptions) {
+  constructor(boid: Boid, scale: number, options: ISteerLayerBehaviorOptions) {
     super(boid, scale);
     this.name = 'SteerLayerBehavior';
     this.radius = options.radius;
