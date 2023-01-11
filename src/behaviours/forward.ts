@@ -1,5 +1,6 @@
-import { Boid, BoidBehavior } from '../boids/Boid';
+import { Boid } from '../boids/Boid';
 import { IGameTime } from '../GameClock';
+import { BoidBehavior } from './BoidBehavior';
 
 export class ForwardBehavior extends BoidBehavior {
 

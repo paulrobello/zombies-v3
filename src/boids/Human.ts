@@ -10,8 +10,8 @@ export class Human extends Boid {
 
     this.behaviors.set('AvoidZombie', new SteerLayerBehavior(this, 100, {
         layerName: 'zombie',
-        radius: Math.max(this.r * 10, this.options.grid.cellSize * 3),
-        nearest: false
+        radius: Math.max(this.r * 100, this.options.grid.cellSize * 3),
+        nearest: true
       })
     );
   }

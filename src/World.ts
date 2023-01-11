@@ -88,6 +88,10 @@ export class World {
     this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
     this.ctx = this.canvas.getContext('webgl2');
 
+    this.addLayerName('boid');
+    this.addLayerName('human');
+    this.addLayerName('zombie');
+
     this.gameClock = new GameClock();
     document.addEventListener('contextmenu', event => event.preventDefault());
     const mouseClickHandler = (event: MouseEvent) => {

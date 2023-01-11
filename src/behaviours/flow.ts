@@ -1,9 +1,10 @@
-import { Boid, BoidBehavior } from '../boids/Boid';
+import { Boid } from '../boids/Boid';
 import { Cell } from '../grids/Cell';
 import { IGameTime } from '../GameClock';
 import { IFlowValue } from '../grids/FlowGrid';
 import { HashGrid } from '../grids/HashGrid';
 import { clamp, epsilon, Ivec2, vec2 } from '../math';
+import { BoidBehavior } from './BoidBehavior';
 
 export interface IFlowBehaviorOptions {
   flowGrid: HashGrid<IFlowValue>;

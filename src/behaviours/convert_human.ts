@@ -1,7 +1,8 @@
-import { Boid, BoidBehavior, IBoidOptions } from '../boids/Boid';
+import { Boid, IBoidOptions } from '../boids/Boid';
 import { Zombie } from '../boids/Zombie';
 import { IGameTime } from '../GameClock';
 import { vec2 } from '../math';
+import { BoidBehavior } from './BoidBehavior';
 
 
 export class ConvertHumanBehavior extends BoidBehavior {
@@ -24,12 +25,14 @@ export class ConvertHumanBehavior extends BoidBehavior {
 
     for (const na of nearest) {
       const n = na.data;
+      n.alive = false;
+      n.tick(gameTime);
       const o: IBoidOptions = {
         id: n.id,
-        world: b.options.world,
-        grid: b.options.grid,
+        world: b.World,
+        grid: b.Grid,
         p: n.p.copy(),
-        v: new vec2().random(1, 10),
+        v: new vec2().random(b.maxSpeed, b.maxSpeed),
         r: b.r,
         maxSpeed: b.maxSpeed
       };

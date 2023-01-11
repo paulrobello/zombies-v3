@@ -1,6 +1,7 @@
-import { Boid, BoidBehavior } from '../boids/Boid';
+import { Boid } from '../boids/Boid';
 import { IGameTime } from '../GameClock';
 import { vec2, epsilon, clamp } from '../math';
+import { BoidBehavior } from './BoidBehavior';
 
 export interface ISeparateBehaviorOptions {
   margin: number;

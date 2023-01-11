@@ -1,6 +1,7 @@
-import { Boid, BoidBehavior } from '../boids/Boid';
+import { Boid } from '../boids/Boid';
 import { IGameTime } from '../GameClock';
 import { clamp, epsilon, vec2 } from '../math';
+import { BoidBehavior } from './BoidBehavior';
 
 export interface ICollisionBehaviorOptions {
   margin: number;

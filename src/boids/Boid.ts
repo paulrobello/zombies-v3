@@ -1,4 +1,5 @@
 import { AvoidBoundaryBehavior } from '../behaviours/avoid_boundary';
+import { BoidBehavior } from '../behaviours/BoidBehavior';
 import { CollisionBehavior } from '../behaviours/collision';
 import { FlowBehavior } from '../behaviours/flow';
 import { ForwardBehavior } from '../behaviours/forward';
@@ -26,20 +27,7 @@ export interface IBoidOptions {
   layer?: number;
 }
 
-export class BoidBehavior implements IProgressible {
-  public name: string;
-  public enabled: boolean = true;
-  public boid: Boid;
-  public scale: number;
 
-  constructor(boid: Boid, scale: number = 1) {
-    this.boid = boid;
-    this.scale = scale;
-  }
-
-  tick(gameTime: IGameTime): void {
-  }
-}
 
 let id = 0;
 
@@ -68,7 +56,7 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     return this.options.world;
   }
 
-  get Grid(): HashGrid<Boid> {
+  get Grid(): BoidGrid {
     return this.options.grid;
   }
 
@@ -118,7 +106,7 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     const grid = this.options.grid;
     if (!this.alive) {
       if (this.cellIndex !== -1) {
-        grid.removeCelDataByIndex(this.lastCellIndex, this);
+        grid.removeCelDataByIndex(this.cellIndex, this);
       }
       return;
     }
