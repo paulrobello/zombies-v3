@@ -1,5 +1,5 @@
-import { IPositional } from './interfaces';
-import { vec2, Ivec2, vec4 } from './math';
+import { IPositional } from '../interfaces';
+import { vec2, Ivec2, vec4 } from '../math';
 
 export interface ICellIndexable {
   lastCellIndex: number;

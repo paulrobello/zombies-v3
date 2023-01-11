@@ -1,5 +1,5 @@
 import { scale } from 'chroma-js';
-import { Boid } from '../Boid';
+import { Boid } from '../boids/Boid';
 import { HashGrid } from './HashGrid';
 
 export class BoidGrid extends HashGrid<Boid> {

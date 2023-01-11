@@ -1,4 +1,4 @@
-import { Cell, ICellIndexable } from '../Cell';
+import { Cell, ICellIndexable } from './Cell';
 import { IGameTime } from '../GameClock';
 import { IDrawable, IPositional, IProgressible } from '../interfaces';
 import { vec2, wrap } from '../math';
@@ -152,7 +152,7 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
     return numNeighbors;
   }
 
-  getDataRadius(x: number, y: number, radius: number, worldSpace: boolean = false, self?: T, closest?: boolean): IDataRadiusResults<T> {
+  getDataRadius(x: number, y: number, radius: number, worldSpace: boolean = false, self?: T, closest?: boolean, mask: number = 0): IDataRadiusResults<T> {
     let data: IDataRadiusResults<T> = [];
     const c = this.getCell(x, y, worldSpace);
     if (!c) {
@@ -160,12 +160,12 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
       return data;
     }
     const radius2 = radius * radius;
-    let hashKey = `${c.id}|${(self?.id || 0)}|${closest ? 1 : 0}`;
+    let hashKey = `${c.id}|${(self?.id || 0)}|${mask}|${closest ? 1 : 0}`;
     if (this.options.maxQueryCacheFrames) {
       let getDataRadiusCacheResult = this.getDataRadiusCache.get(hashKey);
       // if we look for cache hit with closest, but don't find it, broaden key to query that includes more
       if (!getDataRadiusCacheResult && closest) {
-        getDataRadiusCacheResult = this.getDataRadiusCache.get(`${c.id}|${(self?.id || 0)}|0`);
+        getDataRadiusCacheResult = this.getDataRadiusCache.get(`${c.id}|${(self?.id || 0)}|${mask}|0`);
       }
 
       // check if we have cache hit
@@ -202,6 +202,10 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
       const n = c.neighbors[ni];
       for (const i of n.items) {
         if (i === self) continue;
+        if (mask && !(i.layer & mask)) {
+          continue;
+        }
+
         const dv = vec2.difference(i.p, p);
         dist2 = dv.squaredLength();
         if (dist2 <= radius2 && dist2 < nearest) {

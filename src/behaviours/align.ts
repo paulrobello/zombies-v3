@@ -1,5 +1,5 @@
 import { BoidGrid } from '../grids/BoidGrid';
-import { Boid, BoidBehavior } from '../Boid';
+import { Boid, BoidBehavior } from '../boids/Boid';
 import { IGameTime } from '../GameClock';
 import { epsilon } from '../math';
 

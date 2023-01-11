@@ -1,4 +1,4 @@
-import { Boid, BoidBehavior } from '../Boid';
+import { Boid, BoidBehavior } from '../boids/Boid';
 import { IGameTime } from '../GameClock';
 import { vec2 } from '../math';
 

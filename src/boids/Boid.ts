@@ -1,22 +1,28 @@
-import { BoidGrid } from './grids/BoidGrid';
-import { Cell, ICellIndexable } from './Cell';
-import { IFlowValue } from './grids/FlowGrid';
-import { IGameTime } from './GameClock';
-import { HashGrid, IGridQueryable } from './grids/HashGrid';
-import { IDirectional, IDrawable, IPositional, IProgressible } from './interfaces';
-import { clamp, epsilon, vec4 } from './math';
-import { vec2, Ivec2 } from './math';
-import { World } from './World';
+import { AvoidBoundaryBehavior } from '../behaviours/avoid_boundary';
+import { CollisionBehavior } from '../behaviours/collision';
+import { FlowBehavior } from '../behaviours/flow';
+import { ForwardBehavior } from '../behaviours/forward';
+import { BoidGrid } from '../grids/BoidGrid';
+import { Cell, ICellIndexable } from '../grids/Cell';
+import { IGameTime } from '../GameClock';
+import { IFlowValue } from '../grids/FlowGrid';
+import { HashGrid, IGridQueryable } from '../grids/HashGrid';
+import { IDirectional, IDrawable, IPositional, IProgressible } from '../interfaces';
+import { clamp, epsilon, vec4 } from '../math';
+import { vec2, Ivec2 } from '../math';
+import { World } from '../World';
 
 
 export interface IBoidOptions {
   world: World,
   grid: BoidGrid,
+  id?: number;
   p?: vec2,
   v?: vec2,
   d?: vec2,
   a?: vec2,
   r?: number,
+  maxSpeed?: number,
   layer?: number;
 }
 
@@ -47,7 +53,7 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
   public r: number;
   public r2: number;
   public speed: number = 0;
-  public maxSpeed: number = 1;
+  public maxSpeed: number = 10;
 
   public behaviors: Map<string, BoidBehavior> = new Map<string, BoidBehavior>();
   public grid: HashGrid<Boid>;
@@ -68,21 +74,35 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
 
   constructor(options: IBoidOptions) {
     this.options = options;
-    this.id = id++;
+    this.id = options.id === undefined ? id++ : options.id;
     this.grid = options.grid;
-    this.layer = options.layer || 0;
+    this.layer = options.layer || this.options.world.addLayerName('boid');
     this.p = options.p || new vec2();
     this.v = options.v || new vec2();
     this.a = options.a || new vec2();
     this.d = new vec2();
+    this.maxSpeed = options.maxSpeed || 10;
     if (this.v.squaredLength()) {
       this.v.normalize(this.d);
     }
     this.r = options.r || 5;
     this.r2 = this.r * this.r;
-    if (this.id === 0) {
-      this.color.rgb = [0, 0, 1];
-    }
+
+    this.behaviors.set('ForwardBehavior', new ForwardBehavior(this, 1));
+    this.behaviors.set('FlowBehavior', new FlowBehavior(this, 1, {
+        flowGrid: this.options.world.flowGrid, normalize: false
+      })
+    );
+    // this.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 1, {margin: 32}));
+    // this.behaviors.set('AlignBehavior', new AlignBehavior(b, 1.0, {margin: 100}));
+    // this.behaviors.set('AttractionPointBehavior', new AttractionPointBehavior(b, 1, {target: {p: new vec2(this.options.world.widthD2, this.options.world.heightD2)}}));
+    this.behaviors.set('CollisionBehavior', new CollisionBehavior(this, 1));
+    this.behaviors.set('AvoidBoundaryBehavior', new AvoidBoundaryBehavior(this, 500, {margin: this.options.world.boidCellSize * 3}));
+
+
+    // if (this.id === 0) {
+    //   this.color.rgb = [0, 0, 1];
+    // }
   }
 
   // if (!p.isFinite()) {
@@ -142,8 +162,12 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     const cell: Cell<IFlowValue> = flowGrid.getCell(p.x, p.y, true);
     const cv = cell.items[0];
     if (!cv.static) {
-      cv.p.add(this.d.scale(gameTime.deltaTime * 0.4, t)).normalize();
-      cv.l += this.speed * gameTime.deltaTime * 0.01;
+      if (cv.l < epsilon) {
+        cv.p.set_xy(this.d.x, this.d.y);
+      } else {
+        cv.p.add(this.d.scale((1.5 - cv.l) * gameTime.deltaTime, t)).normalize();
+      }
+      cv.l = clamp(cv.l + this.speed * gameTime.deltaTime * 0.01, 0, 1);
       flowGrid.changedCells.add(cell);
     }
     // if (world.mouse.p.squaredDistanceTo(this.p) < 1000) {

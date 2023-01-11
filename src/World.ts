@@ -2,17 +2,13 @@ import { makeNoise2D } from 'fast-simplex-noise';
 import { throttle } from 'underscore';
 import * as twgl from 'twgl.js';
 import { BufferInfo, m4, ProgramInfo } from 'twgl.js';
-import { HashGridOptions, BoidGrid, FlowGrid, IFlowValue } from './grids';
-import {
-  AlignBehavior,
-  AttractionPointBehavior,
-  AvoidBoundaryBehavior,
-  CollisionBehavior,
-  FlowBehavior, ForwardBehavior,
-  SeparateBehavior
-} from './behaviours';
-import { Boid } from './Boid';
+import { Boid } from './boids/Boid';
+import { Human } from './boids/Human';
+import { Zombie } from './boids/Zombie';
 import { GameClock } from './GameClock';
+import { BoidGrid } from './grids/BoidGrid';
+import { FlowGrid, IFlowValue } from './grids/FlowGrid';
+import { HashGridOptions } from './grids/HashGrid';
 import { QueryLayerByName } from './interfaces';
 import { clamp, vec2 } from './math';
 
@@ -67,7 +63,7 @@ export class World {
   drag = 1;
   maxSpeed = 50;
   showField = true;
-  numBoids = 500;
+  numBoids = 100;
   wheelInc = this.flowCellSize;
   gameClock: GameClock;
   fieldRandomScale: number = 0.001;
@@ -151,7 +147,7 @@ precision mediump float;
 
 #define PI2         6.28318530718
 #define PI          3.14159265358
-
+#define EPSILON     0.00001
 uniform mat4   u_matrix;
 uniform vec2   iDimensions;  // viewport dimensions
 uniform float  iTime;        // shader playback time (in seconds)
@@ -208,7 +204,7 @@ out float v_speed;
 out float v_radius;
 
 void main() {
-  if (color_rad.w<0.0001){
+  if (color_rad.w<EPSILON){
     gl_Position = vec4(0,0,0,1);
   } else {
     gl_Position = u_matrix * (vert_pos * vec4(color_rad.w,color_rad.w,1.0,1.0) + vec4(pos_vel.xy, 0, 0));
@@ -233,7 +229,7 @@ ${this.commonVs}
   out vec4 FragColor;
 
   void main() {
-    if (v_radius<0.0001){
+    if (v_radius < EPSILON){
       discard;
     }
     vec2 dir = vec2(0.5, 0.5) - v_texcoord;
@@ -337,8 +333,8 @@ void main() {
   v_texcoord = texcoord;
   v_color = color;
   float ps = paintSize+(gridCellSize);
-  if (paintMode==1){
-    ps = gridCellSize/2.0;
+  if (paintMode == 1){
+    ps = gridCellSize / 2.0;
   }
   if (paintMode > 0) {
     if (length(ot - iMousePos.xy)<=ps){
@@ -356,7 +352,7 @@ void main() {
           v_color = vec4(0.5,0,0,1);
           break;}
       } // switch
-      if (vel_len.w>0.0){
+      if (vel_len.w > EPSILON){
         v_color = v_color * vec4(1.5,1.5,1.5,1.0);
       }
     } // if len
@@ -559,7 +555,7 @@ void main() {
 
   initBoids() {
     for (let i = 0; i < this.numBoids; i++) {
-      let b = new Boid({
+      const o = {
         world: this,
         grid: this.boidGrid,
         p: new vec2(
@@ -567,16 +563,10 @@ void main() {
           clamp(Math.random() * this.height, this.boidCellSize, this.height - this.boidCellSize)
         ),
         v: new vec2().random(10, 100),
-        r: this.boidSize
-      });
-      b.maxSpeed = this.maxSpeed;
-      b.behaviors.set('ForwardBehavior', new ForwardBehavior(b, 1));
-      b.behaviors.set('FlowBehavior', new FlowBehavior(b, 1, {flowGrid: this.flowGrid, normalize: false}));
-      // b.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 1, {margin: 32}));
-      // b.behaviors.set('AlignBehavior', new AlignBehavior(b, 1.0, {margin: 100}));
-      // b.behaviors.set('AttractionPointBehavior', new AttractionPointBehavior(b, 1, {target: {p: new vec2(this.widthD2, this.heightD2)}}));
-      b.behaviors.set('CollisionBehavior', new CollisionBehavior(b, 1));
-      b.behaviors.set('AvoidBoundaryBehavior', new AvoidBoundaryBehavior(b, 100, {margin: this.boidCellSize * 3}));
+        r: this.boidSize,
+        maxSpeed: this.maxSpeed
+      };
+      const b: Boid = i < this.numBoids / 4 ? new Zombie(o) : new Human(o);
       this.boids.push(b);
     }
   }

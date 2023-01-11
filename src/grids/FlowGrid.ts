@@ -1,5 +1,5 @@
 import { scale } from 'chroma-js';
-import { Cell, ICellIndexable } from '../Cell';
+import { Cell, ICellIndexable } from './Cell';
 import { IGameTime } from '../GameClock';
 import { HashGrid, IGridQueryable } from './HashGrid';
 import { IPositional } from '../interfaces';
