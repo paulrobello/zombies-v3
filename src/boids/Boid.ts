@@ -143,7 +143,7 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     }
     const flowGrid = this.options.world.flowGrid;
     const cell: Cell<IFlowValue> = flowGrid.getCell(p.x, p.y, true);
-    let cv: IFlowValue | undefined = cell.items.find((i) => (i.layer & this.layer) !== 0);
+    let cv: IFlowValue | undefined = cell.items[this.layer];
     if (!cv) {
       cv = {
         id: 0,

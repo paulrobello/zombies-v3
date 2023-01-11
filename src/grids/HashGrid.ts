@@ -76,6 +76,7 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
   }
 
   resize(options: HashGridOptions, doReposition: boolean = false): void {
+    console.log('HashGrid.resize');
     let recompute = (!this.options ||
       this.options.width !== options.width ||
       this.options.height !== options.height ||

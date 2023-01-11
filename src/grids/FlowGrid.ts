@@ -1,7 +1,6 @@
-import { scale } from 'chroma-js';
 import { Cell, ICellIndexable } from './Cell';
 import { IGameTime } from '../GameClock';
-import { HashGrid, IGridQueryable } from './HashGrid';
+import { HashGrid, HashGridOptions, IGridQueryable } from './HashGrid';
 import { IPositional } from '../interfaces';
 import { clamp, epsilon, vec2, vec4 } from '../math';
 import { IMouse, World } from '../World';
@@ -19,6 +18,12 @@ export const FlowTypeFade: Map<string, number> = new Map<string, number>([
   ['human', 0.1],
   ['zombie', 0.1],
   ['food', 0.1]
+]);
+export const FlowMaskFade: Map<number, number> = new Map<number, number>([
+  [1, 0.1],
+  [2, 0.1],
+  [4, 0.1],
+  [8, 0.1]
 ]);
 
 export interface IFlowValue extends IPositional, ICellIndexable, IGridQueryable {
@@ -40,17 +45,39 @@ export const EmptyFlowValue: IFlowValue = {
 
 export class FlowGrid extends HashGrid<IFlowValue> {
   drawFlowType: FlowType = 'boid';
-  flowGradient = scale(['#000000', '#00FF00', '#0000FF', '#FFFF00', '#FF8700', '#FF0000'])
-    .domain([0, 0.2, 0.5, 0.6, 0.75, 1.0]);
+
+  override resize(options: HashGridOptions, doReposition: boolean = false): void {
+    super.resize(options, doReposition);
+    console.log('FlowGrid.resize');
+    for (const cell of this.cells) {
+      cell.items.length = 256;
+    }
+  }
+
+  override addCelDataByIndex(cellIndex: number, v: IFlowValue): void {
+    if (!isFinite(cellIndex) || cellIndex < 0 || cellIndex >= this.cells.length) {
+      // debugger;
+      throw new Error(`Cell index out of bounds ${cellIndex}, ${this.cells.length}`);
+    }
+    const cell = this.cells[cellIndex];
+    cell.items[v.layer] = v;
+    this.allData.add(v);
+    v.lastCellIndex = v.cellIndex;
+    v.cellIndex = cellIndex;
+    if (v.lastCellIndex < 0) {
+      v.lastCellIndex = v.cellIndex;
+    }
+    this.changedCells.add(cell);
+  }
 
   override draw(ctx: WebGL2RenderingContext): void {
     const world: World = this.World;
     const buffers = world.flowGridGl;
-    const mask: number = this.drawFlowType === 'boid' ? world.layerByName('human') | world.layerByName('zombie') : world.layerByName(this.drawFlowType);
+    const mask: number = world.layerByName(this.drawFlowType);
 
     let id: number;
     for (const cell of this.changedCells) {
-      let cv: IFlowValue | undefined = cell.items.find(i => (i.layer & mask) !== 0);
+      let cv: IFlowValue | undefined = cell.items[mask];
       if (!cv) {
         cv = EmptyFlowValue;
       }
@@ -75,13 +102,13 @@ export class FlowGrid extends HashGrid<IFlowValue> {
     }
   }
 
-  fadeCells(gameTime: IGameTime, speed: number) {
+  fadeCells(gameTime: IGameTime) {
     for (const cell of this.cells) {
       for (const cv of cell.items) {
-        if (cv.static) continue;
+        if (!cv || cv.static) continue;
         if (cv.l) {
           this.changedCells.add(cell);
-          cv.l *= 1 - gameTime.deltaTime * speed;
+          cv.l *= 1 - gameTime.deltaTime * FlowMaskFade.get(cv.layer) || 0;
           if (cv.l < epsilon) cv.l = 0;
         }
       }
@@ -89,7 +116,7 @@ export class FlowGrid extends HashGrid<IFlowValue> {
   }
 
   override tick(gameTime: IGameTime): void {
-    this.fadeCells(gameTime, FlowTypeFade.get(this.drawFlowType) || 0);
+    this.fadeCells(gameTime);
     const pm = this.options.world.paintMode;
     const mouse: IMouse = this.options.world.mouse;
 
@@ -123,7 +150,7 @@ export class FlowGrid extends HashGrid<IFlowValue> {
       //   n.color.rgba = [0.3, 0.3, 0.5, 1.0];
       // }
       const mask: number = this.World.layerByName(this.drawFlowType) || 0;
-      let cv: IFlowValue | undefined = n.items.find(i => (i.layer & mask) !== 0);
+      let cv: IFlowValue | undefined = n.items[mask];
       if (!cv) {
         cv = {
           id: 0,

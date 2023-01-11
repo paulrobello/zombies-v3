@@ -129,7 +129,6 @@ export class World {
   gridMode: GridDrawMode = 'flow';
 
 
-
   constructor() {
     this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
     this.ctx = this.canvas.getContext('webgl2');
@@ -150,7 +149,7 @@ export class World {
 
     this.helpToggleEl.addEventListener('click', () => {
       this.helpEl.classList.toggle('hidden');
-    })
+    });
     window.addEventListener('keypress', (event: KeyboardEvent) => {
       console.log(event);
       if (event.key >= '0' && event.key <= '9') {
@@ -265,7 +264,7 @@ uniform vec4   iMousePos;    // mouse position in world coordinates
   layerByName(name: string): number {
     let id: number | undefined = this.layers.get(name);
     if (id) return id;
-    id = Math.pow(2, this.layers.size);
+    id = Math.pow(2, this.layers.size + 1);
     this.layers.set(name, id);
     return id;
   }

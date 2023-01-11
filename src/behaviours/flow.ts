@@ -29,7 +29,7 @@ export class FlowBehavior extends BoidBehavior {
     const v: Ivec2 = b.v;
     const cell: Cell<IFlowValue> = this.flowGrid.getCell(p.x, p.y, true);
     if (!cell || !cell.items.length) return;
-    const d: IFlowValue = cell.items.find(i => (i.layer & this.layer) !== 0);
+    const d: IFlowValue | undefined = cell.items[this.layer];
     if (!d) {
       return;
     }
