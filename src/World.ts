@@ -10,11 +10,21 @@ import { BoidGrid } from './grids/BoidGrid';
 import { FlowGrid, IFlowValue } from './grids/FlowGrid';
 import { HashGridOptions } from './grids/HashGrid';
 import { QueryLayerByName } from './interfaces';
-import { clamp, vec2 } from './math';
+import { clamp, vec2, vec4 } from './math';
+import { Ring } from './Ring';
 
 const noise = makeNoise2D();
 export type PaintMode = 'none' | 'wall' | 'stroke' | 'attract' | 'repel';
 const PaintModes: PaintMode[] = ['none', 'wall', 'stroke', 'attract', 'repel'];
+
+
+export interface IRingGl {
+  pos_rad: Float32Array;
+  color: Float32Array;
+  programInfo: ProgramInfo;
+  bufferInfo: BufferInfo;
+}
+
 
 export interface IBoidGl {
   pos_vel: Float32Array;
@@ -59,6 +69,7 @@ export class World {
   boidGridOptions: HashGridOptions;
   fieldScale: number = this.flowCellSize * 0.005;
   boids: Boid[] = [];
+  rings: Ring[] = [];
   boidSize: number = 8;
   drag = 1;
   maxSpeed = 50;
@@ -71,6 +82,7 @@ export class World {
   boidGl: IBoidGl;
   gridGl: IGridGl;
   flowGridGl: IFlowGridGl;
+  ringGl: IRingGl;
   commonVs: string;
   mouse: IMouse = {
     p: new vec2(),
@@ -162,7 +174,7 @@ uniform vec4   iMousePos;    // mouse position in world coordinates
 `;
     this.initBoidGl();
     this.initBoids();
-
+    this.initRingGl();
     this.initGridGl();
   }
 
@@ -188,6 +200,107 @@ uniform vec4   iMousePos;    // mouse position in world coordinates
     id = Math.pow(2, this.layers.size);
     this.layers.set(name, id);
     return id;
+  }
+
+  initRingGl() {
+    console.log('initRingGl');
+
+    const vs = `
+${this.commonVs}
+
+in vec4 vert_pos;
+in vec2 texcoord;
+in vec4 pos_rad;
+in vec4 color;
+
+out vec2 v_texcoord;
+out vec4 v_color;
+out float v_radius;
+flat out float v_duration;
+flat out float v_thickness;
+void main() {
+  if (pos_rad.w < EPSILON){
+    gl_Position = vec4(0,0,0,1);
+  } else {
+    gl_Position = u_matrix * (vert_pos * vec4(pos_rad.z,pos_rad.z,1.0,1.0) + vec4(pos_rad.xy, 0, 0));
+  }
+  v_texcoord = texcoord;
+  v_color = vec4(color.xyz, 1);
+  v_radius = pos_rad.z;
+  v_duration = pos_rad.w;
+  v_thickness = color.w;
+}`;
+
+    const fs = `
+${this.commonVs}
+
+  in vec2 v_texcoord;
+  in vec4 v_color;
+  in float v_radius;
+  flat in float v_duration;
+  flat in float v_thickness;
+
+  out vec4 FragColor;
+
+  void main() {
+    if (v_duration < EPSILON){
+      discard;
+    }
+    vec2 dir = vec2(0.5, 0.5) - v_texcoord;
+    float r2=dot(dir, dir);
+    if (r2 >= 0.25) {
+      discard;
+    }
+    if (r2<0.25-v_thickness){
+      discard;
+    }
+    FragColor = v_color;
+  }`;
+
+    const programInfo = twgl.createProgramInfo(this.ctx, [vs, fs]);
+
+    this.ringGl = {
+      pos_rad: new Float32Array(this.numBoids * 4),
+      color: new Float32Array(this.numBoids * 4),
+      programInfo: programInfo,
+      bufferInfo: undefined
+    };
+    const x = 1;
+
+    this.ringGl.bufferInfo = twgl.createBufferInfoFromArrays(
+      this.ctx,
+      {
+        vert_pos: {
+          numComponents: 2,
+          data: [
+            -x, -x,
+            x, -x,
+            -x, x,
+            -x, x,
+            x, -x,
+            x, x
+          ]
+        },
+        texcoord: [
+          0, 1,
+          1, 1,
+          0, 0,
+          0, 0,
+          1, 1,
+          1, 0
+        ],
+        pos_rad: {
+          numComponents: 4,
+          data: this.ringGl.pos_rad,
+          divisor: 1
+        },
+        color: {
+          numComponents: 4,
+          data: this.ringGl.color,
+          divisor: 1
+        }
+      }
+    );
   }
 
   initBoidGl() {
@@ -300,6 +413,7 @@ ${this.commonVs}
       }
     );
   }
+
 
   initGridGl() {
     console.log('initGridGl');
@@ -572,6 +686,16 @@ void main() {
       };
       const b: Boid = i < this.numBoids / 4 ? new Zombie(o) : new Human(o);
       this.boids.push(b);
+      this.rings.push(new Ring({
+        world: this,
+        id: i,
+        p: new vec2(),
+        r: 0,
+        thickness: 0.01,
+        duration: 0,
+        speed: 50,
+        color: new vec4([1, 0, 0, 1])
+      }));
     }
   }
 
@@ -666,6 +790,27 @@ void main() {
     this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.numBoids);
   }
 
+  drawRings() {
+    const gameClock = this.gameClock;
+    const ctx = this.ctx;
+
+    this.ctx.useProgram(this.ringGl.programInfo.program);
+
+    twgl.setUniforms(this.ringGl.programInfo, {
+      u_matrix: this.u_matrix,
+      iDimensions: this.dimensions,   // viewport resolution (in pixels)
+      iTime: gameClock.gameTime.currentTime,    // shader playback time (in seconds)
+      iTimeDelta: gameClock.gameTime.deltaTime, // render time (in seconds)
+      iFrameRate: gameClock.gameTime.fps,       // shader frame rate
+      iFrame: gameClock.gameTime.currentFrame,   // shader playback frame
+      iMousePos: this.mouse.glP
+    });
+    twgl.setAttribInfoBufferFromArray(ctx, this.ringGl.bufferInfo.attribs.pos_rad, this.ringGl.pos_rad);
+    twgl.setAttribInfoBufferFromArray(ctx, this.ringGl.bufferInfo.attribs.color, this.ringGl.color);
+    twgl.setBuffersAndAttributes(ctx, this.ringGl.programInfo, this.ringGl.bufferInfo);
+    this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.numBoids);
+  }
+
   public draw() {
     const gameClock = this.gameClock;
 
@@ -686,7 +831,11 @@ void main() {
       b.tick(gameClock.gameTime);
       b.draw(ctx);
     }
-
+    for (const r of this.rings) {
+      r.tick(gameClock.gameTime);
+      r.draw(ctx);
+    }
+    this.drawRings();
     this.drawBoids();
     // if (Math.random() < 0.001) {
     //   this.genField();

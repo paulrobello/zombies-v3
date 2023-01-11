@@ -84,7 +84,6 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     // this.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 1, {margin: 32}));
     // this.behaviors.set('AlignBehavior', new AlignBehavior(b, 1.0, {margin: 100}));
     // this.behaviors.set('AttractionPointBehavior', new AttractionPointBehavior(b, 1, {target: {p: new vec2(this.options.world.widthD2, this.options.world.heightD2)}}));
-    this.behaviors.set('CollisionBehavior', new CollisionBehavior(this, 1));
     this.behaviors.set('AvoidBoundaryBehavior', new AvoidBoundaryBehavior(this, 500, {margin: this.options.world.boidCellSize * 3}));
 
 

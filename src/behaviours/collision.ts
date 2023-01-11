@@ -6,18 +6,14 @@ import { BoidBehavior } from './BoidBehavior';
 export interface ICollisionBehaviorOptions {
   margin: number;
   iterations: number;
+  layerMask: number;
 }
-
-export const collisionBehaviorDefaultOptions: ICollisionBehaviorOptions = {
-  margin: 2,
-  iterations: 1
-};
 
 export class CollisionBehavior extends BoidBehavior {
   options: ICollisionBehaviorOptions;
   checkedFrame: number = -1;
 
-  constructor(boid: Boid, scale: number = 1, options: ICollisionBehaviorOptions = collisionBehaviorDefaultOptions) {
+  constructor(boid: Boid, scale: number = 1, options: ICollisionBehaviorOptions) {
     super(boid, scale);
     this.name = 'CollisionBehavior';
     this.options = options;
@@ -34,7 +30,7 @@ export class CollisionBehavior extends BoidBehavior {
     const grid = b.options.grid;
     // grab all neighbors within 4 times our radius
     let md = b.r * 4; // max distance
-    const nearest = grid.getDataRadius(p.x, p.y, md, true, b, false);
+    const nearest = grid.getDataRadius(p.x, p.y, md, true, b, false, this.options.layerMask);
     if (!nearest.length) return;
     md += 10;
 

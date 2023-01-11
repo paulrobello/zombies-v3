@@ -38,6 +38,13 @@ export class ConvertHumanBehavior extends BoidBehavior {
       };
       const boid = new Zombie(o);
       b.options.world.boids[boid.id] = boid;
+      for (const r of b.World.rings) {
+        if (r.duration) continue;
+        r.duration=2;
+        r.r=0;
+        r.p.set_xy(b.p.x, b.p.y);
+        break;
+      }
     }
   }
 }
