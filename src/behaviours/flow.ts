@@ -28,9 +28,9 @@ export class FlowBehavior extends BoidBehavior {
     const p: Ivec2 = b.p;
     const v: Ivec2 = b.v;
     const cell: Cell<IFlowValue> = this.flowGrid.getCell(p.x, p.y, true);
-    if (!cell || !cell.items.length) return;
+    if (!cell || cell.items.length <= this.layer) return;
     const d: IFlowValue | undefined = cell.items[this.layer];
-    if (!d) {
+    if (!d || !d.l) {
       return;
     }
     const scale = this.scale;
@@ -38,16 +38,11 @@ export class FlowBehavior extends BoidBehavior {
       const dv = vec2.difference(p, cell.wc);
       const l = clamp(dv.length(), epsilon, 1000);
       const d = dv.scale(1 / l);
-      v.add(d.scale((b.speed + 10) * 100 * gameTime.deltaTime * 200, new vec2()));
+      v.add(d.scale((b.speed + 10) * gameTime.deltaTime * 1000, new vec2()));
       return;
     }
     // console.log(d)
-    if (!d.l) {
-      v.x += d.p.x * scale;
-      v.y += d.p.y * scale;
-    } else {
-      v.x += d.p.x * d.l * scale;
-      v.y += d.p.y * d.l * scale;
-    }
+    v.x += d.p.x * d.l * scale;
+    v.y += d.p.y * d.l * scale;
   }
 }

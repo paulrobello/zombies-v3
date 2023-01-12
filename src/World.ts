@@ -242,7 +242,7 @@ uniform vec4   iMousePos;    // mouse position in world coordinates
     this.initGridGl();
 
     setInterval(() => {
-      this.statsEl.innerText = `Humans: ${this.humans.size} Zombies: ${this.zombies.size} Flow Draw Mode: ${this.flowGrid.drawFlowType} Flow Paint Mode: ${this.paintMode}`;
+      this.statsEl.innerText = `Humans: ${this.humans.size} Zombies: ${this.zombies.size} Flow Draw Mode: ${this.flowGrid.drawFlowType} Flow Paint Mode: ${this.paintMode} FPS ${this.gameClock.gameTime.fps.toFixed(0)}`;
     }, 1000);
   }
 

@@ -13,13 +13,13 @@ export class Zombie extends Boid {
     this.maxSpeed *= 0.75; // zed are slower than humans
     this.behaviors.set('CollisionBehavior', new CollisionBehavior(this, 1, {
       iterations: 1,
-      margin: 1,
+      margin: 2,
       layerMask: this.World.layerByName('zombie'),
-      predictive: false
+      predictive: true
     }));
     this.behaviors.set('ChaseHumans', new SteerLayerBehavior(this, -100, {
         layerName: 'human',
-        radius: Math.max(this.r * 8, this.options.grid.cellSize * 6),
+        radius: Math.max(this.r * 8, this.options.grid.cellSize * 2),
         nearest: true
       })
     );
@@ -29,7 +29,7 @@ export class Zombie extends Boid {
       })
     );
 
-    this.behaviors.set('ZombieFlow', new FlowBehavior(this, 1, {
+    this.behaviors.set('ZombieFlow', new FlowBehavior(this, 2, {
         flowGrid: this.options.world.flowGrid, layer: options.world.layerByName('zombie')
       })
     );

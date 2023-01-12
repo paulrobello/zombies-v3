@@ -13,12 +13,6 @@ export const FlowTypeColor: Map<string, vec4> = new Map<string, vec4>([
   ['zombie', new vec4([0, 1, 0, 1])],
   ['food', new vec4([1, 1, 0, 1])]
 ]);
-export const FlowTypeFade: Map<string, number> = new Map<string, number>([
-  ['boid', 0.1],
-  ['human', 0.1],
-  ['zombie', 0.1],
-  ['food', 0.1]
-]);
 
 export interface IFlowValue extends IPositional, ICellIndexable, IGridQueryable {
   l: number;
@@ -44,9 +38,9 @@ export class FlowGrid extends HashGrid<IFlowValue> {
   constructor(options: HashGridOptions) {
     super(options);
     this.flowMaskFade.set(this.World.layerByName('boid'), 0);
-    this.flowMaskFade.set(this.World.layerByName('human'), 0.1);
-    this.flowMaskFade.set(this.World.layerByName('zombie'), 0.1);
-    this.flowMaskFade.set(this.World.layerByName('food'), 0.1);
+    this.flowMaskFade.set(this.World.layerByName('human'), 0.01);
+    this.flowMaskFade.set(this.World.layerByName('zombie'), 0.01);
+    this.flowMaskFade.set(this.World.layerByName('food'), 0.01);
   }
 
   override resize(options: HashGridOptions, doReposition: boolean = false): void {
@@ -129,7 +123,7 @@ export class FlowGrid extends HashGrid<IFlowValue> {
     const ps = this.options.world.paintSize;
     const t = new vec2();
     const mask: number = this.World.layerByName(this.drawFlowType) || 0;
-
+    let numNeighbors: number;
     const cell: Cell<IFlowValue> = this.getCell(mouse.p.x, mouse.p.y, true);
     if (pm === 'wall') {
       let cv = cell.items[mask];
@@ -149,6 +143,27 @@ export class FlowGrid extends HashGrid<IFlowValue> {
       if (mouse.buttons[0]) {
         cv.solid = true;
         this.changedCells.add(cell);
+        numNeighbors = Math.min(9, this.numNeighbors(cell, 1, false));
+        for (let ni = 1; ni < numNeighbors; ni++) {
+          const n: Cell<IFlowValue> = cell.neighbors[ni];
+          let nv = n.items[mask];
+          if (!nv) {
+            nv = {
+              id: 0,
+              layer: mask,
+              p: new vec2(),
+              l: 0,
+              lastCellIndex: -1,
+              cellIndex: -1,
+              static: false,
+              solid: false
+            };
+            this.addCelData(n.p.x, n.p.y, false, nv);
+          }
+          nv.p.add(vec2.direction(n.wp, cell.wp)).normalize();
+          nv.l = 1;
+          nv.static = true;
+        }
       } else if (mouse.buttons[2]) {
         cv.solid = false;
         this.changedCells.add(cell);
@@ -157,7 +172,7 @@ export class FlowGrid extends HashGrid<IFlowValue> {
     }
     let l: number;
 
-    const numNeighbors = this.numNeighbors(cell, ps, true);
+    numNeighbors = this.numNeighbors(cell, ps, true);
     for (let i = 0; i < numNeighbors; i++) {
       const n: Cell<IFlowValue> = cell.neighbors[i];
       // if (pm === 'attract') {
