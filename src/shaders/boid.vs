@@ -1,0 +1,30 @@
+#include "./common.glsl";
+#include "./common.vs";
+
+in vec4 vert_pos;
+in vec2 texcoord;
+in vec4 pos_vel;
+in vec4 color;
+in vec4 rad_static;
+
+out vec2 v_texcoord;
+out vec4 v_color;
+out vec2 v_angle;
+out float v_speed;
+out float v_radius;
+out float v_static;
+
+void main() {
+    if (rad_static.x < EPSILON) {
+        gl_Position = vec4(0, 0, 0, 1);
+    } else {
+        gl_Position = u_matrix * (vert_pos * vec4(rad_static.x * 2.0, rad_static.x * 2.0, 1.0, 1.0) + vec4(pos_vel.xy, 0, 0));
+    }
+    v_texcoord = texcoord;
+    v_color = color;
+    float l = length(pos_vel.zw);
+    v_speed = l;
+    v_angle = pos_vel.zw / l;
+    v_radius = rad_static.x * 2.0;
+    v_static = rad_static.y;
+}

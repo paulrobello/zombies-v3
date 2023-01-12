@@ -44,6 +44,10 @@ module.exports = {
         // exclude: /node_modules/
         use: ['style-loader', 'css-loader']
       },
+      {
+        test: /\.(glsl|vs|fs)$/,
+        loader: 'ts-shader-loader'
+      },
       // {
       //   test: /\.html$/i,
       //   exclude: /node_modules/,

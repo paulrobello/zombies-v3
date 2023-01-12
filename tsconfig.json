@@ -21,6 +21,7 @@
     "esModuleInterop": true
   },
   "include": [
-    "src/**/*.ts"
+    "./glsl.d.ts",
+    "src/**/*.ts",
   ]
 }

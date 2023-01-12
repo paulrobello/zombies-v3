@@ -3,6 +3,7 @@ import { throttle } from 'underscore';
 import * as twgl from 'twgl.js';
 import { BufferInfo, m4, ProgramInfo } from 'twgl.js';
 import { Boid } from './boids/Boid';
+import { Food } from './boids/Food';
 import { Human } from './boids/Human';
 import { Zombie } from './boids/Zombie';
 import { GameClock } from './GameClock';
@@ -12,6 +13,16 @@ import { HashGridOptions } from './grids/HashGrid';
 import { QueryLayerByName } from './interfaces';
 import { clamp, vec2, vec4 } from './math';
 import { Ring } from './Ring';
+
+import grid_vs_shader from './shaders/grid.vs';
+import grid_fs_shader from './shaders/grid.fs';
+
+import boid_vs_shader from './shaders/boid.vs';
+import boid_fs_shader from './shaders/boid.fs';
+
+import ring_vs_shader from './shaders/ring.vs';
+import ring_fs_shader from './shaders/ring.fs';
+
 
 const noise = makeNoise2D();
 export type PaintMode = 'none' | 'wall' | 'stroke' | 'attract' | 'repel';
@@ -30,7 +41,8 @@ export interface IRingGl {
 
 export interface IBoidGl {
   pos_vel: Float32Array;
-  color_rad: Float32Array;
+  color: Float32Array;
+  rad_static: Float32Array;
   programInfo: ProgramInfo;
   bufferInfo: BufferInfo;
 }
@@ -103,7 +115,6 @@ export class World {
   maxSpeed = 50;
   showField = true;
   numBoids = 100;
-  wheelInc = this.flowCellSize;
   gameClock: GameClock;
   fieldRandomScale: number = 0.001;
   u_matrix: m4.Mat4 = m4.identity();
@@ -111,7 +122,7 @@ export class World {
   gridGl: IGridGl;
   flowGridGl: IFlowGridGl;
   ringGl: IRingGl;
-  commonVs: string;
+
   mouse: IMouse = {
     p: new vec2(),
     op: new vec2(),
@@ -132,6 +143,7 @@ export class World {
   helpToggleEl: HTMLDivElement;
   humans: Set<Human> = new Set<Human>();
   zombies: Set<Zombie> = new Set<Zombie>();
+  food: Set<Food> = new Set<Food>();
   gridMode: GridDrawMode = 'flow';
 
 
@@ -151,7 +163,6 @@ export class World {
     this.layerByName('food');
 
     this.gameClock = new GameClock();
-
 
     this.helpToggleEl.addEventListener('click', () => {
       this.helpEl.classList.toggle('hidden');
@@ -196,7 +207,8 @@ export class World {
     this.canvas.addEventListener('click', mouseClickHandler);
     this.canvas.addEventListener('auxclick', mouseClickHandler);
 
-    this.canvas.addEventListener('mouseleave', (event: MouseEvent) => {
+    this.canvas.addEventListener('mouseleave', () => {
+      this.mouse.clicked.fill(false);
       this.mouse.buttons.fill(false);
       this.mouse.shift = false;
       this.mouse.alt = false;
@@ -222,7 +234,7 @@ export class World {
     this.canvas.addEventListener('mousedown', (event: MouseEvent) => {
       this.mouse.buttons[event.button] = true;
     });
-    window.addEventListener('resize', (event: UIEvent) => () => {
+    window.addEventListener('resize', () => () => {
       // this.resize();
     });
     // window.addEventListener('wheel', throttle((event: WheelEvent) => {
@@ -238,27 +250,14 @@ export class World {
     this.ctx.clearColor(0, 0, 0, 1);
     this.resize();
 
-    this.commonVs = `#version 300 es
-precision mediump float;
-
-#define PI2         6.28318530718
-#define PI          3.14159265358
-#define EPSILON     0.00001
-uniform mat4   u_matrix;
-uniform vec2   iDimensions;  // viewport dimensions
-uniform float  iTime;        // shader playback time (in seconds)
-uniform float  iTimeDelta;   // render time (in seconds)
-uniform float  iFrameRate;   // shader frame rate
-uniform int    iFrame;       // shader playback frame
-uniform vec4   iMousePos;    // mouse position in world coordinates
-`;
     this.initBoidGl();
     this.initBoids();
     this.initRingGl();
     this.initGridGl();
 
+
     setInterval(() => {
-      this.statsEl.innerText = `Humans: ${this.humans.size} Zombies: ${this.zombies.size} Flow Draw Mode: ${this.flowGrid.drawFlowType} Flow Paint Mode: ${this.paintMode} FPS ${this.gameClock.gameTime.fps.toFixed(0)}`;
+      this.statsEl.innerText = `Humans: ${this.humans.size} Zombies: ${this.zombies.size} Flow Draw Mode: ${this.flowGrid.drawFlowType} Flow Paint Mode: ${this.paintMode} FPS ${this.FPS.toFixed(0)}`;
     }, 1000);
   }
 
@@ -289,57 +288,8 @@ uniform vec4   iMousePos;    // mouse position in world coordinates
   initRingGl() {
     console.log('initRingGl');
 
-    const vs = `
-${this.commonVs}
-
-in vec4 vert_pos;
-in vec2 texcoord;
-in vec4 pos_rad;
-in vec4 color;
-
-out vec2 v_texcoord;
-out vec4 v_color;
-out float v_radius;
-flat out float v_duration;
-flat out float v_thickness;
-void main() {
-  if (pos_rad.w < EPSILON){
-    gl_Position = vec4(0,0,0,1);
-  } else {
-    gl_Position = u_matrix * (vert_pos * vec4(pos_rad.z * 2.0,pos_rad.z * 2.0,1.0,1.0) + vec4(pos_rad.xy, 0, 0));
-  }
-  v_texcoord = texcoord;
-  v_color = vec4(color.xyz, 1);
-  v_radius = pos_rad.z * 2.0;
-  v_duration = pos_rad.w;
-  v_thickness = color.w;
-}`;
-
-    const fs = `
-${this.commonVs}
-
-  in vec2 v_texcoord;
-  in vec4 v_color;
-  in float v_radius;
-  flat in float v_duration;
-  flat in float v_thickness;
-
-  out vec4 FragColor;
-
-  void main() {
-    if (v_duration < EPSILON){
-      discard;
-    }
-    vec2 dir = vec2(0.5, 0.5) - v_texcoord;
-    float r2=dot(dir, dir);
-    if (r2 >= 0.25) {
-      discard;
-    }
-    if (r2<0.25-v_thickness){
-      discard;
-    }
-    FragColor = v_color;
-  }`;
+    const vs = ring_vs_shader;
+    const fs = ring_fs_shader;
 
     const programInfo = twgl.createProgramInfo(this.ctx, [vs, fs]);
 
@@ -371,73 +321,15 @@ ${this.commonVs}
   initBoidGl() {
     console.log('initBoidGl');
 
-    const vs = `
-${this.commonVs}
-
-in vec4 vert_pos;
-in vec2 texcoord;
-in vec4 pos_vel;
-in vec4 color_rad;
-
-out vec2 v_texcoord;
-out vec4 v_color;
-out vec2 v_angle;
-out float v_speed;
-out float v_radius;
-
-void main() {
-  if (color_rad.w<EPSILON){
-    gl_Position = vec4(0,0,0,1);
-  } else {
-    gl_Position = u_matrix * (vert_pos * vec4(color_rad.w*2.0,color_rad.w*2.0,1.0,1.0) + vec4(pos_vel.xy, 0, 0));
-  }
-  v_texcoord = texcoord;
-  v_color = vec4(color_rad.xyz, 1);
-  float l = length(pos_vel.zw);
-  v_speed = l;
-  v_angle = pos_vel.zw / l;
-  v_radius = color_rad.w*2.0;
-}`;
-
-    const fs = `
-${this.commonVs}
-
-  in vec2 v_texcoord;
-  in vec4 v_color;
-  in vec2 v_angle;
-  in float v_speed;
-  in float v_radius;
-
-  out vec4 FragColor;
-
-  void main() {
-    if (v_radius < EPSILON){
-      discard;
-    }
-    vec2 dir = vec2(0.5, 0.5) - v_texcoord;
-    float r2=dot(dir, dir);
-    if (r2 >= 0.25) {
-      discard;
-    }
-    // vec4 color = mix(vec4(1.0,0.0,0.0,1.0), v_color, v_speed/100.0);
-    vec4 color = v_color;
-    if (dot(vec2(-v_angle.x,v_angle.y), dir)>0.0) {
-      if (abs(dot(vec2(v_angle.y,v_angle.x), dir))<0.1) {
-        FragColor = vec4(1.0,0.0,0.0,1.0);
-      }else{
-        FragColor = color;
-      }
-    }else{
-      FragColor = color;
-    }
-    // FragColor = gl_FragColor * (0.95-r2);
-  }`;
+    const vs = boid_vs_shader;
+    const fs = boid_fs_shader;
 
     const programInfo = twgl.createProgramInfo(this.ctx, [vs, fs]);
 
     this.boidGl = {
       pos_vel: new Float32Array(this.numBoids * 4),
-      color_rad: new Float32Array(this.numBoids * 4),
+      color: new Float32Array(this.numBoids * 4),
+      rad_static: new Float32Array(this.numBoids * 4),
       programInfo: programInfo,
       bufferInfo: undefined
     };
@@ -450,9 +342,14 @@ ${this.commonVs}
           data: this.boidGl.pos_vel,
           divisor: 1
         },
-        color_rad: {
+        color: {
           numComponents: 4,
-          data: this.boidGl.color_rad,
+          data: this.boidGl.color,
+          divisor: 1
+        },
+        rad_static: {
+          numComponents: 4,
+          data: this.boidGl.rad_static,
           divisor: 1
         }
       }
@@ -462,107 +359,8 @@ ${this.commonVs}
 
   initGridGl() {
     console.log('initGridGl');
-    const vs = `
-${this.commonVs}
-
-uniform float gridCellSize;
-uniform float gridWidth;
-uniform float gridHeight;
-uniform int gridMode;
-uniform int paintMode;
-uniform float paintSize;
-uniform vec4 lineColor;
-
-in vec2 vert_pos;
-in vec2 texcoord;
-in vec4 color;
-in vec4 vel_len;
-
-out vec4 v_color;
-out vec4 v_line_color;
-out vec2 v_angle;
-out float v_speed;
-out vec2 v_texcoord;
-flat out int v_gridMode;
-flat out int v_paintMode;
-flat out float v_paintSize;
-flat out float v_solid;
-
-void main() {
-  vec2 ot = vec2(
-    float(gl_InstanceID % int(gridWidth)) * gridCellSize + (gridCellSize * 0.5),
-    trunc(float(gl_InstanceID) / gridWidth) * gridCellSize + (gridCellSize * 0.5)
-  );
-  vec2 p = vert_pos * vec2(gridCellSize * 0.95, gridCellSize * 0.95) + ot;
-  gl_Position = u_matrix * vec4(p, 0, 1);
-  v_texcoord = texcoord;
-  v_color = color;
-  float ps = paintSize+(gridCellSize);
-  if (paintMode == 1){
-    ps = gridCellSize / 2.0;
-  }
-  if (paintMode > 0) {
-    if (length(ot - iMousePos.xy)<=ps){
-      switch (paintMode) {
-        case 1 : {
-          v_color = vec4(0.5,0.5,0.5,1);
-          break;}
-        case 2 : {
-          v_color = vec4(0,0,0.5,1);
-          break;}
-        case 3 : {
-          v_color = vec4(0,0.5,0,1);
-          break;}
-        case 4 : {
-          v_color = vec4(0.5,0,0,1);
-          break;}
-      } // switch
-      if (vel_len.w > EPSILON){
-        v_color = v_color * vec4(1.5,1.5,1.5,1.0);
-      }
-    } // if len
-  } // if paintMode
-  v_speed = length(vel_len.z);
-  v_angle = normalize(vel_len.xy);
-  v_solid = vel_len.w;
-  v_gridMode = gridMode;
-  v_paintMode = paintMode;
-  v_paintSize = paintSize;
-  v_line_color = lineColor;
-}`;
-
-    const fs = `
-${this.commonVs}
-uniform float gridCellSize;
-flat in int v_gridMode;
-flat in int v_paintMode;
-flat in float v_paintSize;
-flat in float v_solid;
-in vec2 v_angle;
-in vec4 v_color;
-in vec4 v_line_color;
-in float v_speed;
-in vec2 v_texcoord;
-
-out vec4 FragColor;
-void main() {
-  FragColor = v_color;
-  switch (v_gridMode) {
-  case 1 : {
-    break;}
-  case 2 : {
-    if (v_solid < EPSILON){
-      vec2 dir = vec2(0.5, 0.5) - v_texcoord;
-      if (v_speed > EPSILON && dot(vec2(-v_angle.x, v_angle.y), dir) > 0.0) { // forward half
-        if (abs(dot(vec2(v_angle.y, v_angle.x), dir)) < 0.05) { // dir line
-          FragColor = v_line_color * clamp(v_speed, 0.0, 1.0);
-        }
-      }
-    }
-    break;}
-   }
-   FragColor.a=1.0;
-}`;
+    const vs = grid_vs_shader;
+    const fs = grid_fs_shader;
 
     // compile shaders, link program, look up locations
     const programInfo = twgl.createProgramInfo(this.ctx, [vs, fs]);
@@ -636,7 +434,7 @@ void main() {
       height: this.height,
       cellSize: this.boidCellSize,
       wrap: false,
-      computeNeighborRadius: 8,
+      computeNeighborRadius: 10,
       maxQueryCacheFrames: 0
     };
     if (!this.flowGrid) {
@@ -651,6 +449,7 @@ void main() {
     }
 
     this.genField();
+    // this.food.forEach(f => f.addFoodGradient());
     twgl.resizeCanvasToDisplaySize(this.canvas);
     this.ctx.viewport(0, 0, this.width, this.height);
   }
@@ -695,14 +494,20 @@ void main() {
         world: this,
         grid: this.boidGrid,
         p: new vec2(
-          clamp(Math.random() * this.width, this.boidCellSize, this.width - this.boidCellSize),
-          clamp(Math.random() * this.height, this.boidCellSize, this.height - this.boidCellSize)
+          clamp(Math.random() * this.width, this.boidCellSize * 2, this.width - this.boidCellSize * 2),
+          clamp(Math.random() * this.height, this.boidCellSize * 2, this.height - this.boidCellSize * 2)
         ),
         v: new vec2().random(10, 100),
         r: this.boidSize,
-        maxSpeed: this.maxSpeed
+        maxSpeed: this.maxSpeed,
+        static: false
       };
-      const b: Boid = i < this.numBoids / 4 ? new Zombie(o) : new Human(o);
+      let b: Boid;
+      if (i < 3) {
+        b = new Food(o);
+      } else {
+        b = i < this.numBoids / 4 ? new Zombie(o) : new Human(o);
+      }
       // const b: Boid = new Human(o);
       this.boids.push(b);
       this.rings.push(new Ring({
@@ -716,6 +521,8 @@ void main() {
         color: new vec4([1, 0, 0, 1])
       }));
     }
+    this.food.forEach(f => f.addFoodGradient());
+
   }
 
   randomizeBoids() {
@@ -805,7 +612,8 @@ void main() {
       iMousePos: this.mouse.glP
     });
     twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.pos_vel, this.boidGl.pos_vel);
-    twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.color_rad, this.boidGl.color_rad);
+    twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.color, this.boidGl.color);
+    twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.rad_static, this.boidGl.rad_static);
     twgl.setBuffersAndAttributes(ctx, this.boidGl.programInfo, this.boidGl.bufferInfo);
     this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.numBoids);
   }

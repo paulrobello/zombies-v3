@@ -79,7 +79,6 @@ export class FlowGrid extends HashGrid<IFlowValue> {
         cv = EmptyFlowValue;
       }
       id = cell.id * 4;
-      // const c = this.flowGradient(cv.l).gl();
       if (cv.solid) {
         buffers.color[id] = 0.8;
         buffers.color[id + 1] = 0.8;
@@ -89,7 +88,7 @@ export class FlowGrid extends HashGrid<IFlowValue> {
         buffers.color[id] = cell.color.r;
         buffers.color[id + 1] = cell.color.g;
         buffers.color[id + 2] = cell.color.b;
-        buffers.color[id + 3] = 1;
+        buffers.color[id + 3] = cell.color.a;
       }
 
       buffers.v[id] = cv.p.x;

@@ -23,6 +23,7 @@ export interface IBoidOptions {
   r?: number,
   maxSpeed?: number,
   layer?: number;
+  static?: boolean;
 }
 
 
@@ -30,7 +31,9 @@ let id = 0;
 
 export class Boid implements IPositional, IDirectional, ICellIndexable, IProgressible, IDrawable, IGridQueryable {
   public id: number;
+  public age: number = 0;
   public alive: boolean = true;
+  public static: boolean;
   public p: vec2;
   public v: vec2;
   public d: vec2;
@@ -62,6 +65,7 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     this.id = options.id === undefined ? id++ : options.id;
     this.grid = options.grid;
     this.layer = options.layer || this.options.world.layerByName('boid');
+    this.static = options.static || false;
     this.p = options.p || new vec2();
     this.v = options.v || new vec2();
     this.a = options.a || new vec2();
@@ -95,38 +99,44 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
   // }
   die() {
     this.alive = false;
+    if (this.cellIndex !== -1) {
+      this.grid.removeCelDataByIndex(this.cellIndex, this);
+    }
   }
 
   tick(gameTime: IGameTime): void {
-    const grid = this.options.grid;
     if (!this.alive) {
-      if (this.cellIndex !== -1) {
-        grid.removeCelDataByIndex(this.cellIndex, this);
-      }
       return;
     }
+    this.age += gameTime.deltaTime;
+    // if (this.r <= 0) {
+    //   this.die();
+    // }
     for (const b of this.behaviors.values()) {
       b.tick(gameTime);
     }
+    const grid = this.options.grid;
     const p: Ivec2 = this.p;
     const v: Ivec2 = this.v;
     const r: number = this.r;
     const world = this.options.world;
     const t: vec2 = new vec2();
 
-    const maxSpeed = this.maxSpeed;
-    let l: number = v.length();
-    if (l > maxSpeed) {
-      v.normalize().scale(maxSpeed);
-      l = maxSpeed;
-    }
-    this.speed = l;
-    if (l > epsilon) {
-      this.d.set_xy(v.x / l, v.y / l);
-    }
+    if (!this.static) {
+      const maxSpeed = this.maxSpeed;
+      let l: number = v.length();
+      if (l > maxSpeed) {
+        v.normalize().scale(maxSpeed);
+        l = maxSpeed;
+      }
+      this.speed = l;
+      if (l > epsilon) {
+        this.d.set_xy(v.x / l, v.y / l);
+      }
 
-    p.x += v.x * gameTime.deltaTime;
-    p.y += v.y * gameTime.deltaTime;
+      p.x += v.x * gameTime.deltaTime;
+      p.y += v.y * gameTime.deltaTime;
+    }
     // keep on screen
     p.x = clamp(p.x, r, world.width - r);
     p.y = clamp(p.y, r, world.height - r);
@@ -186,10 +196,12 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
       buffers.pos_vel[i + 1] = p.y;
       buffers.pos_vel[i + 2] = v.x;
       buffers.pos_vel[i + 3] = v.y;
-      buffers.color_rad[i] = this.color.r;
-      buffers.color_rad[i + 1] = this.color.g;
-      buffers.color_rad[i + 2] = this.color.b;
+      buffers.color[i] = this.color.r;
+      buffers.color[i + 1] = this.color.g;
+      buffers.color[i + 2] = this.color.b;
+      buffers.color[i + 3] = this.color.a;
     }
-    buffers.color_rad[i + 3] = this.alive ? this.r : 0;
+    buffers.rad_static[i] = this.alive ? this.r : 0;
+    buffers.rad_static[i + 1] = this.static ? 1 : 0;
   }
 }
