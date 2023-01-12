@@ -43,16 +43,16 @@ export class Human extends Boid {
         layer: options.world.layerByName('food')
       })
     );
-
-    this.behaviors.set('AvoidZombie', new SteerLayerBehavior(this, 100, {
-        layerName: 'zombie',
-        radius: Math.max(this.r * 100, this.options.grid.cellSize * 5),
-        nearest: true
-      })
-    );
     this.behaviors.set('FindFood', new SteerLayerBehavior(this, 2, {
         layerName: 'food',
         radius: Math.max(this.World.width, this.World.height),
+        nearest: true
+      })
+    );
+
+    this.behaviors.set('AvoidZombie', new SteerLayerBehavior(this, -100, {
+        layerName: 'zombie',
+        radius: Math.max(this.r * 100, this.options.grid.cellSize * 5),
         nearest: true
       })
     );
@@ -72,18 +72,15 @@ export class Human extends Boid {
       if (nearest.length) {
         const food = nearest[0].data as Food;
         const r = food.r + this.r;
-        if (food.r >= 2 && nearest[0].dist2 <= r * r) {
+        if (food.r >= Food.MinSize && nearest[0].dist2 <= r * r) {
           // food.r -= gameTime.deltaTime * 0.1;
           // this.hunger = Math.max(0, this.hunger - gameTime.deltaTime * 10);
           food.r = Math.max(0, food.r - this.hunger * 0.01);
           this.hunger = 0;
-          if (food.r < 2) {
-            this.World.food.forEach(f => f.addFoodGradient());
-          }
         }
       }
     }
-    if (this.hunger >= 100) {
+    if (this.hunger > 100) {
       this.die();
       return;
     }
@@ -104,9 +101,9 @@ export class Human extends Boid {
       world: this.World,
       grid: this.Grid,
       p: this.p.copy(),
-      v: new vec2().random(0, this.maxSpeed),
+      v: new vec2().random(0, this.World.zombieMaxSpeed),
       r: this.r,
-      maxSpeed: this.maxSpeed
+      maxSpeed: this.World.zombieMaxSpeed
     };
     const boid = new Zombie(o);
     this.World.boids[boid.id] = boid;

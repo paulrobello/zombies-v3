@@ -9,7 +9,7 @@ export interface Ivec2 {
 
   xy(): [number, number];
 
-  set_xy(x: number, y: number): void;
+  set_xy(x: number, y: number): Ivec2;
 
   reset(): Ivec2;
 
@@ -76,9 +76,10 @@ export class vec2 implements Ivec2 {
     ];
   }
 
-  set_xy(x: number, y: number) {
+  set_xy(x: number, y: number): vec2 {
     this.x = x;
     this.y = y;
+    return this;
   }
 
 

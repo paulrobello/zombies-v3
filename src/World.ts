@@ -112,7 +112,8 @@ export class World {
   rings: Ring[] = [];
   boidSize: number = 8;
   drag = 1;
-  maxSpeed = 50;
+  humanMaxSpeed = 50;
+  zombieMaxSpeed = 20;
   showField = true;
   numBoids = 100;
   gameClock: GameClock;
@@ -497,16 +498,24 @@ export class World {
           clamp(Math.random() * this.width, this.boidCellSize * 2, this.width - this.boidCellSize * 2),
           clamp(Math.random() * this.height, this.boidCellSize * 2, this.height - this.boidCellSize * 2)
         ),
-        v: new vec2().random(10, 100),
+        v: new vec2().random(10, this.humanMaxSpeed),
         r: this.boidSize,
-        maxSpeed: this.maxSpeed,
+        maxSpeed: this.humanMaxSpeed,
         static: false
       };
+
       let b: Boid;
       if (i < 3) {
         b = new Food(o);
       } else {
-        b = i < this.numBoids / 4 ? new Zombie(o) : new Human(o);
+        // if (i < this.numBoids / 4) {
+        //   o.maxSpeed = this.zombieMaxSpeed;
+        //   o.v.random(10, o.maxSpeed);
+        //   b = new Zombie(o);
+        // } else {
+          o.v.random(10, o.maxSpeed);
+          b = new Human(o);
+        // }
       }
       // const b: Boid = new Human(o);
       this.boids.push(b);
@@ -528,7 +537,7 @@ export class World {
   randomizeBoids() {
     this.boids.forEach(b => {
       b.p.set_xy(Math.random() * this.width, Math.random() * this.height);
-      b.v.random(this.maxSpeed / 2, this.maxSpeed);
+      b.v.random(this.humanMaxSpeed / 2, this.humanMaxSpeed);
     });
     this.boidGrid.reposition();
   }

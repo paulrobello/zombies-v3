@@ -4,13 +4,16 @@ import { World } from '../World';
 import { Boid, IBoidOptions } from './Boid';
 
 export class Food extends Boid {
+  static MinSize: number = 2;
+  flowEnabled: boolean = true;
+
   constructor(options: IBoidOptions) {
     super(options);
 
     this.layer = this.options.world.layerByName('food');
     this.color.rgb = [1, 1, 0]; // food is yellow
     this.maxSpeed = 0;
-    this.r = this.grid.cellSize / 2;
+    this.r = this.grid.cellSize * 0.5;
     this.static = true;
     this.World.food.add(this);
   }
@@ -20,15 +23,31 @@ export class Food extends Boid {
     if (!this.alive) {
       return;
     }
-    const oldR = this.r;
-    this.r = Math.min(this.grid.cellSize / 2, this.r += gameTime.deltaTime * 0.1);
-    if (oldR < 2 && this.r >= 2) {
-      this.addFoodGradient();
+
+    this.r = Math.min(this.grid.cellSize * 0.5, this.r += gameTime.deltaTime * 0.5);
+    if (this.flowEnabled && this.r < Food.MinSize) {
+      this.flowEnabled = false;
+      let i = 0;
+      this.World.food.forEach(f => {
+        if (!f.flowEnabled) return;
+        i++;
+        f.addFoodGradient(1 === i);
+      });
+    }
+    if (!this.flowEnabled && this.r >= this.grid.cellSize * 0.45) {
+      let i = 0;
+      this.flowEnabled = true;
+      this.World.food.forEach(f => {
+        if (!f.flowEnabled) return;
+        i++;
+        f.addFoodGradient(1 === i);
+      });
     }
   }
 
-  addFoodGradient() {
-    if (this.r < 2) return;
+  addFoodGradient(replace: boolean = false): void {
+    if (!this.flowEnabled) return;
+    console.log('addFoodGradient', replace);
     const world: World = this.World;
     const flowGrid = world.flowGrid;
     const t = new vec2();
@@ -52,7 +71,12 @@ export class Food extends Boid {
       const l = clamp(dv.length(), epsilon, maxDist);
       // normalize direction, closer to cell has bigger influence, bigger supply has bigger influence
       dv.scale(1 / l * (1.1 - l / maxDist) * (this.r / (this.grid.cellSize / 2)));
-      cv.p.add(dv).normalize();
+      if (replace) {
+        cv.p.set_xy(dv.x, dv.y).normalize();
+      } else {
+        cv.p.add(dv).normalize();
+      }
+
       cv.l = 1;
       cv.static = true;
       flowGrid.changedCells.add(cell);
@@ -62,6 +86,12 @@ export class Food extends Boid {
   override die() {
     super.die();
     this.World.food.delete(this);
-    this.World.food.forEach(f => f.addFoodGradient());
+    this.flowEnabled = false;
+    let i = 0;
+    this.World.food.forEach(f => {
+      if (!f.flowEnabled) return;
+      i++;
+      f.addFoodGradient(1 === i);
+    });
   }
 }

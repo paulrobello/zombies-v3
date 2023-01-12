@@ -11,14 +11,13 @@ export class Zombie extends Boid {
 
     this.layer = this.options.world.layerByName('zombie');
     this.color.rgb = [0, 1, 0]; // zed are green
-    this.maxSpeed *= 0.25; // zed are slower than humans
     this.behaviors.set('CollisionBehavior', new CollisionBehavior(this, 1, {
       iterations: 1,
       margin: 2,
       layerMask: this.World.layerByName('zombie'),
       predictive: true
     }));
-    this.behaviors.set('ChaseHumans', new SteerLayerBehavior(this, -100, {
+    this.behaviors.set('ChaseHumans', new SteerLayerBehavior(this, 100, {
         layerName: 'human',
         radius: Math.max(this.r * 8, this.options.grid.cellSize * 3),
         nearest: true
