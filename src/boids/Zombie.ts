@@ -19,11 +19,11 @@ export class Zombie extends Boid {
     }));
     this.behaviors.set('ChaseHumans', new SteerLayerBehavior(this, -100, {
         layerName: 'human',
-        radius: Math.max(this.r * 8, this.options.grid.cellSize * 2),
+        radius: Math.max(this.r * 8, this.options.grid.cellSize * 3),
         nearest: true
       })
     );
-    this.behaviors.set('BoidFlow', new FlowBehavior(this, 0, {
+    this.behaviors.set('BoidFlow', new FlowBehavior(this, 1, {
         flowGrid: this.World.flowGrid,
         layer: this.World.layerByName('boid') // | options.world.layerByName('human')
       })

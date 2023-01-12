@@ -38,9 +38,9 @@ export class FlowGrid extends HashGrid<IFlowValue> {
   constructor(options: HashGridOptions) {
     super(options);
     this.flowMaskFade.set(this.World.layerByName('boid'), 0);
-    this.flowMaskFade.set(this.World.layerByName('human'), 0.01);
-    this.flowMaskFade.set(this.World.layerByName('zombie'), 0.01);
-    this.flowMaskFade.set(this.World.layerByName('food'), 0.01);
+    this.flowMaskFade.set(this.World.layerByName('human'), 0.05);
+    this.flowMaskFade.set(this.World.layerByName('zombie'), 0.05);
+    this.flowMaskFade.set(this.World.layerByName('food'), 0.05);
   }
 
   override resize(options: HashGridOptions, doReposition: boolean = false): void {
@@ -126,7 +126,7 @@ export class FlowGrid extends HashGrid<IFlowValue> {
     let numNeighbors: number;
     const cell: Cell<IFlowValue> = this.getCell(mouse.p.x, mouse.p.y, true);
     if (pm === 'wall') {
-      let cv = cell.items[mask];
+      let cv: IFlowValue | undefined = cell.items[mask];
       if (!cv) {
         cv = {
           id: 0,
@@ -196,33 +196,39 @@ export class FlowGrid extends HashGrid<IFlowValue> {
         };
         this.addCelData(n.wp.x, n.wp.y, true, cv);
       }
-      if (cv.static) {
+      if (cv.static && !mouse.shift) {
         continue;
       }
       const v = cv.p;
-      if (pm === 'stroke') {
-        mouse.d.scale((i === 0 ? 1 : gameTime.deltaTime * 2), t);
-      } else {
-        vec2.difference(mouse.p, n.wc, t);
-        if (pm === 'repel') {
-          t.scale(-1);
+      if (mouse.buttons[0]) {
+        if (pm === 'stroke') {
+          mouse.d.scale((i === 0 ? 1 : gameTime.deltaTime * 2), t);
+        } else {
+          vec2.difference(mouse.p, n.wc, t);
+          if (pm === 'repel') {
+            t.scale(-1);
+          }
         }
-      }
-      const ml = ps;
-      l = clamp(t.length(), epsilon, ml);
-      t.scale(1 / l * (ml - l) * gameTime.deltaTime);
-      v.add(t);
+        const ml = ps;
+        l = clamp(t.length(), epsilon, ml);
+        t.scale(1 / l * (ml - l) * gameTime.deltaTime);
+        v.add(t);
 
 
-      l = v.length();
-      if (l > 1) {
-        v.scale(1 / l);
+        l = v.length();
+        if (l > 1) {
+          v.scale(1 / l);
+        }
+        cv.l = l;
+        if (mouse.shift) {
+          cv.static = true;
+        }
+      } else if (mouse.buttons[2]) {
+        cv.l = 0;
+        cv.p.reset();
       }
-      cv.l = l;
 
       this.changedCells.add(n);
     }
   }
-
-
 }

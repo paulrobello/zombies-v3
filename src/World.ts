@@ -52,6 +52,9 @@ export interface IMouse {
   glP: [number, number, number, number];
   buttons: [boolean, boolean, boolean, boolean];
   clicked: [boolean, boolean, boolean, boolean];
+  shift: boolean;
+  control: boolean;
+  alt: boolean;
 }
 
 const DefaultBufferValues = {
@@ -115,7 +118,10 @@ export class World {
     d: new vec2(),
     glP: [0, 0, 0, 0],
     buttons: [false, false, false, false],
-    clicked: [false, false, false, false]
+    clicked: [false, false, false, false],
+    shift: false,
+    control: false,
+    alt: false
   };
 
   layers: QueryLayerByName = new Map<string, number>();
@@ -168,6 +174,10 @@ export class World {
     const mouseClickHandler = (event: MouseEvent) => {
       console.log('button click ', event.button);
       this.mouse.clicked[event.button] = true;
+      this.mouse.shift = event.shiftKey;
+      this.mouse.alt = event.altKey;
+      this.mouse.control = event.ctrlKey;
+
       if (event.button === 1) {
         console.log(event);
         if (event.shiftKey) {
@@ -188,6 +198,9 @@ export class World {
 
     this.canvas.addEventListener('mouseleave', (event: MouseEvent) => {
       this.mouse.buttons.fill(false);
+      this.mouse.shift = false;
+      this.mouse.alt = false;
+      this.mouse.control = false;
     });
     this.canvas.addEventListener('mousemove', (event: MouseEvent) => {
       this.mouse.op.x = this.mouse.p.x;
@@ -198,6 +211,9 @@ export class World {
       this.mouse.glP[3] = this.mouse.glP[1];
       this.mouse.glP[0] = this.mouse.p.x;
       this.mouse.glP[1] = this.mouse.p.y;
+      this.mouse.shift = event.shiftKey;
+      this.mouse.alt = event.altKey;
+      this.mouse.control = event.ctrlKey;
       vec2.direction(this.mouse.p, this.mouse.op, this.mouse.d);
     });
     this.canvas.addEventListener('mouseup', (event: MouseEvent) => {
@@ -645,7 +661,12 @@ void main() {
     this.flowGrid.clear();
     for (let y = 0; y < this.gridYW; y++) {
       for (let x = 0; x < this.gridXW; x++) {
-        this.flowGrid.addCelData(x, y, false, this.getFlowFieldValue(x, y, x === 0 || y === 0 || x === this.gridXW - 1 || y === this.gridYW - 1));
+        const s = x === 0 || y === 0 || x === this.gridXW - 1 || y === this.gridYW - 1;
+        if (!s) continue;
+        this.flowGrid.addCelData(
+          x, y, false,
+          this.getFlowFieldValue(x, y, s)
+        );
       }
     }
   }
