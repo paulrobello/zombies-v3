@@ -38,7 +38,7 @@ export class FlowBehavior extends BoidBehavior {
       const dv = vec2.difference(p, cell.wc);
       const l = clamp(dv.length(), epsilon, 1000);
       const d = dv.scale(1 / l);
-      v.add(d.scale((b.speed + 10) * this.scale * gameTime.deltaTime * 200, new vec2()));
+      v.add(d.scale((b.speed + 10) * 100 * gameTime.deltaTime * 200, new vec2()));
       return;
     }
     // console.log(d)

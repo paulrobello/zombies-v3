@@ -23,6 +23,12 @@ export class Zombie extends Boid {
         nearest: true
       })
     );
+    this.behaviors.set('BoidFlow', new FlowBehavior(this, 0, {
+        flowGrid: this.World.flowGrid,
+        layer: this.World.layerByName('boid') // | options.world.layerByName('human')
+      })
+    );
+
     this.behaviors.set('ZombieFlow', new FlowBehavior(this, 1, {
         flowGrid: this.options.world.flowGrid, layer: options.world.layerByName('zombie')
       })
