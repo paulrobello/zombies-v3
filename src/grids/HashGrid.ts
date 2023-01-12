@@ -247,6 +247,12 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
     return data;
   }
 
+  public markAllCellsChanged() {
+    for (const cell of this.cells) {
+      this.changedCells.add(cell);
+    }
+  }
+
   getCellIndex(x: number, y: number, worldSpace: boolean = false): number | undefined {
     const width = this.gridXW;
     const height = this.gridYW;

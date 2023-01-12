@@ -37,7 +37,7 @@ export class ConvertHumanBehavior extends BoidBehavior {
         world: b.World,
         grid: b.Grid,
         p: n.p.copy(),
-        v: new vec2().random(b.maxSpeed, b.maxSpeed),
+        v: new vec2().random(0, b.maxSpeed),
         r: b.r,
         maxSpeed: b.maxSpeed
       };
@@ -47,6 +47,7 @@ export class ConvertHumanBehavior extends BoidBehavior {
         if (r.duration) continue;
         r.duration = 2;
         r.r = 0;
+        r.speed = 1;
         r.p.set_xy(b.p.x, b.p.y);
         break;
       }

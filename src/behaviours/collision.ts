@@ -7,6 +7,7 @@ export interface ICollisionBehaviorOptions {
   margin: number;
   iterations: number;
   layerMask: number;
+  predictive: boolean;
 }
 
 export class CollisionBehavior extends BoidBehavior {
@@ -14,6 +15,7 @@ export class CollisionBehavior extends BoidBehavior {
   margin: number;
   iterations: number;
   layerMask: number;
+  predictive: boolean;
 
   constructor(boid: Boid, scale: number, options: ICollisionBehaviorOptions) {
     super(boid, scale);
@@ -21,6 +23,7 @@ export class CollisionBehavior extends BoidBehavior {
     this.margin = options.margin;
     this.iterations = options.iterations;
     this.layerMask = options.layerMask;
+    this.predictive = options.predictive;
   }
 
   public override tick(gameTime: IGameTime): void {
@@ -33,15 +36,17 @@ export class CollisionBehavior extends BoidBehavior {
     const v: vec2 = b.v;
     const grid = b.options.grid;
     // grab all neighbors within 4 times our radius
-    let md = b.r * 4; // max distance
+    let md = b.r * (this.predictive ? 4 : 2); // max distance
     const nearest = grid.getDataRadius(p.x, p.y, md, true, b, false, this.layerMask);
     if (!nearest.length) return;
-    md += 10;
 
     const t = new vec2(); // temp var
     const dTemp = new vec2(); // temp var
-    const fp1 = p.add(v.scale(gameTime.deltaTime, t), new vec2()); // current boid future position
+    const fp1 = new vec2(); // current boid future position
     const fp2 = new vec2(); // neighbor boid future position
+    if (this.predictive) {
+      p.add(v.scale(gameTime.deltaTime, t), fp1);
+    }
     let d: vec2;
     let anyHit: boolean = false;
     let l: number;
@@ -51,52 +56,53 @@ export class CollisionBehavior extends BoidBehavior {
         // get neighbors behavior and marked it checked, so we can skip it this frame if we have not already processed it
         const nbh: CollisionBehavior | undefined = (n.behaviors.get(this.name) as CollisionBehavior);
         if (nbh) nbh.checkedFrame = gameTime.currentFrame;
-        // store neighbors future position
-        n.p.add(n.v.scale(gameTime.deltaTime, t), fp2);
-        // get vector pointing from neighbor to us
-        d = vec2.difference(fp1, fp2, dTemp);
-        // get distance to neighbor so we can normalize direction
-        l = clamp(d.length(), epsilon, md);
+        if (this.predictive) {
+          // store neighbors future position
+          n.p.add(n.v.scale(gameTime.deltaTime, t), fp2);
+          // get vector pointing from neighbor to us
+          d = vec2.difference(fp1, fp2, dTemp);
+          // get distance to neighbor so we can normalize direction
+          l = clamp(d.length(), epsilon, md);
 
-        // normalize direction vector and scale force up as boids get closer
-        d.scale(1 / l * ((md - l) / md) * gameTime.deltaTime * (10 + b.speed) * this.scale);
-        // apply breaking force
-        v.add(d);
-        // apply opposite breaking force to neighbor
-        n.v.add(d.scale(-1, t));
-        // rotate right 90 deg
-        d.rotateRight();
-        // turn to the right
-        v.add(d.scale(2));
-        // neighbor turns to the left
-        n.v.add(d.scale(-1));
-
-        // actual collision
-        let r = b.r + n.r + this.margin;
-        // vector from neighbor to us
-        d = vec2.difference(p, n.p, dTemp);
-        let l2 = d.squaredLength();
-        if (l2 < r * r) {
-          anyHit = true;
-          l = clamp(Math.sqrt(l2), epsilon, 1000);
-          d.scale(1 / l * gameTime.deltaTime * 5);
-          // compute half penetration depth
-          const pd = (r - l) / 2;
-          // back us up
-          p.x += d.x * pd;
-          p.y += d.y * pd;
-          // back neighbor up
-          n.p.x += d.x * -pd;
-          n.p.y += d.y * -pd;
-
-          v.add(d.scale(b.speed, t));
-          n.v.add(d.scale(-n.speed));
-
-          // break;
+          // normalize direction vector and scale force up as boids get closer
+          // d.scale(1 / l * ((md - clamp(l - (b.r + n.r), 0, md) / md)) * gameTime.deltaTime * (1 + b.speed) * this.scale);
+          d.scale(1 / l * ((md - clamp(l - (b.r + n.r), 0, md) / md)) * gameTime.deltaTime * this.scale);
+          // apply breaking force
+          v.add(d);
+          // apply opposite breaking force to neighbor
+          n.v.add(d.scale(-1, t));
+          // rotate right 90 deg
+          d.rotateRight();
+          // turn to the right
+          v.add(d.scale(2));
+          // neighbor turns to the left
+          n.v.add(d.scale(-1));
         }
+        // else {
+          // actual collision
+          let r = b.r + n.r + this.margin;
+          // vector from neighbor to us
+          d = vec2.difference(p, n.p, dTemp);
+          let l2 = d.squaredLength();
+          if (l2 < r * r) {
+            anyHit = true;
+            l = clamp(Math.sqrt(l2), epsilon, 1000);
+            d.scale(1 / l * gameTime.deltaTime * 5);
+            // compute half penetration depth
+            const pd = (r - l) / 2;
+            // back us up
+            p.x += d.x * pd;
+            p.y += d.y * pd;
+            // back neighbor up
+            n.p.x += d.x * -pd;
+            n.p.y += d.y * -pd;
 
-      }
+            v.add(d.scale(b.speed, t));
+            n.v.add(d.scale(-n.speed));
+          } // if overlap
+        // }
+      } // for na of nearest
       if (!anyHit) break;
-    }
-  }
+    } // iterations
+  } // tick
 }

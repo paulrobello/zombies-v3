@@ -9,14 +9,23 @@ export class Human extends Boid {
     // this.maxSpeed = 1;
     this.layer = this.options.world.layerByName('human');
     this.color.rgb = [0, 1, 1];
+    if (this.id===0){
+      this.color.rgb = [1, 1, 0];
+    }
     this.behaviors.set('CollisionBehavior', new CollisionBehavior(this, 1, {
       iterations: 1,
-      margin: 1,
-      layerMask: this.World.layerByName('human')
+      margin: 2,
+      layerMask: this.World.layerByName('human'),
+      predictive: true
     }));
-    this.behaviors.set('FlowBehavior', new FlowBehavior(this, 1, {
+    this.behaviors.set('BoidFlow', new FlowBehavior(this, 0.1, {
         flowGrid: this.World.flowGrid,
         layer: this.World.layerByName('boid') // | options.world.layerByName('human')
+      })
+    );
+    this.behaviors.set('HumanFlow', new FlowBehavior(this, 1, {
+        flowGrid: this.World.flowGrid,
+        layer: options.world.layerByName('human')
       })
     );
 

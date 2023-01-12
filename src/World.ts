@@ -95,7 +95,7 @@ export class World {
   fieldScale: number = this.flowCellSize * 0.005;
   boids: Boid[] = [];
   rings: Ring[] = [];
-  boidSize: number = 32;
+  boidSize: number = 8;
   drag = 1;
   maxSpeed = 50;
   showField = true;
@@ -172,6 +172,7 @@ export class World {
         console.log(event);
         if (event.shiftKey) {
           this.flowGrid.drawFlowType = FlowTypes[(FlowTypes.indexOf(this.flowGrid.drawFlowType) + 1) % FlowTypes.length];
+          this.flowGrid.markAllCellsChanged();
           console.log(this.flowGrid.drawFlowType);
         } else {
           this.paintMode = PaintModes[(PaintModes.indexOf(this.paintMode) + 1) % PaintModes.length];
@@ -241,7 +242,7 @@ uniform vec4   iMousePos;    // mouse position in world coordinates
     this.initGridGl();
 
     setInterval(() => {
-      this.statsEl.innerText = `Humans: ${this.humans.size} Zombies: ${this.zombies.size} FlowMode: ${this.flowGrid.drawFlowType} PaintMode: ${this.paintMode}`;
+      this.statsEl.innerText = `Humans: ${this.humans.size} Zombies: ${this.zombies.size} Flow Draw Mode: ${this.flowGrid.drawFlowType} Flow Paint Mode: ${this.paintMode}`;
     }, 1000);
   }
 
@@ -289,11 +290,11 @@ void main() {
   if (pos_rad.w < EPSILON){
     gl_Position = vec4(0,0,0,1);
   } else {
-    gl_Position = u_matrix * (vert_pos * vec4(pos_rad.z,pos_rad.z,1.0,1.0) + vec4(pos_rad.xy, 0, 0));
+    gl_Position = u_matrix * (vert_pos * vec4(pos_rad.z * 2.0,pos_rad.z * 2.0,1.0,1.0) + vec4(pos_rad.xy, 0, 0));
   }
   v_texcoord = texcoord;
   v_color = vec4(color.xyz, 1);
-  v_radius = pos_rad.z;
+  v_radius = pos_rad.z * 2.0;
   v_duration = pos_rad.w;
   v_thickness = color.w;
 }`;
@@ -332,30 +333,11 @@ ${this.commonVs}
       programInfo: programInfo,
       bufferInfo: undefined
     };
-    const x = 1;
 
     this.ringGl.bufferInfo = twgl.createBufferInfoFromArrays(
       this.ctx,
       {
-        vert_pos: {
-          numComponents: 2,
-          data: [
-            -x, -x,
-            x, -x,
-            -x, x,
-            -x, x,
-            x, -x,
-            x, x
-          ]
-        },
-        texcoord: [
-          0, 1,
-          1, 1,
-          0, 0,
-          0, 0,
-          1, 1,
-          1, 0
-        ],
+        ...DefaultBufferValues,
         pos_rad: {
           numComponents: 4,
           data: this.ringGl.pos_rad,
@@ -391,14 +373,14 @@ void main() {
   if (color_rad.w<EPSILON){
     gl_Position = vec4(0,0,0,1);
   } else {
-    gl_Position = u_matrix * (vert_pos * vec4(color_rad.w,color_rad.w,1.0,1.0) + vec4(pos_vel.xy, 0, 0));
+    gl_Position = u_matrix * (vert_pos * vec4(color_rad.w*2.0,color_rad.w*2.0,1.0,1.0) + vec4(pos_vel.xy, 0, 0));
   }
   v_texcoord = texcoord;
   v_color = vec4(color_rad.xyz, 1);
   float l = length(pos_vel.zw);
   v_speed = l;
   v_angle = pos_vel.zw / l;
-  v_radius = color_rad.w;
+  v_radius = color_rad.w*2.0;
 }`;
 
     const fs = `
@@ -696,11 +678,11 @@ void main() {
           clamp(Math.random() * this.height, this.boidCellSize, this.height - this.boidCellSize)
         ),
         v: new vec2().random(10, 100),
-        r: this.boidSize / 2,
+        r: this.boidSize,
         maxSpeed: this.maxSpeed
       };
-      // const b: Boid = i < this.numBoids / 4 ? new Zombie(o) : new Human(o);
-      const b: Boid = new Human(o);
+      const b: Boid = i < this.numBoids / 4 ? new Zombie(o) : new Human(o);
+      // const b: Boid = new Human(o);
       this.boids.push(b);
       this.rings.push(new Ring({
         world: this,

@@ -41,6 +41,7 @@ export class Ring implements IProgressible, IDrawable {
     }
     this.duration = Math.max(0, this.duration - gameTime.deltaTime);
     this.r += gameTime.deltaTime * this.speed;
+    this.speed += gameTime.deltaTime*50;
   }
 
   draw(ctx: WebGL2RenderingContext): void {

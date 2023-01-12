@@ -19,12 +19,6 @@ export const FlowTypeFade: Map<string, number> = new Map<string, number>([
   ['zombie', 0.1],
   ['food', 0.1]
 ]);
-export const FlowMaskFade: Map<number, number> = new Map<number, number>([
-  [1, 0.1],
-  [2, 0.1],
-  [4, 0.1],
-  [8, 0.1]
-]);
 
 export interface IFlowValue extends IPositional, ICellIndexable, IGridQueryable {
   l: number;
@@ -44,7 +38,16 @@ export const EmptyFlowValue: IFlowValue = {
 };
 
 export class FlowGrid extends HashGrid<IFlowValue> {
-  drawFlowType: FlowType = 'boid';
+  drawFlowType: FlowType = 'human';
+  flowMaskFade: Map<number, number> = new Map<number, number>();
+
+  constructor(options: HashGridOptions) {
+    super(options);
+    this.flowMaskFade.set(this.World.layerByName('boid'), 0);
+    this.flowMaskFade.set(this.World.layerByName('human'), 0.1);
+    this.flowMaskFade.set(this.World.layerByName('zombie'), 0.1);
+    this.flowMaskFade.set(this.World.layerByName('food'), 0.1);
+  }
 
   override resize(options: HashGridOptions, doReposition: boolean = false): void {
     super.resize(options, doReposition);
@@ -105,12 +108,12 @@ export class FlowGrid extends HashGrid<IFlowValue> {
   fadeCells(gameTime: IGameTime) {
     for (const cell of this.cells) {
       for (const cv of cell.items) {
-        if (!cv || cv.static) continue;
-        if (cv.l) {
-          this.changedCells.add(cell);
-          cv.l *= 1 - gameTime.deltaTime * FlowMaskFade.get(cv.layer) || 0;
-          if (cv.l < epsilon) cv.l = 0;
-        }
+        if (!cv || cv.static || !cv.l) continue;
+        const speed = this.flowMaskFade.get(cv.layer) || 0;
+        if (!speed) continue;
+        cv.l *= 1 - (gameTime.deltaTime * speed);
+        if (cv.l <= epsilon) cv.l = 0;
+        this.changedCells.add(cell);
       }
     }
   }
@@ -125,16 +128,31 @@ export class FlowGrid extends HashGrid<IFlowValue> {
     }
     const ps = this.options.world.paintSize;
     const t = new vec2();
+    const mask: number = this.World.layerByName(this.drawFlowType) || 0;
 
     const cell: Cell<IFlowValue> = this.getCell(mouse.p.x, mouse.p.y, true);
     if (pm === 'wall') {
+      let cv = cell.items[mask];
+      if (!cv) {
+        cv = {
+          id: 0,
+          layer: mask,
+          p: new vec2(),
+          l: 0,
+          lastCellIndex: -1,
+          cellIndex: -1,
+          static: false,
+          solid: false
+        };
+        this.addCelData(mouse.p.x, mouse.p.y, true, cv);
+      }
       if (mouse.buttons[0]) {
-        cell.items[0].solid = true;
+        cv.solid = true;
+        this.changedCells.add(cell);
+      } else if (mouse.buttons[2]) {
+        cv.solid = false;
+        this.changedCells.add(cell);
       }
-      if (mouse.buttons[2]) {
-        cell.items[0].solid = false;
-      }
-      this.changedCells.add(cell);
       return;
     }
     let l: number;
@@ -149,7 +167,6 @@ export class FlowGrid extends HashGrid<IFlowValue> {
       // } else {
       //   n.color.rgba = [0.3, 0.3, 0.5, 1.0];
       // }
-      const mask: number = this.World.layerByName(this.drawFlowType) || 0;
       let cv: IFlowValue | undefined = n.items[mask];
       if (!cv) {
         cv = {
@@ -191,4 +208,6 @@ export class FlowGrid extends HashGrid<IFlowValue> {
       this.changedCells.add(n);
     }
   }
+
+
 }

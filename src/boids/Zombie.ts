@@ -14,7 +14,8 @@ export class Zombie extends Boid {
     this.behaviors.set('CollisionBehavior', new CollisionBehavior(this, 1, {
       iterations: 1,
       margin: 1,
-      layerMask: this.World.layerByName('zombie')
+      layerMask: this.World.layerByName('zombie'),
+      predictive: false
     }));
     this.behaviors.set('ChaseHumans', new SteerLayerBehavior(this, -100, {
         layerName: 'human',
@@ -22,7 +23,7 @@ export class Zombie extends Boid {
         nearest: true
       })
     );
-    this.behaviors.set('FlowBehavior', new FlowBehavior(this, 1, {
+    this.behaviors.set('ZombieFlow', new FlowBehavior(this, 1, {
         flowGrid: this.options.world.flowGrid, layer: options.world.layerByName('zombie')
       })
     );
