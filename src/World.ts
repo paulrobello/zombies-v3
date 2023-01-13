@@ -489,6 +489,19 @@ export class World {
     };
   }
 
+  getBaseUniforms() {
+    const gameTime = this.gameClock.gameTime;
+    return {
+      u_matrix: this.u_matrix,
+      iDimensions: this.dimensions,   // viewport resolution (in pixels)
+      iTime: gameTime.currentTime,    // shader playback time (in seconds)
+      iTimeDelta: gameTime.deltaTime, // render time (in seconds)
+      iFrameRate: gameTime.fps,       // shader frame rate
+      iFrame: gameTime.currentFrame,   // shader playback frame
+      iMousePos: this.mouse.glP
+    };
+  }
+
   initBoids() {
     for (let i = 0; i < this.numBoids; i++) {
       const o = {
@@ -523,8 +536,8 @@ export class World {
         world: this,
         id: i,
         p: new vec2(),
-        r: 0,
         thickness: 0.01,
+        r: 0,
         duration: 0,
         speed: 50,
         color: new vec4([1, 0, 0, 1])
@@ -542,19 +555,12 @@ export class World {
   }
 
   drawBoidGrid() {
-    const gameClock = this.gameClock;
     const ctx = this.ctx;
 
     this.ctx.useProgram(this.gridGl.programInfo.program);
 
     twgl.setUniforms(this.gridGl.programInfo, {
-      u_matrix: this.u_matrix,
-      iDimensions: this.dimensions,   // viewport resolution (in pixels)
-      iTime: gameClock.gameTime.currentTime,    // shader playback time (in seconds)
-      iTimeDelta: gameClock.gameTime.deltaTime, // render time (in seconds)
-      iFrameRate: gameClock.gameTime.fps,       // shader frame rate
-      iFrame: gameClock.gameTime.currentFrame,   // shader playback frame
-      iMousePos: this.mouse.glP,
+      ...this.getBaseUniforms(),
       gridCellSize: this.boidCellSize,
       gridWidth: this.boidGrid.gridXW,
       gridHeight: this.boidGrid.gridYW,
@@ -573,19 +579,12 @@ export class World {
   }
 
   drawFlowGrid() {
-    const gameClock = this.gameClock;
     const ctx = this.ctx;
 
     this.ctx.useProgram(this.flowGridGl.programInfo.program);
 
     twgl.setUniforms(this.flowGridGl.programInfo, {
-      u_matrix: this.u_matrix,
-      iDimensions: this.dimensions,   // viewport resolution (in pixels)
-      iTime: gameClock.gameTime.currentTime,    // shader playback time (in seconds)
-      iTimeDelta: gameClock.gameTime.deltaTime, // render time (in seconds)
-      iFrameRate: gameClock.gameTime.fps,       // shader frame rate
-      iFrame: gameClock.gameTime.currentFrame,   // shader playback frame
-      iMousePos: this.mouse.glP,
+      ...this.getBaseUniforms(),
       gridCellSize: this.flowCellSize,
       gridWidth: this.flowGrid.gridXW,
       gridHeight: this.flowGrid.gridYW,
@@ -605,20 +604,12 @@ export class World {
   }
 
   drawBoids() {
-    const gameClock = this.gameClock;
+    const gameTime = this.gameClock.gameTime;
     const ctx = this.ctx;
 
     this.ctx.useProgram(this.boidGl.programInfo.program);
 
-    twgl.setUniforms(this.boidGl.programInfo, {
-      u_matrix: this.u_matrix,
-      iDimensions: this.dimensions,   // viewport resolution (in pixels)
-      iTime: gameClock.gameTime.currentTime,    // shader playback time (in seconds)
-      iTimeDelta: gameClock.gameTime.deltaTime, // render time (in seconds)
-      iFrameRate: gameClock.gameTime.fps,       // shader frame rate
-      iFrame: gameClock.gameTime.currentFrame,   // shader playback frame
-      iMousePos: this.mouse.glP
-    });
+    twgl.setUniforms(this.boidGl.programInfo, this.getBaseUniforms());
     twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.pos_vel, this.boidGl.pos_vel);
     twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.color, this.boidGl.color);
     twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.rad_static, this.boidGl.rad_static);
@@ -627,20 +618,12 @@ export class World {
   }
 
   drawRings() {
-    const gameClock = this.gameClock;
+    const gameTime = this.gameClock.gameTime;
     const ctx = this.ctx;
 
     this.ctx.useProgram(this.ringGl.programInfo.program);
 
-    twgl.setUniforms(this.ringGl.programInfo, {
-      u_matrix: this.u_matrix,
-      iDimensions: this.dimensions,   // viewport resolution (in pixels)
-      iTime: gameClock.gameTime.currentTime,    // shader playback time (in seconds)
-      iTimeDelta: gameClock.gameTime.deltaTime, // render time (in seconds)
-      iFrameRate: gameClock.gameTime.fps,       // shader frame rate
-      iFrame: gameClock.gameTime.currentFrame,   // shader playback frame
-      iMousePos: this.mouse.glP
-    });
+    twgl.setUniforms(this.ringGl.programInfo, this.getBaseUniforms());
     twgl.setAttribInfoBufferFromArray(ctx, this.ringGl.bufferInfo.attribs.pos_rad, this.ringGl.pos_rad);
     twgl.setAttribInfoBufferFromArray(ctx, this.ringGl.bufferInfo.attribs.color, this.ringGl.color);
     twgl.setBuffersAndAttributes(ctx, this.ringGl.programInfo, this.ringGl.bufferInfo);
@@ -648,9 +631,9 @@ export class World {
   }
 
   public draw() {
-    const gameClock = this.gameClock;
+    const gameTime = this.gameClock.gameTime;
 
-    gameClock.tick();
+    this.gameClock.tick();
 
     const m4 = twgl.m4;
     const ctx = this.ctx;
@@ -658,8 +641,8 @@ export class World {
     ctx.clear(ctx.COLOR_BUFFER_BIT);
 
     m4.ortho(0, ctx.canvas.width, ctx.canvas.height, 0, -1, 1, this.u_matrix);
-    this.flowGrid.tick(gameClock.gameTime);
-    this.boidGrid.tick(gameClock.gameTime);
+    this.flowGrid.tick(gameTime);
+    this.boidGrid.tick(gameTime);
 
     if (this.gridMode === 'boid') {
       this.drawBoidGrid();
@@ -668,11 +651,11 @@ export class World {
     }
 
     for (const b of boids) {
-      b.tick(gameClock.gameTime);
+      b.tick(gameTime);
       b.draw(ctx);
     }
     for (const r of this.rings) {
-      r.tick(gameClock.gameTime);
+      r.tick(gameTime);
       r.draw(ctx);
     }
     this.drawRings();
