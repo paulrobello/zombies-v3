@@ -146,6 +146,7 @@ export class World {
   zombies: Set<Zombie> = new Set<Zombie>();
   food: Set<Food> = new Set<Food>();
   gridMode: GridDrawMode = 'flow';
+  endTime: number = 0;
 
 
   constructor() {
@@ -258,7 +259,10 @@ export class World {
 
 
     setInterval(() => {
-      this.statsEl.innerText = `Humans: ${this.humans.size} Zombies: ${this.zombies.size} Flow Draw Mode: ${this.flowGrid.drawFlowType} Flow Paint Mode: ${this.paintMode} FPS ${this.FPS.toFixed(0)}`;
+      if (this.humans.size) {
+        this.endTime = this.CurrentTime;
+      }
+      this.statsEl.innerText = `Humans: ${this.humans.size} Zombies: ${this.zombies.size} Flow Draw Mode: ${this.flowGrid.drawFlowType} Flow Paint Mode: ${this.paintMode} FPS ${this.FPS.toFixed(0)} Humans lived for ${this.endTime.toFixed(0)} seconds`;
     }, 1000);
   }
 
@@ -661,7 +665,6 @@ export class World {
     this.drawRings();
     this.drawBoids();
     this.mouse.clicked.fill(false);
-    document.title = this.FPS.toFixed(0);
     requestAnimationFrame(() => {
       this.draw();
     });
