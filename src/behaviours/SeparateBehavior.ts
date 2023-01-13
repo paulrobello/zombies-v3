@@ -11,17 +11,17 @@ export const DefaultSeparateBehaviorOptions: ISeparateBehaviorOptions = {
   margin: 10
 };
 
-export class SeparateBehavior extends BoidBehavior {
+export class SeparateBehavior<T extends Boid> extends BoidBehavior<T> {
   margin: number;
 
-  constructor(boid: Boid, scale: number = 1, options: ISeparateBehaviorOptions = DefaultSeparateBehaviorOptions) {
+  constructor(boid: T, scale: number = 1, options: ISeparateBehaviorOptions = DefaultSeparateBehaviorOptions) {
     super(boid, scale, options);
     this.name = 'SeparateBehavior';
     this.margin = options.margin;
   }
 
-  public override tick(gameTime: IGameTime): void {
-    if (!this.enabled) return;
+  public override tick(gameTime: IGameTime): boolean {
+    if (!this.enabled) return false;
 
     const b = this.boid;
     const p: vec2 = b.p;
@@ -29,7 +29,7 @@ export class SeparateBehavior extends BoidBehavior {
     const grid = b.options.grid;
     const r = b.r * 2 + this.margin;
     const nearest = grid.getDataRadius(p.x, p.y, r, true, b, false);
-    if (!nearest.length) return;
+    if (!nearest.length) return false;
 
     const tempD = new vec2();
     for (const na of nearest) {
@@ -41,5 +41,6 @@ export class SeparateBehavior extends BoidBehavior {
       v.x += d.x * dist * this.scale;
       v.y += d.y * dist * this.scale;
     }
+    return true;
   }
 }

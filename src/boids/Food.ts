@@ -16,10 +16,9 @@ export class Food extends Boid {
     this.World.food.add(this);
   }
 
-  override tick(gameTime: IGameTime): void {
-    super.tick(gameTime);
-    if (!this.alive) {
-      return;
+  override tick(gameTime: IGameTime): boolean {
+    if (!super.tick(gameTime)){
+      return false;
     }
 
     this.r = Math.min(this.grid.cellSize * 0.5, this.r += gameTime.deltaTime * 0.5);
@@ -30,6 +29,7 @@ export class Food extends Boid {
       this.flowEnabled = true;
       this.World.computeFoodGradient();
     }
+    return true;
   }
 
   override die() {

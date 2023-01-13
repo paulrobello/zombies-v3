@@ -33,8 +33,9 @@ export interface HashGridOptions {
   computeNeighborRadius: number;
   maxQueryCacheFrames: number;
 }
+export type HashGridCellItem = IPositional & ICellIndexable & IGridQueryable;
 
-export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> implements IDrawable, IProgressible {
+export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgressible {
   options: HashGridOptions;
   cells: Cell<T>[];
   allData: Set<T> = new Set<T>();
@@ -55,8 +56,8 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
     this.resize(options);
   }
 
-  tick(gameTime: IGameTime): void {
-
+  tick(gameTime: IGameTime): boolean {
+    return true;
   }
 
   get width(): number {
@@ -92,7 +93,7 @@ export class HashGrid<T extends IPositional & ICellIndexable & IGridQueryable> i
 
       this.cells = new Array(this.gridXW * this.gridYW);
       for (let i = 0; i < this.cells.length; i++) {
-        this.cells[i] = new Cell<T>(i);
+        this.cells[i] = new Cell<T>(this, i);
         const c = this.cells[i];
         c.p.set_xy(i % this.gridXW, Math.floor(i / this.gridXW));
         c.wp.set_xy(c.p.x * cellSize, c.p.y * cellSize);

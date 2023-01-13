@@ -11,7 +11,7 @@ export interface IDirectional {
 
 
 export interface IProgressible {
-  tick: (gameTime: IGameTime) => void;
+  tick: (gameTime: IGameTime) => boolean;
 }
 
 export interface IDrawable {

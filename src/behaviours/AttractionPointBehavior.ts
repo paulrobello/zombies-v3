@@ -12,17 +12,17 @@ export const AttractionPointBehaviorDefaultOptions: IAttractionPointBehaviorOpti
   target: {p: new vec2(0, 0)}
 };
 
-export class AttractionPointBehavior extends BoidBehavior {
+export class AttractionPointBehavior<T extends Boid> extends BoidBehavior<T> {
   target: IPositional;
 
-  constructor(boid: Boid, scale: number = 1, options: IAttractionPointBehaviorOptions = AttractionPointBehaviorDefaultOptions) {
+  constructor(boid: T, scale: number = 1, options: IAttractionPointBehaviorOptions = AttractionPointBehaviorDefaultOptions) {
     super(boid, scale, options);
     this.name = 'AttractionPointBehavior';
     this.target = options.target;
   }
 
-  public override tick(gameTime: IGameTime): void {
-    if (!this.enabled) return;
+  public override tick(gameTime: IGameTime): boolean {
+    if (!this.enabled) return false;
     const b = this.boid;
     const p: vec2 = b.p;
     const v: vec2 = b.v;
@@ -32,5 +32,6 @@ export class AttractionPointBehavior extends BoidBehavior {
     const ml: number = clamp(d.length(), m / 4, m);
     d.scale((1 / l) * (m - ml) / m * this.scale);
     v.add(d);
+    return true;
   }
 }

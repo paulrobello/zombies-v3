@@ -11,17 +11,17 @@ export const AvoidBoundaryBehaviorDefaultOptions: IAvoidBoundaryBehaviorOptions 
   margin: 32
 };
 
-export class AvoidBoundaryBehavior extends BoidBehavior {
+export class AvoidBoundaryBehavior<T extends Boid> extends BoidBehavior<T> {
   margin: number;
 
-  constructor(boid: Boid, scale: number = 1, options: IAvoidBoundaryBehaviorOptions = AvoidBoundaryBehaviorDefaultOptions) {
+  constructor(boid: T, scale: number = 1, options: IAvoidBoundaryBehaviorOptions = AvoidBoundaryBehaviorDefaultOptions) {
     super(boid, scale, options);
     this.name = 'AvoidBoundaryBehavior';
     this.margin = options.margin;
   }
 
-  public override tick(gameTime: IGameTime): void {
-    if (!this.enabled) return;
+  public override tick(gameTime: IGameTime): boolean {
+    if (!this.enabled) return false;
     const b = this.boid;
     const p: vec2 = b.p;
     const v: vec2 = b.v;
@@ -47,5 +47,6 @@ export class AvoidBoundaryBehavior extends BoidBehavior {
         // v.x -= 0.1 * this.scale;
       }
     }
+    return true;
   }
 }

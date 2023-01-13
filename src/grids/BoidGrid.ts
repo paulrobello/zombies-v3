@@ -18,7 +18,7 @@ export class BoidGrid extends HashGrid<Boid> {
       buffers.color[id] = cell.color.r;
       buffers.color[id + 1] = cell.color.g;
       buffers.color[id + 2] = cell.color.b;
-      buffers.color[id + 3] = 1;
+      buffers.color[id + 3] = cell.color.a;
       // if (cell.wp.x === 0) {
       //   buffers.color[id * 4] = 0.5;
       //   buffers.color[id * 4 + 1] = 0.5;

@@ -111,13 +111,13 @@ export class FlowGrid extends HashGrid<IFlowValue> {
     }
   }
 
-  override tick(gameTime: IGameTime): void {
+  override tick(gameTime: IGameTime): boolean {
     this.fadeCells(gameTime);
     const pm = this.options.world.paintMode;
     const mouse: IMouse = this.options.world.mouse;
 
     if (pm === 'none' || (!mouse.buttons[0] && !mouse.buttons[2])) {
-      return;
+      return false;
     }
     const ps = this.options.world.paintSize;
     const t = new vec2();
@@ -167,7 +167,7 @@ export class FlowGrid extends HashGrid<IFlowValue> {
         cv.solid = false;
         this.changedCells.add(cell);
       }
-      return;
+      return true;
     }
     let l: number;
 
@@ -228,6 +228,7 @@ export class FlowGrid extends HashGrid<IFlowValue> {
       }
 
       this.changedCells.add(n);
-    }
-  }
+    } // for let i neighbors
+    return true;
+  } // tick
 }

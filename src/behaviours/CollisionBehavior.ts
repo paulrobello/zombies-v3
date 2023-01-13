@@ -10,14 +10,14 @@ export interface ICollisionBehaviorOptions  extends IBehaviorOptions{
   predictive: boolean;
 }
 
-export class CollisionBehavior extends BoidBehavior {
+export class CollisionBehavior<T extends Boid> extends BoidBehavior<T> {
   checkedFrame: number = -1;
   margin: number;
   iterations: number;
   layerMask: number;
   predictive: boolean;
 
-  constructor(boid: Boid, scale: number, options: ICollisionBehaviorOptions) {
+  constructor(boid: T, scale: number, options: ICollisionBehaviorOptions) {
     super(boid, scale, options);
 
     this.name = 'CollisionBehavior';
@@ -27,9 +27,9 @@ export class CollisionBehavior extends BoidBehavior {
     this.predictive = options.predictive;
   }
 
-  public override tick(gameTime: IGameTime): void {
-    if (!this.enabled) return;
-    if (this.checkedFrame === gameTime.currentFrame) return;
+  public override tick(gameTime: IGameTime): boolean {
+    if (!this.enabled) return false;
+    if (this.checkedFrame === gameTime.currentFrame) return false;
     this.checkedFrame = gameTime.currentFrame;
 
     const b = this.boid;
@@ -39,7 +39,7 @@ export class CollisionBehavior extends BoidBehavior {
     // grab all neighbors within 4 times our radius
     let md = b.r * (this.predictive ? 4 : 2); // max distance
     const nearest = grid.getDataRadius(p.x, p.y, md, true, b, false, this.layerMask);
-    if (!nearest.length) return;
+    if (!nearest.length) return false;
 
     const t = new vec2(); // temp var
     const dTemp = new vec2(); // temp var
@@ -55,7 +55,7 @@ export class CollisionBehavior extends BoidBehavior {
       for (const na of nearest) { // loop over neighbors in range
         const n = na.data; // current neighbor
         // get neighbors behavior and marked it checked, so we can skip it this frame if we have not already processed it
-        const nbh: CollisionBehavior | undefined = (n.behaviors.get(this.name) as CollisionBehavior);
+        const nbh: CollisionBehavior<T> | undefined = (n.behaviors.get(this.name) as CollisionBehavior<T>);
         if (nbh) nbh.checkedFrame = gameTime.currentFrame;
         if (this.predictive) {
           // store neighbors future position
@@ -105,5 +105,6 @@ export class CollisionBehavior extends BoidBehavior {
       } // for na of nearest
       if (!anyHit) break;
     } // iterations
+    return true;
   } // tick
 }

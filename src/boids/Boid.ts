@@ -43,7 +43,7 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
   public speed: number = 0;
   public maxSpeed: number = 10;
 
-  public behaviors: Map<string, BoidBehavior> = new Map<string, BoidBehavior>();
+  public behaviors: Map<string, BoidBehavior<Boid>> = new Map<string, BoidBehavior<Boid>>();
   public grid: HashGrid<Boid>;
   public lastCellIndex: number = -1;
   public cellIndex: number = -1;
@@ -77,11 +77,11 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     this.r = options.r || 5;
     this.r2 = this.r * this.r;
 
-    this.behaviors.set('ForwardBehavior', new ForwardBehavior(this, 1, {}));
-    // this.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 1, {margin: 32}));
-    // this.behaviors.set('AlignBehavior', new AlignBehavior(b, 1.0, {margin: 100}));
-    // this.behaviors.set('AttractionPointBehavior', new AttractionPointBehavior(b, 1, {target: {p: new vec2(this.options.world.widthD2, this.options.world.heightD2)}}));
-    this.behaviors.set('AvoidBoundaryBehavior', new AvoidBoundaryBehavior(this, 500, {margin: this.options.world.boidCellSize * 3}));
+    this.behaviors.set('ForwardBehavior', new ForwardBehavior<Boid>(this, 1, {}));
+    // this.behaviors.set('SeparateBehavior', new SeparateBehavior<Boid>(b, 1, {margin: 32}));
+    // this.behaviors.set('AlignBehavior', new AlignBehavior<Boid>(b, 1.0, {margin: 100}));
+    // this.behaviors.set('AttractionPointBehavior', new AttractionPointBehavior<Boid>(b, 1, {target: {p: new vec2(this.options.world.widthD2, this.options.world.heightD2)}}));
+    this.behaviors.set('AvoidBoundaryBehavior', new AvoidBoundaryBehavior<Boid>(this, 200, {margin: this.options.world.boidCellSize * 3}));
 
 
     // if (this.id === 0) {
@@ -104,17 +104,21 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     }
   }
 
-  tick(gameTime: IGameTime): void {
+  applyBehaviors(gameTime: IGameTime) {
+    for (const b of this.behaviors.values()) {
+      b.tick(gameTime);
+    }
+  }
+
+  tick(gameTime: IGameTime): boolean {
     if (!this.alive) {
-      return;
+      return false;
     }
     this.age += gameTime.deltaTime;
     // if (this.r <= 0) {
     //   this.die();
     // }
-    for (const b of this.behaviors.values()) {
-      b.tick(gameTime);
-    }
+    this.applyBehaviors(gameTime);
     const grid = this.options.grid;
     const p: Ivec2 = this.p;
     const v: Ivec2 = this.v;
@@ -184,6 +188,7 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     // }else{
     //   this.color.rgb = [0, 1, 0];
     // }
+    return true;
   }
 
   draw(ctx: WebGL2RenderingContext): void {

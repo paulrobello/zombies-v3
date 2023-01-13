@@ -13,7 +13,7 @@ export interface ISteerLayerBehaviorOptions extends IBehaviorOptions {
   breakingPower: number;
 }
 
-export class SteerLayerBehavior extends BoidBehavior {
+export class SteerLayerBehavior<T extends Boid> extends BoidBehavior<T> {
   layerId: number;
   radius: number;
   layerName: string;
@@ -22,7 +22,7 @@ export class SteerLayerBehavior extends BoidBehavior {
   breakingDistance: number;
   breakingPower: number;
 
-  constructor(boid: Boid, scale: number, options: ISteerLayerBehaviorOptions) {
+  constructor(boid: T, scale: number, options: ISteerLayerBehaviorOptions) {
     super(boid, scale, options);
     this.name = 'SteerLayerBehavior';
     this.radius = options.radius;
@@ -33,8 +33,8 @@ export class SteerLayerBehavior extends BoidBehavior {
     this.breakingPower = options.breakingPower;
   }
 
-  public override tick(gameTime: IGameTime): void {
-    if (!this.enabled) return;
+  public override tick(gameTime: IGameTime): boolean {
+    if (!this.enabled) return false;
 
     const b: Boid = this.boid;
     const p: vec2 = b.p;
@@ -43,7 +43,7 @@ export class SteerLayerBehavior extends BoidBehavior {
     const r: number = b.r * 2 + this.radius;
     const nearest: IDataRadiusResults<Boid> = grid.getDataRadius(p.x, p.y, r, true, b, this.nearest, this.layerId);
     this.lastResults = nearest;
-    if (!nearest.length) return;
+    if (!nearest.length) return false;
 
     const t = new vec2();
     for (const na of nearest) {
@@ -59,5 +59,6 @@ export class SteerLayerBehavior extends BoidBehavior {
       v.x += d.x * l;
       v.y += d.y * l;
     }
+    return true;
   }
 }

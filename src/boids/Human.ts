@@ -3,7 +3,7 @@ import { CollisionBehavior } from '../behaviours/CollisionBehavior';
 import { FlowBehavior } from '../behaviours/FlowBehavior';
 import { SteerLayerBehavior } from '../behaviours/SteerLayerBehavior';
 import { IGameTime } from '../GameClock';
-import { epsilon, vec2 } from '../math';
+import { vec2 } from '../math';
 import { Boid, IBoidOptions } from './Boid';
 import { Food } from './Food';
 import { Zombie } from './Zombie';
@@ -11,8 +11,8 @@ import { Zombie } from './Zombie';
 export class Human extends Boid {
   hunger: number = 0;
   foodLayer: number;
-  findFood: SteerLayerBehavior;
-  foodFlow: FlowBehavior;
+  findFood: SteerLayerBehavior<Human>;
+  foodFlow: FlowBehavior<Human>;
   hungerThreshold: number = 10;
   hungerSpeed: number = 1;
   hungerGradient = scale(['#0FF', '#0FF', '#FF0', '#A00'])
@@ -37,12 +37,12 @@ export class Human extends Boid {
         layer: this.World.layerByName('boid') // | options.world.layerByName('human')
       })
     );
-    this.behaviors.set('HumanFlow', new FlowBehavior(this, 0.25, {
+    this.behaviors.set('HumanFlow', new FlowBehavior<Human>(this, 0.25, {
         flowGrid: this.World.flowGrid,
         layer: options.world.layerByName('human')
       })
     );
-    this.foodFlow = new FlowBehavior(this, 1, {
+    this.foodFlow = new FlowBehavior<Human>(this, 1, {
       flowGrid: this.World.flowGrid,
       layer: options.world.layerByName('food'),
       enabled: false
@@ -62,7 +62,7 @@ export class Human extends Boid {
 
     this.behaviors.set('AvoidZombie', new SteerLayerBehavior(this, -2, {
         layerName: 'zombie',
-        radius:  this.options.grid.cellSize * 3,
+        radius: this.options.grid.cellSize * 3,
         nearest: false,
         breakingDistance: 0,
         breakingPower: 5
@@ -72,10 +72,9 @@ export class Human extends Boid {
     this.foodLayer = this.World.layerByName('food');
   }
 
-  override tick(gameTime: IGameTime): void {
-    super.tick(gameTime);
-    if (!this.alive) {
-      return;
+  override tick(gameTime: IGameTime): boolean {
+    if (!super.tick(gameTime)) {
+      return false;
     }
     // const grid = this.options.grid;
     this.hunger += gameTime.deltaTime * this.hungerSpeed;
@@ -87,7 +86,7 @@ export class Human extends Boid {
 
       const nearest = this.grid.getDataRadius(this.p.x, this.p.y, this.grid.cellSize * 2, true, this, true, this.foodLayer);
       if (nearest.length) {
-        const food = nearest[0].data as Food;
+        const food: Food = nearest[0].data as unknown as Food;
         const r = food.r + this.r;
         if (food.r >= Food.MinSize && nearest[0].dist2 <= r * r) {
           // food.r -= gameTime.deltaTime * 0.1;
@@ -102,9 +101,10 @@ export class Human extends Boid {
     }
     if (this.hunger > 100) {
       this.die();
-      return;
+      return false;
     }
     this.color.rgba = this.hungerGradient(this.hunger).gl();
+    return true;
   }
 
   override die() {
