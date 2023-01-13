@@ -113,7 +113,7 @@ export class World {
   boidSize: number = 8;
   drag = 1;
   humanMaxSpeed = 50;
-  zombieMaxSpeed = 20;
+  zombieMaxSpeed = 16;
   showField = true;
   numBoids = 100;
   gameClock: GameClock;

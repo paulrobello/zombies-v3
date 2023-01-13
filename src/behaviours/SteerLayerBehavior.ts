@@ -48,11 +48,11 @@ export class SteerLayerBehavior extends BoidBehavior {
     const t = new vec2();
     for (const na of nearest) {
       const d2 = na.dist2;
-      let dist = clamp(Math.sqrt(d2), epsilon, r);
+      const dist = clamp(Math.sqrt(d2), epsilon, r);
       let l = dist;
-      const d = na.dv.scale(1 / l, t);//.rotateRight();
+      const d = na.dv.scale(1 / l, t);
       l = l * gameTime.deltaTime * this.scale;
-      // l *= (r - dist) / r;
+      // l *= ((r + 1) - dist) / r;
       if (dist < this.breakingDistance && b.speed > b.maxSpeed / 2) {
         v.scale(1 - gameTime.deltaTime * this.breakingPower);
       }

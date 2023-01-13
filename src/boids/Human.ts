@@ -26,7 +26,7 @@ export class Human extends Boid {
     if (this.id === 0) {
       this.color.rgb = [1, 1, 0];
     }
-    this.behaviors.set('CollisionBehavior', new CollisionBehavior(this, 1, {
+    this.behaviors.set('CollisionBehavior', new CollisionBehavior(this, 0.5, {
       iterations: 1,
       margin: 2,
       layerMask: this.World.layerByName('human'),
@@ -37,7 +37,7 @@ export class Human extends Boid {
         layer: this.World.layerByName('boid') // | options.world.layerByName('human')
       })
     );
-    this.behaviors.set('HumanFlow', new FlowBehavior(this, 0.5, {
+    this.behaviors.set('HumanFlow', new FlowBehavior(this, 0.25, {
         flowGrid: this.World.flowGrid,
         layer: options.world.layerByName('human')
       })
@@ -60,10 +60,10 @@ export class Human extends Boid {
     });
     this.behaviors.set('FindFood', this.findFood);
 
-    this.behaviors.set('AvoidZombie', new SteerLayerBehavior(this, -3, {
+    this.behaviors.set('AvoidZombie', new SteerLayerBehavior(this, -2, {
         layerName: 'zombie',
         radius:  this.options.grid.cellSize * 3,
-        nearest: true,
+        nearest: false,
         breakingDistance: 0,
         breakingPower: 5
       })

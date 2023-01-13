@@ -19,7 +19,7 @@ export class Zombie extends Boid {
     }));
     this.behaviors.set('ChaseHumans', new SteerLayerBehavior(this, 100, {
         layerName: 'human',
-        radius: Math.max(this.r * 8, this.options.grid.cellSize * 3),
+        radius: this.options.grid.cellSize * 3,
         nearest: true,
         breakingDistance: 0,
         breakingPower: 5
