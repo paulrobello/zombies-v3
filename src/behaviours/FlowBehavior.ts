@@ -4,9 +4,9 @@ import { IGameTime } from '../GameClock';
 import { IFlowValue } from '../grids/FlowGrid';
 import { HashGrid } from '../grids/HashGrid';
 import { clamp, epsilon, Ivec2, vec2 } from '../math';
-import { BoidBehavior } from './BoidBehavior';
+import { BoidBehavior, IBehaviorOptions } from './BoidBehavior';
 
-export interface IFlowBehaviorOptions {
+export interface IFlowBehaviorOptions extends IBehaviorOptions {
   flowGrid: HashGrid<IFlowValue>;
   layer: number;
 }
@@ -16,7 +16,7 @@ export class FlowBehavior extends BoidBehavior {
   layer: number;
 
   constructor(boid: Boid, scale: number, options: IFlowBehaviorOptions) {
-    super(boid, scale);
+    super(boid, scale, options);
     this.name = 'FlowBehavior';
     this.flowGrid = options.flowGrid;
     this.layer = options.layer;

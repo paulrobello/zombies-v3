@@ -2,9 +2,9 @@ import { Boid } from '../boids/Boid';
 import { IGameTime } from '../GameClock';
 import { IPositional } from '../interfaces';
 import { clamp, vec2 } from '../math';
-import { BoidBehavior } from './BoidBehavior';
+import { BoidBehavior, IBehaviorOptions } from './BoidBehavior';
 
-export interface IAttractionPointBehaviorOptions {
+export interface IAttractionPointBehaviorOptions extends IBehaviorOptions {
   target: IPositional;
 }
 
@@ -13,12 +13,12 @@ export const AttractionPointBehaviorDefaultOptions: IAttractionPointBehaviorOpti
 };
 
 export class AttractionPointBehavior extends BoidBehavior {
-  options: IAttractionPointBehaviorOptions;
+  target: IPositional;
 
   constructor(boid: Boid, scale: number = 1, options: IAttractionPointBehaviorOptions = AttractionPointBehaviorDefaultOptions) {
-    super(boid, scale);
+    super(boid, scale, options);
     this.name = 'AttractionPointBehavior';
-    this.options = options;
+    this.target = options.target;
   }
 
   public override tick(gameTime: IGameTime): void {
@@ -26,7 +26,7 @@ export class AttractionPointBehavior extends BoidBehavior {
     const b = this.boid;
     const p: vec2 = b.p;
     const v: vec2 = b.v;
-    const d: vec2 = vec2.difference(this.options.target.p, p);
+    const d: vec2 = vec2.difference(this.target.p, p);
     const l: number = d.length();
     const m: number = Math.max(b.grid.width, b.grid.height);
     const ml: number = clamp(d.length(), m / 4, m);

@@ -1,7 +1,7 @@
 import { scale } from 'chroma-js';
-import { CollisionBehavior } from '../behaviours/collision';
-import { FlowBehavior } from '../behaviours/flow';
-import { SteerLayerBehavior } from '../behaviours/steer_layer';
+import { CollisionBehavior } from '../behaviours/CollisionBehavior';
+import { FlowBehavior } from '../behaviours/FlowBehavior';
+import { SteerLayerBehavior } from '../behaviours/SteerLayerBehavior';
 import { IGameTime } from '../GameClock';
 import { epsilon, vec2 } from '../math';
 import { Boid, IBoidOptions } from './Boid';
@@ -10,9 +10,13 @@ import { Zombie } from './Zombie';
 
 export class Human extends Boid {
   hunger: number = 0;
-  hungerGradient = scale(['#0FF', '#A00'])
-    .domain([0, 100]);
   foodLayer: number;
+  findFood: SteerLayerBehavior;
+  foodFlow: FlowBehavior;
+  hungerThreshold: number = 10;
+  hungerSpeed: number = 1;
+  hungerGradient = scale(['#0FF', '#0FF', '#FF0', '#A00'])
+    .domain([0, this.hungerThreshold - 1, this.hungerThreshold, 100]);
 
   constructor(options: IBoidOptions) {
     super(options);
@@ -33,27 +37,35 @@ export class Human extends Boid {
         layer: this.World.layerByName('boid') // | options.world.layerByName('human')
       })
     );
-    this.behaviors.set('HumanFlow', new FlowBehavior(this, 1, {
+    this.behaviors.set('HumanFlow', new FlowBehavior(this, 0.5, {
         flowGrid: this.World.flowGrid,
         layer: options.world.layerByName('human')
       })
     );
-    this.behaviors.set('FoodFlow', new FlowBehavior(this, 1, {
-        flowGrid: this.World.flowGrid,
-        layer: options.world.layerByName('food')
-      })
-    );
-    this.behaviors.set('FindFood', new SteerLayerBehavior(this, 2, {
-        layerName: 'food',
-        radius: Math.max(this.World.width, this.World.height),
-        nearest: true
-      })
-    );
+    this.foodFlow = new FlowBehavior(this, 1, {
+      flowGrid: this.World.flowGrid,
+      layer: options.world.layerByName('food'),
+      enabled: false
+    });
+    this.behaviors.set('FoodFlow', this.foodFlow);
 
-    this.behaviors.set('AvoidZombie', new SteerLayerBehavior(this, -100, {
+    this.findFood = new SteerLayerBehavior(this, 1, {
+      layerName: 'food',
+      enabled: false,
+      // radius: Math.max(this.World.width, this.World.height),
+      radius: this.World.boidCellSize * 5,
+      nearest: true,
+      breakingDistance: 100,
+      breakingPower: 5
+    });
+    this.behaviors.set('FindFood', this.findFood);
+
+    this.behaviors.set('AvoidZombie', new SteerLayerBehavior(this, -3, {
         layerName: 'zombie',
-        radius: Math.max(this.r * 100, this.options.grid.cellSize * 5),
-        nearest: true
+        radius:  this.options.grid.cellSize * 3,
+        nearest: true,
+        breakingDistance: 0,
+        breakingPower: 5
       })
     );
     this.World.humans.add(this);
@@ -66,9 +78,14 @@ export class Human extends Boid {
       return;
     }
     // const grid = this.options.grid;
-    this.hunger += gameTime.deltaTime;
-    if (this.hunger > 10) {
-      const nearest = this.grid.getDataRadius(this.p.x, this.p.y, this.grid.cellSize, true, this, true, this.foodLayer);
+    this.hunger += gameTime.deltaTime * this.hungerSpeed;
+    if (this.hunger >= this.hungerThreshold) {
+      this.findFood.enabled = true;
+      this.findFood.scale = this.hunger / 100 * 2;
+      this.foodFlow.enabled = true;
+      this.foodFlow.scale = this.hunger / 100;
+
+      const nearest = this.grid.getDataRadius(this.p.x, this.p.y, this.grid.cellSize * 2, true, this, true, this.foodLayer);
       if (nearest.length) {
         const food = nearest[0].data as Food;
         const r = food.r + this.r;
@@ -79,17 +96,15 @@ export class Human extends Boid {
           this.hunger = 0;
         }
       }
+    } else {
+      this.findFood.enabled = false;
+      this.foodFlow.enabled = false;
     }
     if (this.hunger > 100) {
       this.die();
       return;
     }
     this.color.rgba = this.hungerGradient(this.hunger).gl();
-    let bh: SteerLayerBehavior = this.behaviors.get('FindFood') as SteerLayerBehavior;
-    bh.scale = this.hunger / 100;
-    bh = this.behaviors.get('FoodFlow') as SteerLayerBehavior;
-    bh.scale = this.hunger / 100;
-
   }
 
   override die() {

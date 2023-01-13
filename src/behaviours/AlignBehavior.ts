@@ -2,9 +2,9 @@ import { BoidGrid } from '../grids/BoidGrid';
 import { Boid } from '../boids/Boid';
 import { IGameTime } from '../GameClock';
 import { epsilon } from '../math';
-import { BoidBehavior } from './BoidBehavior';
+import { BoidBehavior, IBehaviorOptions } from './BoidBehavior';
 
-export interface IAlignBehaviorOptions {
+export interface IAlignBehaviorOptions extends IBehaviorOptions{
   margin: number;
 }
 
@@ -13,19 +13,19 @@ export const AlignBehaviorOptionsDefault: IAlignBehaviorOptions = {
 };
 
 export class AlignBehavior extends BoidBehavior {
-  options: IAlignBehaviorOptions;
+  margin: number;
 
   constructor(boid: Boid, scale: number = 1, options: IAlignBehaviorOptions = AlignBehaviorOptionsDefault) {
-    super(boid, scale);
+    super(boid, scale, options);
     this.name = 'AlignBehavior';
-    this.options = options;
+    this.margin = options.margin;
   }
 
   public override tick(gameTime: IGameTime): void {
     if (!this.enabled) return;
     const b = this.boid;
     const grid: BoidGrid = b.options.grid;
-    const r = b.r * 2 + this.options.margin;
+    const r = b.r * 2 + this.margin;
     const nearest = grid.getDataRadius(b.p.x, b.p.y, r, true, b, true);
     if (!nearest.length) return;
     const n = nearest[0].data;

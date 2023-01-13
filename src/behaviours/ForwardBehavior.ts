@@ -1,11 +1,11 @@
 import { Boid } from '../boids/Boid';
 import { IGameTime } from '../GameClock';
-import { BoidBehavior } from './BoidBehavior';
+import { BoidBehavior, IBehaviorOptions } from './BoidBehavior';
 
 export class ForwardBehavior extends BoidBehavior {
 
-  constructor(boid: Boid, scale: number = 1) {
-    super(boid, scale);
+  constructor(boid: Boid, scale: number = 1, options: IBehaviorOptions) {
+    super(boid, scale, options);
     this.name = 'ForwardBehavior';
   }
 

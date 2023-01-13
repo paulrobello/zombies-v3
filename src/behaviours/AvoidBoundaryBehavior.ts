@@ -1,9 +1,9 @@
 import { Boid } from '../boids/Boid';
 import { IGameTime } from '../GameClock';
 import { vec2 } from '../math';
-import { BoidBehavior } from './BoidBehavior';
+import { BoidBehavior, IBehaviorOptions } from './BoidBehavior';
 
-export interface IAvoidBoundaryBehaviorOptions {
+export interface IAvoidBoundaryBehaviorOptions extends IBehaviorOptions {
   margin: number;
 }
 
@@ -12,12 +12,12 @@ export const AvoidBoundaryBehaviorDefaultOptions: IAvoidBoundaryBehaviorOptions 
 };
 
 export class AvoidBoundaryBehavior extends BoidBehavior {
-  options: IAvoidBoundaryBehaviorOptions;
+  margin: number;
 
   constructor(boid: Boid, scale: number = 1, options: IAvoidBoundaryBehaviorOptions = AvoidBoundaryBehaviorDefaultOptions) {
-    super(boid, scale);
+    super(boid, scale, options);
     this.name = 'AvoidBoundaryBehavior';
-    this.options = options;
+    this.margin = options.margin;
   }
 
   public override tick(gameTime: IGameTime): void {
@@ -25,7 +25,7 @@ export class AvoidBoundaryBehavior extends BoidBehavior {
     const b = this.boid;
     const p: vec2 = b.p;
     const v: vec2 = b.v;
-    const r2 = b.r + this.options.margin;
+    const r2 = b.r + this.margin;
     let d: number;
     if (p.x < r2) {
       v.x += (r2 - p.x) / r2 * gameTime.deltaTime * this.scale;

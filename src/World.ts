@@ -11,7 +11,7 @@ import { BoidGrid } from './grids/BoidGrid';
 import { FlowGrid, FlowTypeColor, FlowTypes, IFlowValue } from './grids/FlowGrid';
 import { HashGridOptions } from './grids/HashGrid';
 import { QueryLayerByName } from './interfaces';
-import { clamp, vec2, vec4 } from './math';
+import { clamp, epsilon, vec2, vec4 } from './math';
 import { Ring } from './Ring';
 
 import grid_vs_shader from './shaders/grid.vs';
@@ -450,7 +450,7 @@ export class World {
     }
 
     this.genField();
-    // this.food.forEach(f => f.addFoodGradient());
+
     twgl.resizeCanvasToDisplaySize(this.canvas);
     this.ctx.viewport(0, 0, this.width, this.height);
   }
@@ -508,14 +508,14 @@ export class World {
       if (i < 3) {
         b = new Food(o);
       } else {
-        // if (i < this.numBoids / 4) {
-        //   o.maxSpeed = this.zombieMaxSpeed;
-        //   o.v.random(10, o.maxSpeed);
-        //   b = new Zombie(o);
-        // } else {
+        if (i < this.numBoids / 4) {
+          o.maxSpeed = this.zombieMaxSpeed;
+          o.v.random(10, o.maxSpeed);
+          b = new Zombie(o);
+        } else {
           o.v.random(10, o.maxSpeed);
           b = new Human(o);
-        // }
+        }
       }
       // const b: Boid = new Human(o);
       this.boids.push(b);
@@ -530,8 +530,7 @@ export class World {
         color: new vec4([1, 0, 0, 1])
       }));
     }
-    this.food.forEach(f => f.addFoodGradient());
-
+    this.computeFoodGradient();
   }
 
   randomizeBoids() {
@@ -683,5 +682,45 @@ export class World {
     requestAnimationFrame(() => {
       this.draw();
     });
+  }
+
+  computeFoodGradient(): void {
+    const food: Food[] = Array.from(this.food.values()).filter(f => f.flowEnabled);
+    const flowGrid = this.flowGrid;
+    const t = new vec2();
+    const maxDist = Math.max(this.width, this.height) / 4;
+    const layer = this.layerByName('food');
+    for (const cell of flowGrid.cells) {
+      let cv = cell.items[layer];
+      if (!cv) {
+        cv = {
+          id: 0,
+          layer: layer,
+          p: new vec2(),
+          l: 0,
+          lastCellIndex: -1,
+          cellIndex: -1,
+          static: true,
+          solid: false
+        };
+        flowGrid.addCelData(cell.p.x, cell.p.y, false, cv);
+      }
+      if (!food.length) {
+        cv.p.reset();
+        cv.l = 0;
+      } else {
+        t.reset();
+        for (const f of food) {
+          const dv = vec2.difference(f.p, cell.wc); //.scale(f.r / (this.boidCellSize / 2));
+          const l = clamp(dv.length(), epsilon, maxDist);
+          t.add(dv.scale((1 / l) * (1.1 - (l / maxDist)))); //.normalize();
+        }
+        cv.l = 1;
+        // cv.l = t.length();
+        t.normalize();
+        cv.p.set_xy(t.x, t.y);
+
+      }
+    }
   }
 }

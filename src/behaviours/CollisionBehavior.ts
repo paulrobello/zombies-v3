@@ -1,9 +1,9 @@
 import { Boid } from '../boids/Boid';
 import { IGameTime } from '../GameClock';
 import { clamp, epsilon, vec2 } from '../math';
-import { BoidBehavior } from './BoidBehavior';
+import { BoidBehavior, IBehaviorOptions } from './BoidBehavior';
 
-export interface ICollisionBehaviorOptions {
+export interface ICollisionBehaviorOptions  extends IBehaviorOptions{
   margin: number;
   iterations: number;
   layerMask: number;
@@ -18,7 +18,8 @@ export class CollisionBehavior extends BoidBehavior {
   predictive: boolean;
 
   constructor(boid: Boid, scale: number, options: ICollisionBehaviorOptions) {
-    super(boid, scale);
+    super(boid, scale, options);
+
     this.name = 'CollisionBehavior';
     this.margin = options.margin;
     this.iterations = options.iterations;

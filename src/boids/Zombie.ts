@@ -1,7 +1,7 @@
-import { CollisionBehavior } from '../behaviours/collision';
-import { ConvertHumanBehavior } from '../behaviours/convert_human';
-import { FlowBehavior } from '../behaviours/flow';
-import { SteerLayerBehavior } from '../behaviours/steer_layer';
+import { CollisionBehavior } from '../behaviours/CollisionBehavior';
+import { ConvertHumanBehavior } from '../behaviours/ConvertHumanBehavior';
+import { FlowBehavior } from '../behaviours/FlowBehavior';
+import { SteerLayerBehavior } from '../behaviours/SteerLayerBehavior';
 import { IGameTime } from '../GameClock';
 import { Boid, IBoidOptions } from './Boid';
 
@@ -20,7 +20,9 @@ export class Zombie extends Boid {
     this.behaviors.set('ChaseHumans', new SteerLayerBehavior(this, 100, {
         layerName: 'human',
         radius: Math.max(this.r * 8, this.options.grid.cellSize * 3),
-        nearest: true
+        nearest: true,
+        breakingDistance: 0,
+        breakingPower: 5
       })
     );
     this.behaviors.set('BoidFlow', new FlowBehavior(this, 1, {
@@ -28,10 +30,10 @@ export class Zombie extends Boid {
         layer: this.World.layerByName('boid') // | options.world.layerByName('human')
       })
     );
-    this.behaviors.set('HumanFlow', new FlowBehavior(this, 1, {
-        flowGrid: this.options.world.flowGrid, layer: options.world.layerByName('human')
-      })
-    );
+    // this.behaviors.set('HumanFlow', new FlowBehavior(this, 1, {
+    //     flowGrid: this.options.world.flowGrid, layer: options.world.layerByName('human')
+    //   })
+    // );
 
     this.behaviors.set('ZombieFlow', new FlowBehavior(this, 2, {
         flowGrid: this.options.world.flowGrid, layer: options.world.layerByName('zombie')
@@ -43,7 +45,7 @@ export class Zombie extends Boid {
   }
 
   override tick(gameTime: IGameTime): void {
-    if (this.age < 3) {
+    if (this.age < 3 && gameTime.currentFrame !== 0) {
       this.age += gameTime.deltaTime;
       return;
     }

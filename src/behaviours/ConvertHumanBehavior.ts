@@ -1,9 +1,9 @@
 import { Boid } from '../boids/Boid';
 import { IGameTime } from '../GameClock';
 import { vec2 } from '../math';
-import { BoidBehavior } from './BoidBehavior';
+import { BoidBehavior, IBehaviorOptions } from './BoidBehavior';
 
-export interface IConvertHumanBehaviorOptions {
+export interface IConvertHumanBehaviorOptions extends IBehaviorOptions{
   margin: number;
   minAgeBeforeConvert: number;
 }
@@ -14,7 +14,8 @@ export class ConvertHumanBehavior extends BoidBehavior {
   minAgeBeforeConvert: number;
 
   constructor(boid: Boid, scale: number, options: IConvertHumanBehaviorOptions) {
-    super(boid, scale);
+    super(boid, scale, options);
+
     this.name = 'ConvertHumanBehavior';
     this.layerId = boid.World.layerByName('human');
     this.margin = options.margin;

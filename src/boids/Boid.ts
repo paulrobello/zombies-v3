@@ -1,6 +1,6 @@
-import { AvoidBoundaryBehavior } from '../behaviours/avoid_boundary';
+import { AvoidBoundaryBehavior } from '../behaviours/AvoidBoundaryBehavior';
 import { BoidBehavior } from '../behaviours/BoidBehavior';
-import { ForwardBehavior } from '../behaviours/forward';
+import { ForwardBehavior } from '../behaviours/ForwardBehavior';
 import { BoidGrid } from '../grids/BoidGrid';
 import { Cell, ICellIndexable } from '../grids/Cell';
 import { IGameTime } from '../GameClock';
@@ -77,7 +77,7 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     this.r = options.r || 5;
     this.r2 = this.r * this.r;
 
-    this.behaviors.set('ForwardBehavior', new ForwardBehavior(this, 1));
+    this.behaviors.set('ForwardBehavior', new ForwardBehavior(this, 1, {}));
     // this.behaviors.set('SeparateBehavior', new SeparateBehavior(b, 1, {margin: 32}));
     // this.behaviors.set('AlignBehavior', new AlignBehavior(b, 1.0, {margin: 100}));
     // this.behaviors.set('AttractionPointBehavior', new AttractionPointBehavior(b, 1, {target: {p: new vec2(this.options.world.widthD2, this.options.world.heightD2)}}));
