@@ -257,7 +257,6 @@ export class World {
     this.initRingGl();
     this.initGridGl();
 
-
     setInterval(() => {
       if (this.humans.size) {
         this.endTime = this.CurrentTime;

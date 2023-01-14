@@ -27,9 +27,9 @@ void main() {
     float(gl_InstanceID % int(gridWidth)) * gridCellSize + (gridCellSize * 0.5),
     trunc(float(gl_InstanceID) / gridWidth) * gridCellSize + (gridCellSize * 0.5)
     );
-    vec2 p = vert_pos * vec2(gridCellSize * 0.95, gridCellSize * 0.95) + ot;
-    gl_Position = u_matrix * vec4(p, 0, 1);
-    v_texcoord = texcoord;
+    vec2 p = vert_pos * gridCellSize * 0.95 + ot;
+    gl_Position = u_matrix * vec4(p, 0.0, 1);
+    v_texcoord = vert_pos.xy + vec2(0.5);
     v_color = color;
     float ps = paintSize + (gridCellSize);
     if (paintMode == 1) {
