@@ -123,7 +123,8 @@ export class FlowGrid extends HashGrid<IFlowValue> {
     const t = new vec2();
     const mask: number = this.World.layerByName(this.drawFlowType) || 0;
     let numNeighbors: number;
-    const cell: Cell<IFlowValue> = this.getCell(mouse.p.x, mouse.p.y, true);
+    const cell = this.getCell(mouse.p.x, mouse.p.y, true);
+    if (!cell) return false;
     if (pm === 'wall') {
       let cv: IFlowValue | undefined = cell.items[mask];
       if (!cv) {

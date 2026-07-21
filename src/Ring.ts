@@ -5,7 +5,7 @@ import { World } from './World';
 
 export interface IRingOptions {
   world: World;
-  id?: number;
+  id: number;
   p: vec2;
   r: number;
   thickness: number;

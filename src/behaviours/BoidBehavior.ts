@@ -8,7 +8,7 @@ export interface IBehaviorOptions {
 }
 
 export class BoidBehavior<T extends Boid> implements IProgressible {
-  public name: string;
+  public name!: string;
   public enabled: boolean;
   public boid: T;
   public scale: number;

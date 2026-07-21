@@ -36,8 +36,8 @@ export interface HashGridOptions {
 export type HashGridCellItem = IPositional & ICellIndexable & IGridQueryable;
 
 export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgressible {
-  options: HashGridOptions;
-  cells: Cell<T>[];
+  options!: HashGridOptions;
+  cells!: Cell<T>[];
   allData: Set<T> = new Set<T>();
   gridXW: number;
   gridYW: number;
@@ -115,7 +115,7 @@ export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgres
     let x, y, xc, yc, nx, ny;
     for (x = 0; x < w; x++) {
       for (y = 0; y < h; y++) {
-        let c = this.getCell(x, y, false);
+        let c = this.getCell(x, y, false)!;
         c.neighbors.length = 0;
 
         for (xc = -radius; xc <= radius; xc++) {
@@ -132,7 +132,7 @@ export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgres
             if (ny < 0 || ny >= h) {
               continue;
             }
-            c.neighbors.push(this.getCell(nx, ny));
+            c.neighbors.push(this.getCell(nx, ny)!);
           } // yc
         } // xc
         c.neighbors.sort((a, b) => c.wc.squaredDistanceTo(a.wc) - c.wc.squaredDistanceTo(b.wc));
@@ -158,7 +158,7 @@ export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgres
     return numNeighbors;
   }
 
-  getDataRadius(x: number, y: number, radius: number, worldSpace: boolean = false, self?: T, closest?: boolean, mask: number = 0): IDataRadiusResults<T> {
+  getDataRadius(x: number, y: number, radius: number, worldSpace: boolean = false, self?: T, closest: boolean = false, mask: number = 0): IDataRadiusResults<T> {
     let data: IDataRadiusResults<T> = [];
     const c = this.getCell(x, y, worldSpace);
     if (!c) {
@@ -202,7 +202,7 @@ export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgres
     let dist2: number;
     let nearest: number = Infinity;
     let nearestData: T | undefined;
-    let nearestDv: vec2;
+    let nearestDv!: vec2;
     const numNeighbors = this.numNeighbors(c, radius, true);
     for (let ni = 0; ni < numNeighbors; ni++) {
       const n = c.neighbors[ni];

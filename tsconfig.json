@@ -3,7 +3,7 @@
     "outDir": "./dist/",
     "target": "esnext",
     "module": "esnext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "lib": [
       "esnext",
       "dom",

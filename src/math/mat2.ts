@@ -98,7 +98,7 @@ export class mat2 {
     return this;
   }
 
-  inverse(): mat2 {
+  inverse(): mat2 | null {
     let det = this.determinant();
 
     if (!det) {

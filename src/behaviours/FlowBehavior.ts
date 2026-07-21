@@ -1,5 +1,4 @@
 import { Boid } from '../boids/Boid';
-import { Cell } from '../grids/Cell';
 import { IGameTime } from '../GameClock';
 import { FlowGrid, IFlowValue } from '../grids/FlowGrid';
 import { HashGrid } from '../grids/HashGrid';
@@ -27,7 +26,7 @@ export class FlowBehavior<T extends Boid> extends BoidBehavior<T> {
     const b: Boid = this.boid;
     const p: Ivec2 = b.p;
     const v: Ivec2 = b.v;
-    const cell: Cell<IFlowValue> = this.flowGrid.getCell(p.x, p.y, true);
+    const cell = this.flowGrid.getCell(p.x, p.y, true);
     if (!cell || cell.items.length <= this.layer) return false;
     const d: IFlowValue | undefined = cell.items[this.layer];
     if (!d) {

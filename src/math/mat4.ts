@@ -161,7 +161,7 @@ export class mat4 {
     return this;
   }
 
-  inverse(): mat4 {
+  inverse(): mat4 | null {
     const a00 = this.values[0];
     const a01 = this.values[1];
     const a02 = this.values[2];
@@ -325,7 +325,7 @@ export class mat4 {
     ]);
   }
 
-  toInverseMat3(): mat3 {
+  toInverseMat3(): mat3 | null {
     const a00 = this.values[0];
     const a01 = this.values[1];
     const a02 = this.values[2];
@@ -397,7 +397,7 @@ export class mat4 {
     return this;
   }
 
-  rotate(angle: number, axis: Ivec3): mat4 {
+  rotate(angle: number, axis: Ivec3): mat4 | null {
     let x = axis.x;
     let y = axis.y;
     let z = axis.z;

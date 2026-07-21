@@ -2,7 +2,7 @@ import { AvoidBoundaryBehavior } from '../behaviours/AvoidBoundaryBehavior';
 import { BoidBehavior } from '../behaviours/BoidBehavior';
 import { ForwardBehavior } from '../behaviours/ForwardBehavior';
 import { BoidGrid } from '../grids/BoidGrid';
-import { Cell, ICellIndexable } from '../grids/Cell';
+import { ICellIndexable } from '../grids/Cell';
 import { IGameTime } from '../GameClock';
 import { IFlowValue } from '../grids/FlowGrid';
 import { HashGrid, IGridQueryable } from '../grids/HashGrid';
@@ -156,7 +156,7 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
       grid.addCelDataByIndex(newCellIndex, this);
     }
     const flowGrid = this.options.world.flowGrid;
-    const cell: Cell<IFlowValue> = flowGrid.getCell(p.x, p.y, true);
+    const cell = flowGrid.getCell(p.x, p.y, true)!;
     let cv: IFlowValue | undefined = cell.items[this.layer];
     if (!cv) {
       cv = {

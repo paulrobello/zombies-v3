@@ -94,19 +94,19 @@ const DefaultBufferValues = {
 export class World {
   canvas: HTMLCanvasElement;
   ctx: WebGL2RenderingContext;
-  width: number;
-  height: number;
-  widthD2: number;
-  heightD2: number;
+  width!: number;
+  height!: number;
+  widthD2!: number;
+  heightD2!: number;
   dimensions: [number, number] = [0, 0];
   flowCellSize: number = 32;
   boidCellSize: number = 32;
-  gridXW: number;
-  gridYW: number;
-  flowGrid: FlowGrid;
-  boidGrid: BoidGrid;
-  flowGridOptions: HashGridOptions;
-  boidGridOptions: HashGridOptions;
+  gridXW!: number;
+  gridYW!: number;
+  flowGrid!: FlowGrid;
+  boidGrid!: BoidGrid;
+  flowGridOptions!: HashGridOptions;
+  boidGridOptions!: HashGridOptions;
   fieldScale: number = this.flowCellSize * 0.005;
   boids: Boid[] = [];
   rings: Ring[] = [];
@@ -119,10 +119,10 @@ export class World {
   gameClock: GameClock;
   fieldRandomScale: number = 0.001;
   u_matrix: m4.Mat4 = m4.identity();
-  boidGl: IBoidGl;
-  gridGl: IGridGl;
-  flowGridGl: IFlowGridGl;
-  ringGl: IRingGl;
+  boidGl!: IBoidGl;
+  gridGl!: IGridGl;
+  flowGridGl!: IFlowGridGl;
+  ringGl!: IRingGl;
 
   mouse: IMouse = {
     p: new vec2(),
@@ -151,7 +151,7 @@ export class World {
 
   constructor() {
     this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
-    this.ctx = this.canvas.getContext('webgl2');
+    this.ctx = this.canvas.getContext('webgl2')!;
     this.statsEl = document.getElementById('stats') as HTMLDivElement;
     this.helpEl = document.getElementById('help') as HTMLDivElement;
     this.helpToggleEl = document.getElementById('helpToggle') as HTMLDivElement;
@@ -297,29 +297,31 @@ export class World {
 
     const programInfo = twgl.createProgramInfo(this.ctx, [vs, fs]);
 
-    this.ringGl = {
-      pos_rad: new Float32Array(this.numBoids * 4),
-      color: new Float32Array(this.numBoids * 4),
-      programInfo: programInfo,
-      bufferInfo: undefined
-    };
-
-    this.ringGl.bufferInfo = twgl.createBufferInfoFromArrays(
+    const pos_rad = new Float32Array(this.numBoids * 4);
+    const color = new Float32Array(this.numBoids * 4);
+    const bufferInfo = twgl.createBufferInfoFromArrays(
       this.ctx,
       {
         ...DefaultBufferValues,
         pos_rad: {
           numComponents: 4,
-          data: this.ringGl.pos_rad,
+          data: pos_rad,
           divisor: 1
         },
         color: {
           numComponents: 4,
-          data: this.ringGl.color,
+          data: color,
           divisor: 1
         }
       }
     );
+
+    this.ringGl = {
+      pos_rad,
+      color,
+      programInfo,
+      bufferInfo
+    };
   }
 
   initBoidGl() {
@@ -330,34 +332,37 @@ export class World {
 
     const programInfo = twgl.createProgramInfo(this.ctx, [vs, fs]);
 
-    this.boidGl = {
-      pos_vel: new Float32Array(this.numBoids * 4),
-      color: new Float32Array(this.numBoids * 4),
-      rad_static: new Float32Array(this.numBoids * 4),
-      programInfo: programInfo,
-      bufferInfo: undefined
-    };
-    this.boidGl.bufferInfo = twgl.createBufferInfoFromArrays(
+    const pos_vel = new Float32Array(this.numBoids * 4);
+    const color = new Float32Array(this.numBoids * 4);
+    const rad_static = new Float32Array(this.numBoids * 4);
+    const bufferInfo = twgl.createBufferInfoFromArrays(
       this.ctx,
       {
         ...DefaultBufferValues,
         pos_vel: {
           numComponents: 4,
-          data: this.boidGl.pos_vel,
+          data: pos_vel,
           divisor: 1
         },
         color: {
           numComponents: 4,
-          data: this.boidGl.color,
+          data: color,
           divisor: 1
         },
         rad_static: {
           numComponents: 4,
-          data: this.boidGl.rad_static,
+          data: rad_static,
           divisor: 1
         }
       }
     );
+    this.boidGl = {
+      pos_vel,
+      color,
+      rad_static,
+      programInfo,
+      bufferInfo
+    };
   }
 
 
@@ -368,24 +373,18 @@ export class World {
 
     // compile shaders, link program, look up locations
     const programInfo = twgl.createProgramInfo(this.ctx, [vs, fs]);
-    this.gridGl = {
-      color: new Float32Array(this.boidGrid.cells.length * 4),
-      programInfo: programInfo,
-      bufferInfo: undefined
-    };
-    this.flowGridGl = {
-      color: new Float32Array(this.flowGrid.cells.length * 4),
-      v: new Float32Array(this.flowGrid.cells.length * 4),
-      programInfo: programInfo,
-      bufferInfo: undefined
-    };
-    this.gridGl.bufferInfo = twgl.createBufferInfoFromArrays(
+
+    const gridColor = new Float32Array(this.boidGrid.cells.length * 4);
+    const flowColor = new Float32Array(this.flowGrid.cells.length * 4);
+    const flowV = new Float32Array(this.flowGrid.cells.length * 4);
+
+    const gridBufferInfo = twgl.createBufferInfoFromArrays(
       this.ctx,
       {
         ...DefaultBufferValues,
         color: {
           numComponents: 4,
-          data: this.gridGl.color,
+          data: gridColor,
           divisor: 1
         },
         vel_len: {
@@ -395,22 +394,33 @@ export class World {
         }
       });
 
-    this.flowGridGl.bufferInfo = twgl.createBufferInfoFromArrays(
+    const flowBufferInfo = twgl.createBufferInfoFromArrays(
       this.ctx,
       {
         ...DefaultBufferValues,
         color: {
           numComponents: 4,
-          data: this.flowGridGl.color,
+          data: flowColor,
           divisor: 1
         },
         vel_len: {
           numComponents: 4,
-          data: this.flowGridGl.v,
+          data: flowV,
           divisor: 1
         }
       });
 
+    this.gridGl = {
+      color: gridColor,
+      programInfo,
+      bufferInfo: gridBufferInfo
+    };
+    this.flowGridGl = {
+      color: flowColor,
+      v: flowV,
+      programInfo,
+      bufferInfo: flowBufferInfo
+    };
   }
 
   resize() {
@@ -573,8 +583,8 @@ export class World {
     });
     this.boidGrid.draw(ctx);
     this.boidGrid.cleanCache();
-    twgl.setAttribInfoBufferFromArray(ctx, this.gridGl.bufferInfo.attribs.color, this.gridGl.color);
-    // twgl.setAttribInfoBufferFromArray(ctx, this.gridGl.bufferInfo.attribs.vel_len, []);
+    twgl.setAttribInfoBufferFromArray(ctx, this.gridGl.bufferInfo.attribs!.color, this.gridGl.color);
+    // twgl.setAttribInfoBufferFromArray(ctx, this.gridGl.bufferInfo.attribs!.vel_len, []);
 
     twgl.setBuffersAndAttributes(ctx, this.gridGl.programInfo, this.gridGl.bufferInfo);
 
@@ -594,12 +604,12 @@ export class World {
       gridMode: 2,
       paintMode: PaintModes.indexOf(this.paintMode),
       paintSize: this.paintSize,
-      lineColor: FlowTypeColor.get(this.flowGrid.drawFlowType).rgba
+      lineColor: FlowTypeColor.get(this.flowGrid.drawFlowType)!.rgba
     });
     this.flowGrid.draw(ctx);
     this.flowGrid.cleanCache();
-    twgl.setAttribInfoBufferFromArray(ctx, this.flowGridGl.bufferInfo.attribs.color, this.flowGridGl.color);
-    twgl.setAttribInfoBufferFromArray(ctx, this.flowGridGl.bufferInfo.attribs.vel_len, this.flowGridGl.v);
+    twgl.setAttribInfoBufferFromArray(ctx, this.flowGridGl.bufferInfo.attribs!.color, this.flowGridGl.color);
+    twgl.setAttribInfoBufferFromArray(ctx, this.flowGridGl.bufferInfo.attribs!.vel_len, this.flowGridGl.v);
 
     twgl.setBuffersAndAttributes(ctx, this.flowGridGl.programInfo, this.flowGridGl.bufferInfo);
 
@@ -613,9 +623,9 @@ export class World {
     this.ctx.useProgram(this.boidGl.programInfo.program);
 
     twgl.setUniforms(this.boidGl.programInfo, this.getBaseUniforms());
-    twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.pos_vel, this.boidGl.pos_vel);
-    twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.color, this.boidGl.color);
-    twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs.rad_static, this.boidGl.rad_static);
+    twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs!.pos_vel, this.boidGl.pos_vel);
+    twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs!.color, this.boidGl.color);
+    twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs!.rad_static, this.boidGl.rad_static);
     twgl.setBuffersAndAttributes(ctx, this.boidGl.programInfo, this.boidGl.bufferInfo);
     this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.numBoids);
   }
@@ -627,8 +637,8 @@ export class World {
     this.ctx.useProgram(this.ringGl.programInfo.program);
 
     twgl.setUniforms(this.ringGl.programInfo, this.getBaseUniforms());
-    twgl.setAttribInfoBufferFromArray(ctx, this.ringGl.bufferInfo.attribs.pos_rad, this.ringGl.pos_rad);
-    twgl.setAttribInfoBufferFromArray(ctx, this.ringGl.bufferInfo.attribs.color, this.ringGl.color);
+    twgl.setAttribInfoBufferFromArray(ctx, this.ringGl.bufferInfo.attribs!.pos_rad, this.ringGl.pos_rad);
+    twgl.setAttribInfoBufferFromArray(ctx, this.ringGl.bufferInfo.attribs!.color, this.ringGl.color);
     twgl.setBuffersAndAttributes(ctx, this.ringGl.programInfo, this.ringGl.bufferInfo);
     this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.numBoids);
   }

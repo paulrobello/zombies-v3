@@ -128,7 +128,7 @@ export class mat3 {
     return this;
   }
 
-  inverse(): mat3 {
+  inverse(): mat3 | null {
     const a00 = this.values[0];
     const a01 = this.values[1];
     const a02 = this.values[2];
@@ -372,7 +372,7 @@ export class mat3 {
     return result;
   }
 
-  rotate(angle: number, axis: Ivec3): mat3 {
+  rotate(angle: number, axis: Ivec3): mat3 | null {
     let x = axis.x;
     let y = axis.y;
     let z = axis.z;
