@@ -7,3 +7,12 @@ dist
 /.idea/
 /.parcel-cache/
 /z3.zipp
+
+# Secrets / agent config
+.claude/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.local
