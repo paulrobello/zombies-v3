@@ -17,8 +17,8 @@ void main() {
     if (r2 >= 0.25) {
         discard;
     }
-    if (v_static < EPSILON && dot(vec2(- v_angle.x, v_angle.y), dir) > 0.0) {
-        if (abs(dot(vec2(v_angle.y, v_angle.x), dir)) < 0.1) {
+    if (v_static < EPSILON && dot(v_angle, dir) > 0.0) {
+        if (abs(dot(vec2(-v_angle.y, v_angle.x), dir)) < 0.1) {
             FragColor = vec4(1.0, 0.0, 0.0, 1.0);
         } else {
             FragColor = v_color;
