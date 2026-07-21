@@ -9,7 +9,7 @@ export class BoidGrid extends HashGrid<Boid> {
   //   .domain([0, 1, 2, 3, 4, 5]);
   deadBoids: Set<Boid> = new Set<Boid>();
 
-  override draw(ctx: WebGL2RenderingContext): void {
+  override draw(_ctx: WebGL2RenderingContext): void {
     const buffers = this.options.world.gridGl;
     let id: number;
     for (const cell of this.changedCells) {

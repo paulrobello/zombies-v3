@@ -21,7 +21,7 @@ export class AlignBehavior<T extends Boid> extends BoidBehavior<T> {
     this.margin = options.margin;
   }
 
-  public override tick(gameTime: IGameTime): boolean {
+  public override tick(_gameTime: IGameTime): boolean {
     if (!this.enabled) return false;
     const b = this.boid;
     const grid: BoidGrid = b.options.grid;

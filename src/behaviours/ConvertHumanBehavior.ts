@@ -22,7 +22,7 @@ export class ConvertHumanBehavior<T extends Boid> extends BoidBehavior<T> {
     this.minAgeBeforeConvert = options.minAgeBeforeConvert;
   }
 
-  public override tick(gameTime: IGameTime): boolean {
+  public override tick(_gameTime: IGameTime): boolean {
     if (!this.enabled) return false;
 
     const b = this.boid;

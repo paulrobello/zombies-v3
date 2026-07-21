@@ -67,7 +67,7 @@ export class FlowGrid extends HashGrid<IFlowValue> {
     this.changedCells.add(cell);
   }
 
-  override draw(ctx: WebGL2RenderingContext): void {
+  override draw(_ctx: WebGL2RenderingContext): void {
     const world: World = this.World;
     const buffers = world.flowGridGl;
     const mask: number = world.layerByName(this.drawFlowType);

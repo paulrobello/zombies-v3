@@ -191,7 +191,7 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     return true;
   }
 
-  draw(ctx: WebGL2RenderingContext): void {
+  draw(_ctx: WebGL2RenderingContext): void {
     const p: Ivec2 = this.p;
     const v: Ivec2 = this.v;
     const buffers = this.options.world.boidGl;

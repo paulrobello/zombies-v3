@@ -56,7 +56,7 @@ export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgres
     this.resize(options);
   }
 
-  tick(gameTime: IGameTime): boolean {
+  tick(_gameTime: IGameTime): boolean {
     return true;
   }
 
@@ -108,8 +108,6 @@ export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgres
   }
 
   computeNeighbors(radius: number) {
-    const cellSize = this.cellSize;
-    const cellSizeD2 = cellSize / 2;
     const w = this.gridXW;
     const h = this.gridYW;
     let x, y, xc, yc, nx, ny;
@@ -376,7 +374,7 @@ export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgres
     }
   }
 
-  draw(ctx: WebGL2RenderingContext): void {
+  draw(_ctx: WebGL2RenderingContext): void {
     const buffers = this.options.world.gridGl;
     let id: number;
     for (const cell of this.changedCells) {

@@ -1,7 +1,6 @@
 import { Boid } from '../boids/Boid';
 import { IGameTime } from '../GameClock';
 import { FlowGrid, IFlowValue } from '../grids/FlowGrid';
-import { HashGrid } from '../grids/HashGrid';
 import { clamp, epsilon, Ivec2, vec2 } from '../math';
 import { BoidBehavior, IBehaviorOptions } from './BoidBehavior';
 

@@ -62,10 +62,10 @@ export class quat {
   static readonly identity = new quat().setIdentity();
 
   reset(): void {
-    const x = 0;
-    const y = 0;
-    const z = 0;
-    const w = 0;
+    this.x = 0;
+    this.y = 0;
+    this.z = 0;
+    this.w = 0;
   }
 
   copy(dest?: quat): quat {

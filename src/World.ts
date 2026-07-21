@@ -1,5 +1,4 @@
 import { makeNoise2D } from 'fast-simplex-noise';
-import { throttle } from 'underscore';
 import * as twgl from 'twgl.js';
 import { BufferInfo, m4, ProgramInfo } from 'twgl.js';
 import { Boid } from './boids/Boid';
@@ -617,7 +616,6 @@ export class World {
   }
 
   drawBoids() {
-    const gameTime = this.gameClock.gameTime;
     const ctx = this.ctx;
 
     this.ctx.useProgram(this.boidGl.programInfo.program);
@@ -631,7 +629,6 @@ export class World {
   }
 
   drawRings() {
-    const gameTime = this.gameClock.gameTime;
     const ctx = this.ctx;
 
     this.ctx.useProgram(this.ringGl.programInfo.program);

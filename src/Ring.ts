@@ -45,7 +45,7 @@ export class Ring implements IProgressible, IDrawable {
     return true;
   }
 
-  draw(ctx: WebGL2RenderingContext): void {
+  draw(_ctx: WebGL2RenderingContext): void {
     const buffers = this.world.ringGl;
     const i = this.id * 4;
     if (this.duration) {

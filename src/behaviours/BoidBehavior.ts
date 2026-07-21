@@ -19,7 +19,7 @@ export class BoidBehavior<T extends Boid> implements IProgressible {
     this.enabled = options.enabled !== undefined ? options.enabled : true;
   }
 
-  tick(gameTime: IGameTime): boolean {
+  tick(_gameTime: IGameTime): boolean {
     return true;
   }
 }
