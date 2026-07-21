@@ -1,4 +1,4 @@
-import { scale } from 'chroma-js';
+import chroma from 'chroma-js';
 import { CollisionBehavior } from '../behaviours/CollisionBehavior';
 import { FlowBehavior } from '../behaviours/FlowBehavior';
 import { SteerLayerBehavior } from '../behaviours/SteerLayerBehavior';
@@ -15,7 +15,7 @@ export class Human extends Boid {
   foodFlow: FlowBehavior<Human>;
   hungerThreshold: number = 10;
   hungerSpeed: number = 1;
-  hungerGradient = scale(['#0FF', '#0FF', '#FF0', '#A00'])
+  hungerGradient = chroma.scale(['#0FF', '#0FF', '#FF0', '#A00'])
     .domain([0, this.hungerThreshold - 1, this.hungerThreshold, 100]);
 
   constructor(options: IBoidOptions) {

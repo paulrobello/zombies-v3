@@ -10,6 +10,7 @@
       "dom.iterable"
     ],
     "sourceMap": true,
+    "skipLibCheck": true,
     "noImplicitOverride": true,
     "noImplicitReturns": true,
     "experimentalDecorators": true,

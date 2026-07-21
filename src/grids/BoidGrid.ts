@@ -1,9 +1,9 @@
-import { scale } from 'chroma-js';
+import chroma from 'chroma-js';
 import { Boid } from '../boids/Boid';
 import { HashGrid } from './HashGrid';
 
 export class BoidGrid extends HashGrid<Boid> {
-  gradient = scale(['#131313', '#002300', '#005b00', '#007700', '#8d3100', '#8d0000'])
+  gradient = chroma.scale(['#131313', '#002300', '#005b00', '#007700', '#8d3100', '#8d0000'])
     .domain([0, 1, 2, 3, 4, 5]);
   // private gradient = scale(['#131313', '#000931', '#001270', '#002277', '#8d3100', '#8d0000'])
   //   .domain([0, 1, 2, 3, 4, 5]);
