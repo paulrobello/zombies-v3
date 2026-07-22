@@ -215,8 +215,8 @@ The single most time-sensitive finding is **not a code bug**: a **live API token
 - **[ARC-014]** Per-frame allocations — see QA-012 (canonical).
 
 ### Security
-- **[SEC-001]** Live API token in `.claude/settings.local.json` (untracked, never committed, but on disk in the repo dir). One `git add .claude/` from a public leak on a GitHub-Pages repo. `.claude/settings.local.json:3`. **Most time-sensitive finding despite Medium severity — leak is irreversible.**
-- **[SEC-002]** `.gitignore` does not exclude `.claude/`, `.env*`, or secret-bearing paths — this is what makes SEC-001 dangerous. `.gitignore:1-9`.
+- **[SEC-001]** ✅ **RESOLVED (by user context, 2026-07-21).** The live API token in `.claude/settings.local.json` is **per-project by design** and has **never been synced** off this machine, so no rotation is required and the "move to user-global" remedy does not apply. The only real risk it carried — an accidental `git add .claude/` committing it to the public repo — is closed by SEC-002 below. No further token action warranted.
+- **[SEC-002]** ✅ **FIXED** (commit `e1c844e`, 2026-07-21). `.gitignore` now excludes `.claude/`, `.env*`, `*.pem`, `*.key`, `*.local` (with `!.env.example` negation). Verified via `git check-ignore`: `.claude/settings.local.json` and `.env` are matched; `.env.example` still allowed.
 
 ### Code Quality
 - **[QA-014]** `console.log`/`warn` shipped in production (12 live: `World.ts` ×10, `FlowGrid.ts` ×1, `HashGrid.ts` ×2). Every keypress/click/init prints. (Corroborates DOC-013, ARC Low.)
@@ -278,7 +278,7 @@ The single most time-sensitive finding is **not a code bug**: a **live API token
 The architecture has the right bones — clean entity/behaviour/grid/math/shader layering with strategy-pattern behaviours plugged into a generic `Boid` base, driven by a spatial-hash grid for O(1) neighbour queries and twgl.js instanced rendering. The defects are structural: a silent cell-leak data-corruption bug (ARC-001, **verified**), a 718-line `World.ts` God object (ARC-002), the complete absence of tests/lint/Makefile (ARC-003), non-strict TypeScript (ARC-005), and circular `World ↔ grids ↔ boids` imports (ARC-008). Positive: `Human`/`Zombie` differ purely by which behaviours they install in their constructors (Strategy pattern done well); the spatial hash with cached, distance-sorted neighbour shells is the correct performance primitive; instanced rendering with shader-side culling (`if (rad_static.x < EPSILON) discard`) cleanly hides dead boids. **1 Critical, 4 High, 10 Medium, 10 Low.**
 
 ### Security Assessment
-Strong posture for a client-only game. `yarn audit` = **0 vulnerabilities** across 435 dependencies. Zero XSS sinks (no `innerHTML`/`eval`/`document.write`), zero network surface (no `fetch`/`WebSocket`/`postMessage`), zero client-side storage (no `localStorage`/`cookies`), zero URL-parameter parsing. CI is well-scoped (`contents: read`, `pages: write`, `id-token: write` for OIDC; `concurrency` with cancel-in-progress; no `pull_request_target`). Shaders are static files compiled at build time — no shader-injection vector. The only finding with real-world consequence is the **live API token in `.claude/settings.local.json`** (SEC-001), compounded by a `.gitignore` that omits `.claude/` (SEC-002) — leak risk, not a current leak. The token is untracked and was never committed (`git log --all -S "ANTHROPIC_AUTH_TOKEN"` is clean). **0 Critical, 0 High, 2 Medium, 4 Low.**
+Strong posture for a client-only game. `yarn audit` = **0 vulnerabilities** across 435 dependencies. Zero XSS sinks (no `innerHTML`/`eval`/`document.write`), zero network surface (no `fetch`/`WebSocket`/`postMessage`), zero client-side storage (no `localStorage`/`cookies`), zero URL-parameter parsing. CI is well-scoped (`contents: read`, `pages: write`, `id-token: write` for OIDC; `concurrency` with cancel-in-progress; no `pull_request_target`). Shaders are static files compiled at build time — no shader-injection vector. The only finding with real-world consequence was the **live API token in `.claude/settings.local.json`** (SEC-001), compounded by a `.gitignore` that omitted `.claude/` (SEC-002) — leak risk, not a current leak. The token is untracked and was never committed (`git log --all -S "ANTHROPIC_AUTH_TOKEN"` is clean). **Both are now resolved**: SEC-002 is fixed (`.gitignore` excludes `.claude/`, commit `e1c844e`) and SEC-001 requires no further action — the user confirmed the token is per-project by design and has never been synced, so no rotation is needed. **0 Critical, 0 High, 2 Medium (both resolved), 4 Low.**
 
 ### Code Quality
 `tsc --noEmit` passes cleanly and the modular separation reads well, but real bugs hide behind missing tests and non-strict null checks: `vec2.divide` ignores `dest` (**verified**), a `HashGrid` cache `.filter()` is discarded (**verified**), shared mutable static "constants", the no-op resize listener (**verified**), the id-0 cache collision, and a `getCell(...)!` crash at the world edge. Two-thirds of the math-library LOC is dead (QA-005). Zero `any`/`@ts-ignore` (good), but ~29 non-null/definite-assignment `!` assertions that `strictNullChecks` would flag. **5 Critical, 8 High, 14 Medium, 11 Low.**
@@ -291,7 +291,7 @@ Fair-to-poor. The README is a clean, accurate end-user/quickstart page (controls
 ## Remediation Roadmap
 
 ### Immediate Actions (Before Next Deployment)
-1. **SEC-002 → SEC-001**: add `.claude/` (and `.env*`) to `.gitignore`, then remediate the live token (move to `~/.claude/settings.json`, rotate if ever synced). *(Minutes.)*
+1. ~~**SEC-002 → SEC-001**~~ **✅ DONE (2026-07-21, commit `e1c844e`).** `.gitignore` now excludes `.claude/` (and `.env*`/`*.pem`/`*.key`/`*.local`); user confirmed the token is per-project by design and never synced, so no rotation or move-to-global is required.
 2. **ARC-001**: fix the cell-leak so neighbour queries are correct — every other simulation observation depends on it. *(<1 hour.)*
 3. **QA-001 / QA-002**: fix `vec2.divide` and the `HashGrid` cache filter. *(Minutes each.)*
 
@@ -347,8 +347,8 @@ Fair-to-poor. The README is a clean, accurate end-user/quickstart page (controls
      so SEC-002 must precede SEC-001 and both must land before any other agent touches the repo. -->
 | ID | Title | File(s) | Severity |
 |----|-------|---------|----------|
-| SEC-002 | Add `.claude/`, `.env*`, `*.pem`, `*.key`, `*.local` to `.gitignore` | `.gitignore` | Medium (urgency-promoted) |
-| SEC-001 | Remediate live token in `.claude/settings.local.json` (move to user-global; rotate) | `.claude/settings.local.json` | Medium (urgency-promoted) |
+| SEC-002 | ✅ DONE — add `.claude/`, `.env*`, `*.pem`, `*.key`, `*.local` to `.gitignore` (commit `e1c844e`) | `.gitignore` | Medium — **resolved** |
+| SEC-001 | ✅ NO ACTION — token is per-project by design, never synced; `.gitignore` now protects it | `.claude/settings.local.json` | Medium — **resolved by user context** |
 
 #### Phase 2 — Foundational correctness + type-safety (Sequential, Blocking)
 <!-- Critical correctness bugs and foundational changes that downstream tests/refactors/docs depend on, several touching the
@@ -456,7 +456,7 @@ Fair-to-poor. The README is a clean, accurate end-user/quickstart page (controls
 
 ### Blocking Relationships
 <!-- Explicit dependency declarations, consolidated from all four agents. -->
-- **SEC-002 → SEC-001** — `.gitignore` must exclude `.claude/` *before* the token file is touched, so no parallel session can `git add .claude/` in the interim.
+- **~~SEC-002 → SEC-001~~** — ✅ **RESOLVED (2026-07-21).** SEC-002 landed first (commit `e1c844e`); SEC-001 needs no action (token is per-project, never synced). Phase 1 is complete.
 - **ARC-001 →** all neighbour-dependent work (collision tuning, density-visualization fixes, QA-002/006 cache work) — until the cell-leak is fixed, neighbour counts are doubled.
 - **QA-005 → ARC-005** — deleting the dead math library first reduces the number of strict-mode errors to resolve (and removes 5 files of mutable-static hazards).
 - **ARC-005 (strict) → QA-011 / ARC-006 / ARC-010** — null-guard refactors and typed invariants rely on the type checker to enforce them.
