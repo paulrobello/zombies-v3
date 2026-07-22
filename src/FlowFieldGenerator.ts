@@ -114,9 +114,13 @@ export class FlowFieldGenerator {
     const flowGrid = this.world.flowGrid;
     const t = new vec2();
     const maxDist = Math.max(this.world.width, this.world.height) / 4;
+    // ARC-006/QA-017: keep `layer` as the bitmask (the IFlowValue written
+    // below still carries it on `.layer` for HashGrid queries and fade lookup),
+    // and resolve the dense storage slot once for the `cell.items` read.
     const layer = this.world.layerByName('food');
+    const slot = this.world.layerSlotForMask(layer);
     for (const cell of flowGrid.cells) {
-      let cv = cell.items[layer];
+      let cv = cell.items[slot];
       if (!cv) {
         cv = {
           id: 0,

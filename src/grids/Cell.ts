@@ -7,8 +7,10 @@
  *
  * `items` is overloaded by grid type: `HashGrid<Boid>` uses it as a dense
  * push-array of entities; `FlowGrid` overrides `addCelDataByIndex` so each
- * layer bitmask writes to its own `items[layer]` slot (sparse-by-layer
- * storage, see `FlowGrid.resize`).
+ * registered layer writes to its own dense `items[slot]` slot, where `slot`
+ * is `World.layerSlotForMask(layer)` (ARC-006/QA-017: the slot is decoupled
+ * from the layer bitmask so storage doesn't overflow past the 8th layer;
+ * sized to `World.layerCount`, see `FlowGrid.resize`).
  *
  * `markChanged` adds this cell to `HashGrid.changedCells` so the debug-draw
  * pass knows it needs a colour re-upload.

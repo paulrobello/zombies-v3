@@ -78,7 +78,7 @@ flowchart LR
 Reading the diagram:
 
 - **`World`** owns the `BoidGrid`, the `FlowGrid`, the `boids`/`humans`/`zombies`/`food` sets, the `boidGl`/`gridGl`/`flowGridGl`/`ringGl` buffer bundles, and the requestAnimationFrame loop. It is constructed exactly once from [`src/index.ts`](../../src/index.ts).
-- **`HashGrid<T>`** is the spatial-hash base. `BoidGrid` and `FlowGrid` both extend it; `BoidGrid` colours cells by entity density, `FlowGrid` overrides item storage so each layer writes to its own index slot.
+- **`HashGrid<T>`** is the spatial-hash base. `BoidGrid` and `FlowGrid` both extend it; `BoidGrid` colours cells by entity density, `FlowGrid` overrides item storage so each registered layer writes to its own dense storage slot (`cell.items[slot]`, where `slot = World.layerSlotForMask(item.layer)`). The slot is decoupled from the layer bitmask — adding a 9th layer (or any beyond) just grows `cell.items` by one entry instead of overflowing a hard-coded cap (ARC-006/QA-017).
 - **Entities** (`Boid`, `Human`, `Zombie`, `Food`) all extend `Boid`. `Food` is static and lives on the food layer; `Human` and `Zombie` add species-specific behaviour sets.
 - **Behaviours** (`src/behaviors/*`) follow the Strategy pattern: each `Boid` holds a `Map<string, BoidBehavior<Boid>>` and runs them in insertion order every tick.
 - **Render passes** are plain typed arrays on `World` (`boidGl.pos_vel`, `gridGl.color`, `ringGl.pos_rad`, etc.). Each entity's `draw()` writes into its `id`-indexed slot; `World.draw*()` calls `twgl.setAttribInfoBufferFromArray` and issues a single `drawArraysInstanced` per program.
@@ -123,7 +123,7 @@ sequenceDiagram
         BH->>BG: getDataRadius(...) — neighbour query
         BH->>FG: getCell(...) — flow sample (FlowBehavior)
         B->>BG: removeCelDataByIndex / addCelDataByIndex (cell re-index)
-        B->>FG: write IFlowValue into cell.items[layer]<br/>(flow-guard: skip if off-grid)
+        B->>FG: write IFlowValue into cell.items[layerSlotForMask(layer)]<br/>(flow-guard: skip if off-grid)
         B->>B: integrate position / velocity<br/>(uses Boid.scratch vec2 pool)
         B->>GL: draw() writes into<br/>boidGl.pos_vel[id*4 .. +3],<br/>boidGl.color[..],<br/>boidGl.rad_static[..]
     end
@@ -343,9 +343,10 @@ When the split landed, the Mermaid diagrams above received three updates:
 ## Collaborator split (ARC-002, done)
 
 `World` (in [`src/World.ts`](../../src/World.ts)) owns the grids, the entity
-collections, the layer bitmask map, the dimensions, the agent-operability
-options, the tick/draw loop, `resize`, `dispose`, and the context-loss
-listener wiring. It constructs four collaborators and delegates:
+collections, the layer registry (bitmasks for HashGrid queries plus dense
+storage slots for FlowGrid — ARC-006/QA-017), the dimensions, the
+agent-operability options, the tick/draw loop, `resize`, `dispose`, and the
+context-loss listener wiring. It constructs four collaborators and delegates:
 
 | Collaborator | File | Owns | Receives |
 |---|---|---|---|
@@ -355,8 +356,11 @@ listener wiring. It constructs four collaborators and delegates:
 | `FlowFieldGenerator` | [`src/FlowFieldGenerator.ts`](../../src/FlowFieldGenerator.ts) | Procedural noise field (`genField` / `getFlowFieldValue`) and the food-gradient solver (`computeFoodGradient`) with the QA-022 dirty flag. | `world`. |
 
 Entities, grids, and the collaborators reach through `world.X` only for
-**shared state** (`mouse`, `paintMode`, the entity arrays, `layerByName`,
-dimensions). No collaborator reaches through `world` for **its core job**
-— that's what makes the split a real decoupling rather than a rename.
+**shared state** (`mouse`, `paintMode`, the entity arrays, the layer
+registry — `layerByName` for query bitmasks, `layerSlot` /
+`layerSlotForMask` for FlowGrid storage slots (ARC-006/QA-017), and
+`layerCount`; dimensions). No collaborator reaches through `world` for
+**its core job** — that's what makes the split a real decoupling rather
+than a rename.
 The remaining `World ↔ grids ↔ boids` import cycle (entities still
 `import { World } from '../World'` for typing) is ARC-008 territory.

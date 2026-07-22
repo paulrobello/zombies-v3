@@ -126,6 +126,16 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     return this.options.grid;
   }
 
+  /**
+   * ARC-006/QA-017: dense FlowGrid storage slot for this boid's layer. Reads
+   * `World.layerSlotForMask(this.layer)` so subclasses that reassign
+   * `this.layer` after `super(...)` (Human/Zombie/Food) don't have to also
+   * keep a parallel slot field in sync. Called once per tick per boid.
+   */
+  get flowSlot(): number {
+    return this.options.world.layerSlotForMask(this.layer);
+  }
+
   constructor(options: IBoidOptions) {
     this.options = options;
     // ARC-009: ID allocation moved off the module-level singleton onto the
@@ -262,7 +272,7 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     if (!cell) {
       return;
     }
-    let cv: IFlowValue | undefined = cell.items[this.layer];
+    let cv: IFlowValue | undefined = cell.items[this.flowSlot];
     if (!cv) {
       cv = {
         id: 0,

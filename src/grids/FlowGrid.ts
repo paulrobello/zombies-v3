@@ -1,14 +1,22 @@
 /**
  * `HashGrid<IFlowValue>` — the paintable multi-layer flow field that every
  * boid reads to decide where to steer. Each cell stores one `IFlowValue` per
- * layer bitmask (`boid`, `human`, `zombie`, `food`) so behaviours can layer
- * independent flows without overwriting each other.
+ * registered layer (`boid`, `human`, `zombie`, `food`) so behaviours can
+ * layer independent flows without overwriting each other.
+ *
+ * ARC-006/QA-017: storage is indexed by **dense layer slot**
+ * (`World.layerSlotForMask`), NOT by the layer bitmask. Each cell's
+ * `items` array is sized to `World.layerCount` (one slot per registered
+ * layer, registration-order), and the slot for a given layer is the dense
+ * index returned by `World.layerSlot(name)` / `World.layerSlotForMask(mask)`.
+ * The bitmask (`World.layerByName`) remains in use as the QUERY mask on
+ * each item's `.layer` field — `HashGrid.getDataRadius` keeps filtering with
+ * `(i.layer & mask) !== 0`. Decoupling the two means adding a 9th layer
+ * (or any further layer) just grows `cell.items` by one slot instead of
+ * silently overflowing a hard-coded 256-entry cap.
  *
  * Overrides the parent's storage: `addCelDataByIndex` writes to
- * `cell.items[v.layer]` (sparse-by-layer) instead of pushing, and `resize`
- * pre-allocates `cell.items.length = 256` so any layer bitmask up to 2^7 has
- * a slot. (Adding an 8th layer would silently overflow — flagged as
- * ARC-006/QA-017.)
+ * `cell.items[slotOf(v.layer)]` (dense-by-layer) instead of pushing.
  *
  * Two responsibilities per `tick`:
  *
@@ -70,8 +78,12 @@ export class FlowGrid extends HashGrid<IFlowValue> {
 
   override resize(options: HashGridOptions, doReposition: boolean = false): void {
     super.resize(options, doReposition);
+    // ARC-006/QA-017: size to the real registered layer count instead of a
+    // hard-coded 256. The slot index for each layer is dense (registration
+    // order), so cell.items only needs one slot per layer.
+    const layerCount: number = this.World.layerCount;
     for (const cell of this.cells) {
-      cell.items.length = 256;
+      cell.items.length = layerCount;
     }
   }
 
@@ -80,7 +92,10 @@ export class FlowGrid extends HashGrid<IFlowValue> {
       throw new Error(`Cell index out of bounds ${cellIndex}, ${this.cells.length}`);
     }
     const cell = this.cells[cellIndex];
-    cell.items[v.layer] = v;
+    // ARC-006/QA-017: write by dense slot, not by bitmask. `v.layer` is still
+    // the bitmask (preserved for HashGrid query masking and `flowMaskFade`);
+    // `layerSlotForMask` translates it to the storage index.
+    cell.items[this.World.layerSlotForMask(v.layer)] = v;
     this.allData.add(v);
     v.lastCellIndex = v.cellIndex;
     v.cellIndex = cellIndex;
@@ -102,11 +117,13 @@ export class FlowGrid extends HashGrid<IFlowValue> {
    */
   override draw(buffers: IFlowGridGl): void {
     const world: IWorld = this.World;
-    const mask: number = world.layerByName(this.drawFlowType);
+    // ARC-006/QA-017: translate the query bitmask to its dense storage slot
+    // before indexing `cell.items`.
+    const slot: number = world.layerSlotForMask(world.layerByName(this.drawFlowType));
 
     let id: number;
     for (const cell of this.changedCells) {
-      let cv: IFlowValue | undefined = cell.items[mask];
+      let cv: IFlowValue | undefined = cell.items[slot];
       if (!cv) {
         cv = EmptyFlowValue;
       }
@@ -153,12 +170,17 @@ export class FlowGrid extends HashGrid<IFlowValue> {
     }
     const ps = this.options.world.paintSize;
     const t = new vec2();
+    // ARC-006/QA-017: keep `mask` as the IFlowValue.layer bitmask (so the
+    // constructed flow values carry the same layer field as everywhere else,
+    // and so HashGrid queries against this layer still work), but resolve the
+    // dense storage slot once here for all `cell.items[...]` reads/writes.
     const mask: number = this.World.layerByName(this.drawFlowType) || 0;
+    const slot: number = mask ? this.World.layerSlotForMask(mask) : -1;
     let numNeighbors: number;
     const cell = this.getCell(mouse.p.x, mouse.p.y, true);
     if (!cell) return;
     if (pm === 'wall') {
-      let cv: IFlowValue | undefined = cell.items[mask];
+      let cv: IFlowValue | undefined = cell.items[slot];
       if (!cv) {
         cv = {
           id: 0,
@@ -178,7 +200,7 @@ export class FlowGrid extends HashGrid<IFlowValue> {
         numNeighbors = Math.min(9, this.numNeighbors(cell, 1, false));
         for (let ni = 1; ni < numNeighbors; ni++) {
           const n: Cell<IFlowValue> = cell.neighbors[ni];
-          let nv = n.items[mask];
+          let nv = n.items[slot];
           if (!nv) {
             nv = {
               id: 0,
@@ -207,7 +229,7 @@ export class FlowGrid extends HashGrid<IFlowValue> {
     numNeighbors = this.numNeighbors(cell, ps, true);
     for (let i = 0; i < numNeighbors; i++) {
       const n: Cell<IFlowValue> = cell.neighbors[i];
-      let cv: IFlowValue | undefined = n.items[mask];
+      let cv: IFlowValue | undefined = n.items[slot];
       if (!cv) {
         cv = {
           id: 0,

@@ -49,7 +49,10 @@ import type { Zombie } from './boids/Zombie';
  *   a replacement `Zombie` and iterates `rings`).
  * - Frame accounting (read by `HashGrid`'s query cache).
  * - Shared input state (writer: `Input`; readers: `FlowGrid`, Renderer).
- * - Layer bitmask lookup (entities + grids resolve their layer via this).
+ * - Layer registry: bitmasks for queries ({@link IWorld.layerByName}) plus
+ *   dense storage slots for FlowGrid ({@link IWorld.layerSlot} /
+ *   {@link IWorld.layerSlotForMask}) — the two are decoupled so adding layers
+ *   beyond the 8th no longer overflows (ARC-006/QA-017).
  * - Allocation / food-gradient dirty flag (delegated by `World` to
  *   `Spawner` / `FlowFieldGenerator` respectively, but kept on `World` as
  *   the entity-facing seam).
@@ -86,10 +89,39 @@ export interface IWorld {
 
   /**
    * Layer-bitmask registry. Returns `2^(n+1)` for the n-th distinct name,
-   * registering on first call. Used by entities (their own layer) and by
-   * `FlowGrid` (the currently-selected `drawFlowType` mask).
+   * registering on first call. Used wherever a layer QUERY mask is needed:
+   * each item's `.layer` field is a bitmask, and `HashGrid.getDataRadius`
+   * filters with `(i.layer & mask) !== 0`. NEVER used as a storage index —
+   * storage uses the dense slot returned by {@link layerSlot} /
+   * {@link layerSlotForMask} (ARC-006/QA-017).
    */
   layerByName(name: string): number;
+
+  /**
+   * Dense storage slot for the named layer (ARC-006/QA-017). Returns the
+   * registration-order index (`0, 1, 2, …`, one per distinct layer name) so
+   * `FlowGrid.cell.items` can be a small dense array sized to
+   * {@link layerCount} rather than a sparse 256-slot array indexed by
+   * bitmask. Registers the layer on first call (same registration path as
+   * {@link layerByName}).
+   */
+  layerSlot(name: string): number;
+
+  /**
+   * Dense storage slot for an already-resolved layer bitmask (the value
+   * returned by {@link layerByName}, and the value stored on each item's
+   * `.layer` field). The reverse lookup of {@link layerByName} →
+   * {@link layerSlot}. Use this at FlowGrid write sites that have an
+   * `IFlowValue.layer` (bitmask) in hand and need the storage slot.
+   */
+  layerSlotForMask(mask: number): number;
+
+  /**
+   * Number of registered layers. `FlowGrid.cell.items.length` is sized to
+   * this, so adding a new layer (via `layerByName`) before construction
+   * transparently scales storage — no hard-coded cap.
+   */
+  readonly layerCount: number;
 
   /** Per-World boid-id allocator (ARC-009); called by the `Boid` constructor. */
   nextBoidId(): number;

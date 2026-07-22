@@ -14,6 +14,12 @@
  * read. `Human`, for example, runs three FlowBehaviours against `boid`,
  * `human`, and `food` layers simultaneously; `Food` flow is hunger-gated
  * via `enabled`.
+ *
+ * ARC-006/QA-017: the constructor accepts the layer as a bitmask (the value
+ * of `World.layerByName(name)`, as today) and immediately resolves it to a
+ * dense storage slot via `World.layerSlotForMask`. The slot is what `tick`
+ * uses to index `cell.items`, so adding layers beyond the 8th no longer
+ * overflows.
  */
 import { Boid } from '../boids/Boid';
 import { IGameTime } from '../GameClock';
@@ -42,12 +48,16 @@ export interface IFlowBehaviorOptions extends IBehaviorOptions {
 
 export class FlowBehavior<T extends Boid> extends BoidBehavior<T> {
   flowGrid: FlowGrid;
-  layer: number;
+  /**
+   * Dense FlowGrid storage slot (ARC-006/QA-017). Resolved once from the
+   * layer bitmask at construction; `tick` indexes `cell.items` by this.
+   */
+  slot: number;
 
   constructor(boid: T, scale: number, options: IFlowBehaviorOptions) {
     super(boid, 'FlowBehavior', scale, options);
     this.flowGrid = options.flowGrid;
-    this.layer = options.layer;
+    this.slot = boid.World.layerSlotForMask(options.layer);
   }
 
   public override tick(gameTime: IGameTime): void {
@@ -56,11 +66,11 @@ export class FlowBehavior<T extends Boid> extends BoidBehavior<T> {
     const p: Ivec2 = b.p;
     const v: Ivec2 = b.v;
     const cell = this.flowGrid.getCell(p.x, p.y, true);
-    if (!cell || cell.items.length <= this.layer) return;
+    if (!cell || cell.items.length <= this.slot) return;
     // QA-019: outer `flow` was previously shadowed by an inner `const d: vec2`
     // in the solid branch — renamed here so the IFlowValue binding stays
     // readable in both branches.
-    const flow: IFlowValue | undefined = cell.items[this.layer];
+    const flow: IFlowValue | undefined = cell.items[this.slot];
     if (!flow) {
       return;
     }

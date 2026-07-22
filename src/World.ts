@@ -177,6 +177,15 @@ export class World implements IWorld {
   gridMode: GridDrawMode = 'flow';
 
   layers: QueryLayerByName = new Map<string, number>();
+  /**
+   * ARC-006/QA-017: parallel registry mapping each layer bitmask (the value
+   * stored on items' `.layer` field and returned by {@link layerByName}) to a
+   * dense storage slot in `[0, layerCount)`. Populated in lock-step with
+   * {@link layers} inside {@link layerByName}. Exposed to FlowGrid via
+   * {@link layerSlotForMask} so `cell.items` can be a small dense array
+   * instead of a sparse 256-slot array indexed by bitmask.
+   */
+  private layerSlotsByMask: Map<number, number> = new Map<number, number>();
   statsEl!: HTMLDivElement;
   helpEl!: HTMLDivElement;
   helpToggleEl!: HTMLDivElement;
@@ -425,7 +434,41 @@ export class World implements IWorld {
     if (id) return id;
     id = Math.pow(2, this.layers.size + 1);
     this.layers.set(name, id);
+    // ARC-006/QA-017: assign a dense storage slot alongside the bitmask. The
+    // bitmask is the query mask (HashGrid); the slot is the FlowGrid
+    // `cell.items` storage index. Decoupling them means adding layers beyond
+    // the 8th no longer overflows a hard-coded 256-slot array.
+    this.layerSlotsByMask.set(id, this.layerSlotsByMask.size);
     return id;
+  }
+
+  /**
+   * ARC-006/QA-017: dense storage slot for a layer name. Returns the same
+   * registration-order index regardless of how many layers exist (no 2^n
+   * spacing), so `FlowGrid.cell.items` can be sized to {@link layerCount}.
+   */
+  layerSlot(name: string): number {
+    const mask: number = this.layerByName(name); // ensures registration
+    return this.layerSlotForMask(mask);
+  }
+
+  /**
+   * ARC-006/QA-017: dense storage slot for a layer bitmask (the value
+   * returned by {@link layerByName} and stored on each item's `.layer`
+   * field). Used by FlowGrid write sites that have an item with `.layer`
+   * already set and need the storage index.
+   */
+  layerSlotForMask(mask: number): number {
+    const slot: number | undefined = this.layerSlotsByMask.get(mask);
+    if (slot === undefined) {
+      throw new Error(`Unknown layer bitmask ${mask}; register via layerByName first`);
+    }
+    return slot;
+  }
+
+  /** ARC-006/QA-017: number of registered layers; sizes FlowGrid.cell.items. */
+  get layerCount(): number {
+    return this.layerSlotsByMask.size;
   }
 
   resize() {
