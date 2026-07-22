@@ -439,7 +439,12 @@ export class Renderer {
    * `World.resize` after the canvas dimensions are updated.
    */
   resize(): void {
-    twgl.resizeCanvasToDisplaySize(this.world.canvas);
+    // In fixed-canvas mode (?width/?height) World.resize has already set the
+    // drawing buffer to the requested dimensions — do NOT let twgl resize it
+    // back to the CSS (window) display size.
+    if (!this.world.fixedCanvasSize) {
+      twgl.resizeCanvasToDisplaySize(this.world.canvas);
+    }
     this.ctx.viewport(0, 0, this.world.width, this.world.height);
   }
 }

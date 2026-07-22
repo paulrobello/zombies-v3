@@ -169,6 +169,12 @@ export class World implements IWorld {
    * reach through `world.input`.
    */
   get mouse(): IMouse { return this.input.mouse; }
+  /** Agent-operability: true when `?width`/`?height` pins the canvas to a fixed
+   *  drawing-buffer size — Renderer.resize then skips twgl's CSS-driven resize
+   *  so the fixed dimensions set in {@link resize} are preserved. */
+  get fixedCanvasSize(): boolean {
+    return this.options.fixedWidth !== null || this.options.fixedHeight !== null;
+  }
   /** Current paint mode (writer: Input click handler; readers: FlowGrid, Renderer uniforms). */
   paintMode: PaintMode = 'none';
   /** Current paint brush radius in pixels (writer: Input keypress 0-9). */
