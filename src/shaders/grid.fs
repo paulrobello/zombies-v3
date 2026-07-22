@@ -20,11 +20,11 @@ void main() {
                     break;}
         case 2: {
                     if (v_solid < EPSILON) {
+                        // dir = centre - frag, so the flow-pointing half is dir·(-v_angle) > 0.
                         vec2 dir = vec2(0.5) - v_texcoord;
-                        // forward half
-                        if (v_speed > EPSILON && dot(vec2(- v_angle.x, v_angle.y), dir) > 0.0) {
-                            // dir line
-                            if (abs(dot(v_angle.yx, dir)) < GRID_DIR_LINE_HALF_WIDTH) {
+                        if (v_speed > EPSILON && dot(-v_angle, dir) > 0.0) {
+                            // line = small perpendicular offset; perp = (-v_angle.y, v_angle.x).
+                            if (abs(dot(vec2(-v_angle.y, v_angle.x), dir)) < GRID_DIR_LINE_HALF_WIDTH) {
                                 FragColor = v_line_color * clamp(v_speed, 0.0, 1.0);
                             }
                         }
