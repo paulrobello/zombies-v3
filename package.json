@@ -1,8 +1,17 @@
 {
   "name": "par-zombie3",
-  "version": "0.0.1",
-  "description": "",
-  "keywords": "",
+  "version": "0.1.0",
+  "description": "A real-time WebGL2 boid simulation — humans survive an ever-growing horde of zombies, all steering through a shared flow field.",
+  "keywords": [
+    "boids",
+    "flocking-simulation",
+    "webgl2",
+    "typescript",
+    "game",
+    "simulation",
+    "twgl",
+    "procedural"
+  ],
   "license": "MIT",
   "private": true,
   "author": "Paul Robello",

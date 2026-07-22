@@ -8,29 +8,29 @@ export interface ICellIndexable {
 }
 
 export class Cell<T extends HashGridCellItem> implements IPositional {
-  /***
+  /**
    * Cells hash id in grid cell array
    */
   id: number;
-  /***
+  /**
    * Grid this cell belongs to
    */
   grid: HashGrid<T>;
   public items: T[] = [];
   public neighbors: Cell<T>[] = [];
-  /***
+  /**
    * Grid position
    */
   public p: Ivec2 = new vec2();
-  /***
+  /**
    * World position top left corner
    */
   public wp: Ivec2 = new vec2();
-  /***
+  /**
    * World position center
    */
   public wc: Ivec2 = new vec2();
-  /***
+  /**
    * Cell background color
    */
   public color: vec4 = new vec4([0.1, 0.1, 0.1, 1.0]);
@@ -40,7 +40,7 @@ export class Cell<T extends HashGridCellItem> implements IPositional {
     this.id = id;
   }
 
-  /***
+  /**
    * Remove all items from cell
    */
   clear() {

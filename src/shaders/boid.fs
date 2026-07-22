@@ -1,3 +1,16 @@
+// Heading stripe rule (fix(render): boid heading stripe commits):
+// The boid carries a thin red "heading stripe" along its leading edge so a
+// viewer can read which direction it is moving. v_angle is the boid's
+// normalized velocity in boid-space; v_texcoord is the per-vertex local
+// coordinate in [0, 1] with (0.5, 0.5) at the boid's center.
+//
+// "Leading half" = the half of the boid pointing in the direction of motion.
+// The branch below selects it by requiring `dot(v_angle, dir) < 0.0` — dir
+// points from the center to the fragment, so a negative dot product means the
+// fragment is on the side v_angle points *toward* (the leading half). The
+// stripe is then the narrow band where the perpendicular component of dir is
+// small, i.e. the fragment lies close to the v_angle axis. Stationary boids
+// (v_static > 0) skip the stripe entirely and render as a plain disc.
 #include "./common.glsl";
 in vec2 v_texcoord;
 in vec4 v_color;

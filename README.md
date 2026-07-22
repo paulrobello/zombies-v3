@@ -46,6 +46,16 @@ Built with TypeScript, webpack, and [twgl.js](https://twgljs.org/).
 Paint modes: **wall** (white, solid), **flow stroke** (blue, direction of drag),
 **attract** (green, toward center), **repel** (red, away from center).
 
+## Screenshots
+
+<!-- TODO: capture screenshot -->
+
+![Simulation screenshot](docs/img/screenshot.png)
+
+_A screenshot should be captured from the
+[live demo](https://paulrobello.github.io/zombies-v3/) and saved to
+`docs/img/screenshot.png` (or replace the link above with a GIF)._
+
 ## Tech stack
 
 - **TypeScript 7** — the native (Go) compiler, via `tsc` for type-checking
@@ -56,18 +66,40 @@ Paint modes: **wall** (white, solid), **flow stroke** (blue, direction of drag),
 
 ## Local development
 
-Requires [Node.js](https://nodejs.org/) (LTS) and [Yarn](https://yarnpkg.com/) 1.x.
+Requires **[Node.js 20](https://nodejs.org/)** (the major pinned in CI; other
+versions may work but are not tested) and **[Yarn](https://yarnpkg.com/) 1.x**
+(classic).
 
 ```sh
-yarn install        # install dependencies
+yarn install        # install dependencies (honours the `resolutions` block)
 yarn start          # dev server with hot reload (opens browser)
-yarn dev            # one-off development build
-yarn typecheck      # tsc --noEmit (TS 7 native)
-yarn build          # production build to dist/
+yarn watch          # rebuild on every change (no dev server)
+yarn dev            # one-shot development build
+yarn typecheck      # tsc --noEmit (TS 7 native compiler)
+yarn test           # run the Vitest unit-test suite
+yarn lint           # ESLint (flat config)
+yarn fmt            # Prettier write over the whole tree
+yarn build          # type-check + production bundle to dist/
 ```
 
-The type-check gate runs as part of `yarn build` (`tsc --noEmit && webpack`),
-so type errors fail the build.
+The dev scripts (`watch` / `dev` / `start`) invoke webpack with
+`--mode development`; `yarn build` invokes it with `--mode production`.
+Webpack derives `NODE_ENV` from `mode`, so `process.env.NODE_ENV === 'production'`
+inside the bundle only on a production build. See
+[`webpack.config.js`](webpack.config.js) and
+[`docs/architecture/toolchain.md`](docs/architecture/toolchain.md) for details.
+
+The project also has a `Makefile` with the standard targets. The full
+verification gate is:
+
+```sh
+make checkall       # typecheck → lint → test → build (must pass before merge)
+```
+
+CI (`.github/workflows/deploy.yml`) runs the same `make checkall`, so a green
+run locally is a green run in CI. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for
+the branch/PR workflow and [`docs/troubleshooting/common-issues.md`](docs/troubleshooting/common-issues.md)
+for diagnosing build/runtime failures.
 
 ## Deployment
 
