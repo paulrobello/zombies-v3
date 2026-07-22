@@ -1,0 +1,18 @@
+# Build output and caches
+dist/
+.cache/
+.parcel-cache/
+
+# Dependencies
+node_modules/
+
+# Lockfiles (machine-formatted)
+yarn.lock
+package-lock.json
+
+# Generated/bundled artifacts
+*.min.js
+*.bundle.js
+
+# Audit working docs (long, intentionally formatted as-is)
+AUDIT.md

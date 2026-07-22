@@ -7,24 +7,32 @@
   "private": true,
   "author": "Paul Robello",
   "scripts": {
-    "build": "tsc --noEmit && webpack --config-node-env production",
+    "build": "tsc --noEmit && webpack --mode production",
     "typecheck": "tsc --noEmit",
-    "watch": "webpack --config-node-env development --watch",
-    "dev": "webpack --config-node-env development",
-    "start": "webpack serve --config-node-env development --open",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "watch": "webpack --mode development --watch",
+    "dev": "webpack --mode development",
+    "start": "webpack serve --mode development --open",
+    "test": "vitest run --passWithNoTests",
+    "lint": "eslint .",
+    "fmt": "prettier --write ."
   },
   "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@babel/eslint-parser": "^7.25.0",
+    "@babel/preset-typescript": "^7.26.0",
     "@types/chroma-js": "^3.1.2",
     "@types/underscore": "^1.13.0",
     "@types/webpack-env": "^1.18.8",
     "css-loader": "^7.1.4",
     "esbuild-loader": "^4.5.0",
+    "eslint": "^9.15.0",
     "html-loader": "^5.1.0",
     "html-webpack-plugin": "^5.6.7",
+    "prettier": "^3.3.0",
     "style-loader": "^4.0.0",
     "ts-shader-loader": "^2.1.0",
     "typescript": "^7.0.2",
+    "vitest": "^4.1.10",
     "webpack": "^5.108.4",
     "webpack-cli": "^7.2.1",
     "webpack-dev-server": "^6.0.0"
@@ -36,7 +44,6 @@
     "underscore": "^1.13.8"
   },
   "resolutions": {
-    "ajv": "^8.18.0",
     "picomatch": "^2.3.2"
   }
 }
