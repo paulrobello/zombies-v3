@@ -6,7 +6,7 @@ flow field — seeking food, flocking, avoiding walls, and converting on contact
 
 Built with TypeScript, webpack, and [twgl.js](https://twgljs.org/).
 
-**▶ Live demo:** <https://paulrobello.github.io/zombies-v3/>
+**▶ Live demo:** <https://zombies-v3.pardev.net>
 
 ![CI](https://github.com/paulrobello/zombies-v3/actions/workflows/deploy.yml/badge.svg)
 
@@ -53,7 +53,7 @@ Paint modes: **wall** (white, solid), **flow stroke** (blue, direction of drag),
 ![Simulation screenshot](docs/img/screenshot.png)
 
 _A screenshot should be captured from the
-[live demo](https://paulrobello.github.io/zombies-v3/) and saved to
+[live demo](https://zombies-v3.pardev.net) and saved to
 `docs/img/screenshot.png` (or replace the link above with a GIF)._
 
 ## Tech stack

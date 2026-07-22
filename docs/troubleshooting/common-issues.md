@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Common issues with the live demo (https://paulrobello.github.io/zombies-v3/)
+Common issues with the live demo (https://zombies-v3.pardev.net)
 and local development. For build/toolchain decisions, see
 [../architecture/toolchain.md](../architecture/toolchain.md).
 
