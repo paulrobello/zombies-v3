@@ -21,9 +21,8 @@
  */
 import { Cell, ICellIndexable } from './Cell';
 import { IGameTime } from '../GameClock';
-import { IGridGl, IPositional, IProgressible } from '../interfaces';
+import { IGridGl, IPositional, IProgressible, IWorld } from '../interfaces';
 import { vec2, wrap } from '../math';
-import { World } from '../World';
 
 export interface IGridQueryable {
   layer: number;
@@ -46,7 +45,7 @@ export interface IDataCacheResult<T> {
 }
 
 export interface HashGridOptions {
-  world: World,
+  world: IWorld,
   width: number;
   height: number;
   cellSize: number;
@@ -88,7 +87,10 @@ export class HashGrid<T extends HashGridCellItem> implements IProgressible {
     return this.options?.height || 0;
   }
 
-  get World(): World {
+  // ARC-008: typed as `IWorld` (structural) rather than the concrete `World`
+  // class so this module doesn't close the `World ↔ grids` runtime cycle.
+  // The query cache below reads `World.CurrentFrame` for TTL accounting.
+  get World(): IWorld {
     return this.options.world;
   }
 

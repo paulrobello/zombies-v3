@@ -40,14 +40,13 @@ import { ICellIndexable } from '../grids/Cell';
 import { IGameTime } from '../GameClock';
 import { IFlowValue } from '../grids/FlowGrid';
 import { HashGrid, IGridQueryable } from '../grids/HashGrid';
-import { IDirectional, IPositional, IProgressible } from '../interfaces';
+import { IDirectional, IPositional, IProgressible, IWorld } from '../interfaces';
 import { clamp, epsilon, vec4 } from '../math';
 import { vec2, Ivec2 } from '../math';
-import { World } from '../World';
 
 
 export interface IBoidOptions {
-  world: World,
+  world: IWorld,
   grid: BoidGrid,
   id?: number;
   p?: vec2,
@@ -116,7 +115,10 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
 
   options: IBoidOptions;
 
-  get World(): World {
+  // ARC-008: typed as `IWorld` so `Boid` doesn't import the concrete `World`
+  // class. Subclasses and behaviours reach collaborators (grids, entity
+  // collections, layer lookup, the id allocator, etc.) through this getter.
+  get World(): IWorld {
     return this.options.world;
   }
 

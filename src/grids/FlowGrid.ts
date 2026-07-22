@@ -26,11 +26,9 @@
  */
 import { Cell, ICellIndexable } from './Cell';
 import { IGameTime } from '../GameClock';
-import { IFlowGridGl, IMouse } from '../interfaces';
+import { IFlowGridGl, IMouse, IPositional, IWorld } from '../interfaces';
 import { HashGrid, HashGridOptions, IGridQueryable } from './HashGrid';
-import { IPositional } from '../interfaces';
 import { clamp, epsilon, vec2, vec4 } from '../math';
-import { World } from '../World';
 
 export type FlowType = 'boid' | 'human' | 'zombie' | 'food';
 export const FlowTypes: FlowType[] = ['boid', 'human', 'zombie', 'food'];
@@ -103,7 +101,7 @@ export class FlowGrid extends HashGrid<IFlowValue> {
    * pre-refactor `draw(ctx)`.
    */
   override draw(buffers: IFlowGridGl): void {
-    const world: World = this.World;
+    const world: IWorld = this.World;
     const mask: number = world.layerByName(this.drawFlowType);
 
     let id: number;

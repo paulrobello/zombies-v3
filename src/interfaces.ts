@@ -20,6 +20,84 @@ import type { BufferInfo, ProgramInfo } from 'twgl.js';
 import { IGameTime } from './GameClock';
 import { Ivec2, vec2 } from './math';
 
+// ARC-008: type-only imports so this leaf module is never part of a runtime
+// cycle with the concrete `World` / entity / grid modules. Each name is used
+// only in the `IWorld` member signatures below and is erased at compile time.
+import type { Boid } from './boids/Boid';
+import type { FlowGrid } from './grids/FlowGrid';
+import type { Food } from './boids/Food';
+import type { Human } from './boids/Human';
+import type { Ring } from './Ring';
+import type { Zombie } from './boids/Zombie';
+
+/**
+ * Structural surface of {@link World} that entities, grids, and behaviours
+ * depend on. Declared here (ARC-008) so the leaves (`boids/*`, `grids/*`,
+ * `behaviors/*`) import this interface instead of the concrete `World`
+ * class, breaking the historical `World ↔ grids ↔ boids` runtime cycle.
+ *
+ * `World` (in `src/World.ts`) is the canonical implementation:
+ * `export class World implements IWorld`. The interface is intentionally
+ * minimal — it exposes only the members the leaves actually read. Add to it
+ * only when a leaf module gains a new dependency on `World`; do not blanket-
+ * mirror `World`'s entire public surface.
+ *
+ * Members are grouped by the collaborator that owns them at runtime:
+ * - Dimensions / tuning (World itself).
+ * - Spatial grid (World constructs/owns `flowGrid`).
+ * - Entity collections (entities add/remove themselves; `Human.die` pushes
+ *   a replacement `Zombie` and iterates `rings`).
+ * - Frame accounting (read by `HashGrid`'s query cache).
+ * - Shared input state (writer: `Input`; readers: `FlowGrid`, Renderer).
+ * - Layer bitmask lookup (entities + grids resolve their layer via this).
+ * - Allocation / food-gradient dirty flag (delegated by `World` to
+ *   `Spawner` / `FlowFieldGenerator` respectively, but kept on `World` as
+ *   the entity-facing seam).
+ */
+export interface IWorld {
+  // Dimensions — read by `Boid.tick` (edge clamp) and `AvoidBoundaryBehavior`.
+  width: number;
+  height: number;
+  /** Per-frame velocity damping (`v *= drag`); read by `Boid.tick`. */
+  drag: number;
+  /** Read by `Human` (collision radius) and `Boid` (AvoidBoundary margin). */
+  boidCellSize: number;
+  /** Read by `Human.die` when constructing the replacement `Zombie`. */
+  zombieMaxSpeed: number;
+
+  /** Paintable multi-layer flow field; read by every flow-aware behaviour. */
+  flowGrid: FlowGrid;
+
+  /** Dense-by-id entity array (the Renderer iterates this in `drawBoids`). */
+  boids: Boid[];
+  /** Pre-allocated ring pool (`Spawner.initBoids`); `Human.die` activates one. */
+  rings: Ring[];
+  humans: Set<Human>;
+  zombies: Set<Zombie>;
+  food: Set<Food>;
+
+  /** Monotonic frame counter; read by `HashGrid`'s query-cache TTL check. */
+  CurrentFrame: number;
+
+  // Shared input state (writer: Input; readers: FlowGrid.tick paint logic).
+  mouse: IMouse;
+  paintMode: PaintMode;
+  paintSize: number;
+
+  /**
+   * Layer-bitmask registry. Returns `2^(n+1)` for the n-th distinct name,
+   * registering on first call. Used by entities (their own layer) and by
+   * `FlowGrid` (the currently-selected `drawFlowType` mask).
+   */
+  layerByName(name: string): number;
+
+  /** Per-World boid-id allocator (ARC-009); called by the `Boid` constructor. */
+  nextBoidId(): number;
+
+  /** QA-022 dirty flag; set by `Food` on add/grow/die. */
+  markFoodGradientDirty(): void;
+}
+
 export interface IPositional {
   p: Ivec2;
 }

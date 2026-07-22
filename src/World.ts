@@ -59,6 +59,7 @@ import { HashGridOptions } from './grids/HashGrid';
 import {
   GridDrawMode,
   IMouse,
+  IWorld,
   PaintMode,
   QueryLayerByName
 } from './interfaces';
@@ -123,7 +124,11 @@ declare global {
   }
 }
 
-export class World {
+// ARC-008: `World` is the canonical implementation of the `IWorld` structural
+// interface declared in `./interfaces`. Entity / grid / behaviour modules
+// depend on `IWorld` (type-only) rather than the concrete `World`, so they no
+// longer import this module — breaking the historical runtime cycle.
+export class World implements IWorld {
   canvas: HTMLCanvasElement;
   // The QA-009 fallback can early-return from the constructor before ctx is
   // assigned; the definite-assignment assertion is safe because index.ts
