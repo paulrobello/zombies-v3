@@ -21,7 +21,7 @@
  */
 import { Cell, ICellIndexable } from './Cell';
 import { IGameTime } from '../GameClock';
-import { IDrawable, IPositional, IProgressible } from '../interfaces';
+import { IGridGl, IPositional, IProgressible } from '../interfaces';
 import { vec2, wrap } from '../math';
 import { World } from '../World';
 
@@ -56,7 +56,7 @@ export interface HashGridOptions {
 }
 export type HashGridCellItem = IPositional & ICellIndexable & IGridQueryable;
 
-export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgressible {
+export class HashGrid<T extends HashGridCellItem> implements IProgressible {
   options!: HashGridOptions;
   cells!: Cell<T>[];
   allData: Set<T> = new Set<T>();
@@ -510,8 +510,17 @@ export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgres
     }
   }
 
-  draw(_ctx: WebGL2RenderingContext): void {
-    const buffers = this.options.world.gridGl;
+  /**
+   * Default cell-colour draw: copy each changed cell's `color` field into
+   * the per-cell colour slot of the supplied {@link IGridGl} bundle. The
+   * `Renderer` (which owns the bundle) calls this and then uploads the
+   * typed array via `twgl.setAttribInfoBufferFromArray`.
+   *
+   * ARC-011 / ARC-002: the grid no longer reaches through `world.gridGl`;
+   * the bundle is passed in. The signature change (ctx → buffers) is the
+   * seam that lets the grids shed their `IDrawable` (GL-context) coupling.
+   */
+  draw(buffers: IGridGl): void {
     let id: number;
     for (const cell of this.changedCells) {
       id = cell.id * 4;

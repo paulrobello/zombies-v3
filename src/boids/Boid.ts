@@ -6,21 +6,29 @@
  *
  * Two invariants matter beyond the field declarations:
  *
- * - **`id` is the GL buffer slot.** `Boid.draw` writes its per-instance data
- *   at `this.id * 4` in the `pos_vel` / `color` / `rad_static` typed arrays
- *   on `World.boidGl`, so `id` must be dense in `[0, numBoids)` to match the
- *   buffer size. `World.nextBoidId` allocates ids per-World (ARC-009);
- *   `Human.die` passes an explicit `id` when spawning its replacement
- *   Zombie so the dying human's slot is reused without resizing the buffers.
+ * - **`id` is the GL buffer slot.** The {@link Renderer} iterates `world.boids`
+ *   and writes each boid's per-instance data at `boid.id * 4` in the
+ *   `pos_vel` / `color` / `rad_static` typed arrays of `Renderer.boidGl`, so
+ *   `id` must be dense in `[0, numBoids)` to match the buffer size.
+ *   `Spawner.nextBoidId` allocates ids per-World (ARC-009); `Human.die`
+ *   passes an explicit `id` when spawning its replacement Zombie so the
+ *   dying human's slot is reused without resizing the buffers.
  * - **Scratch pool aliasing.** {@link Boid.scratch} holds four `vec2` slots
  *   (`t`, `fp1`, `fp2`, `dTemp`) allocated once. Each slot is the `dest` of
  *   at most one call per expression (see `src/math/vec2.ts`'s `dest?`
  *   convention). Behaviours reach into this pool rather than allocating
  *   fresh temporaries every tick.
  *
+ * ARC-011: `Boid` exposes PURE STATE (position, velocity, color, radius,
+ * static-flag, alive). The Renderer writes the GL buffers; entities no
+ * longer touch WebGL. (`Food`/dead-boid slot-zeroing on draw is preserved —
+ * the Renderer zeroes a dead boid's `rad_static.x`, matching the original
+ * `Boid.draw` semantics.)
+ *
  * Subclasses: {@link Human}, {@link Zombie}, {@link Food} in this directory.
  *
  * @see src/behaviors/BoidBehavior.ts — Strategy contract for `behaviors`.
+ * @see src/Renderer.ts — writes this boid's state into the GL buffers.
  * @see docs/architecture/system-overview.md — full frame-loop and buffer
  *      layout reference.
  */
@@ -32,7 +40,7 @@ import { ICellIndexable } from '../grids/Cell';
 import { IGameTime } from '../GameClock';
 import { IFlowValue } from '../grids/FlowGrid';
 import { HashGrid, IGridQueryable } from '../grids/HashGrid';
-import { IDirectional, IDrawable, IPositional, IProgressible } from '../interfaces';
+import { IDirectional, IPositional, IProgressible } from '../interfaces';
 import { clamp, epsilon, vec4 } from '../math';
 import { vec2, Ivec2 } from '../math';
 import { World } from '../World';
@@ -53,7 +61,7 @@ export interface IBoidOptions {
 }
 
 
-export class Boid implements IPositional, IDirectional, ICellIndexable, IProgressible, IDrawable, IGridQueryable {
+export class Boid implements IPositional, IDirectional, ICellIndexable, IProgressible, IGridQueryable {
   public id: number;
   public age: number = 0;
   public alive: boolean = true;
@@ -286,24 +294,5 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     // }else{
     //   this.color.rgb = [0, 1, 0];
     // }
-  }
-
-  draw(_ctx: WebGL2RenderingContext): void {
-    const p: Ivec2 = this.p;
-    const v: Ivec2 = this.v;
-    const buffers = this.options.world.boidGl;
-    const i = this.id * 4;
-    if (this.alive) {
-      buffers.pos_vel[i] = p.x;
-      buffers.pos_vel[i + 1] = p.y;
-      buffers.pos_vel[i + 2] = v.x;
-      buffers.pos_vel[i + 3] = v.y;
-      buffers.color[i] = this.color.r;
-      buffers.color[i + 1] = this.color.g;
-      buffers.color[i + 2] = this.color.b;
-      buffers.color[i + 3] = this.color.a;
-    }
-    buffers.rad_static[i] = this.alive ? this.r : 0;
-    buffers.rad_static[i + 1] = this.static ? 1 : 0;
   }
 }

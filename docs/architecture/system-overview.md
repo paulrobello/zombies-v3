@@ -313,26 +313,50 @@ ring that has finished expanding is culled by the same mechanism.
 ## Planned refactoring (ARC-002)
 
 This document describes the **current** structure, in which `World` is a
-God object that owns WebGL program/buffer setup, the render loop, DOM/canvas
-input, the entity factory/spawner, procedural flow-field generation, and the
-food-gradient solver. The audit opened **ARC-002** to split `World` along its
-existing seams into `Renderer` (GL programs/buffers + draw),
-`Input`/`MouseController`, `BoidFactory`/`Spawner`, and `FlowFieldGenerator`,
-leaving `World` as a thin orchestrator that owns the grids and the tick loop.
+thin orchestrator that delegates per-frame work to four collaborators
+(see [Collaborator split (ARC-002, done)](#collaborator-split-arc-002-done)
+below). The audit opened **ARC-002** to split the original `World` God
+object along its existing seams into `Renderer` (GL programs/buffers +
+draw), `Input`/`MouseController`, `BoidFactory`/`Spawner`, and
+`FlowFieldGenerator`. That split has shipped; this section is retained as
+a record of what moved where and what stayed.
 
-ARC-002 is **deferred** — it is a structural refactor that is deliberately
-scheduled after the documentation pass so this note can describe the code as
-it actually exists today. When ARC-002 lands, the Mermaid diagrams above will
-need three updates:
+When the split landed, the Mermaid diagrams above received three updates:
 
-- The `World` node splits into `Renderer`, `Input`, `Spawner`,
-  `FlowFieldGenerator`, and a thin `World` orchestrator.
-- The `init*Gl` / `draw*` methods move to `Renderer`; the `mouse` / `paintMode`
-  state moves to `Input`; `initBoids` / `randomizeBoids` move to `Spawner`;
-  `genField` / `computeFoodGradient` move to `FlowFieldGenerator`.
-- The circular imports (`World ↔ grids ↔ boids`) go away — entities should no
-  longer reach through `this.options.world.X` to touch GL state.
+- The `World` node split into `Renderer`, `Input`, `Spawner`,
+  `FlowFieldGenerator`, and a thin `World` orchestrator. (The diagram
+  above still names `World` as the hub for readability — the four
+  collaborators are listed in [Collaborator split](#collaborator-split-arc-002-done).)
+- The `init*Gl` / `draw*` methods moved to `Renderer` (and absorb ARC-011:
+  the per-instance buffer writes that used to live on `Boid.draw` /
+  `Ring.draw` are now `Renderer.writeBoidBuffers` / `writeRingBuffers`);
+  the `mouse` state and the DOM listeners moved to `Input`;
+  `initBoids` / `randomizeBoids` moved to `Spawner`; `genField` /
+  `computeFoodGradient` (with the QA-022 dirty flag) moved to
+  `FlowFieldGenerator`.
+- Entities (`Boid`, `Ring`) no longer touch WebGL — they expose PURE STATE
+  and the Renderer renders. The `IDrawable` interface was removed.
+  (The grids still take a buffer bundle as a `draw(buffers)` param —
+  their cell-colour/flow-write logic stays with the grid, the GL upload
+  stays with the Renderer.)
 
-Until then, expect `World.ts` to be larger and more cross-cutting than a
-fresh reader would guess; the file-level JSDoc at the top of
-[`src/World.ts`](../../src/World.ts) flags the same.
+## Collaborator split (ARC-002, done)
+
+`World` (in [`src/World.ts`](../../src/World.ts)) owns the grids, the entity
+collections, the layer bitmask map, the dimensions, the agent-operability
+options, the tick/draw loop, `resize`, `dispose`, and the context-loss
+listener wiring. It constructs four collaborators and delegates:
+
+| Collaborator | File | Owns | Receives |
+|---|---|---|---|
+| `Renderer` | [`src/Renderer.ts`](../../src/Renderer.ts) | All WebGL — the four GL program/buffer bundles (`boidGl`/`gridGl`/`flowGridGl`/`ringGl`), the `init*Gl` methods, the draw methods, uniform setup, the context-loss restore, AND (ARC-011) the per-instance buffer writes for boids and rings. | `ctx`, `world`. |
+| `Input` | [`src/Input.ts`](../../src/Input.ts) | Every keyboard/mouse/contextmenu/help-toggle listener and the `mouse` state. Sole writer of `world.paintMode` / `paintSize` / `gridMode`. | `world`, `canvas`, `helpEl`, `helpToggleEl`. |
+| `Spawner` | [`src/Spawner.ts`](../../src/Spawner.ts) | Entity factory (`initBoids` / `randomizeBoids`) and the per-World boid-id allocator (ARC-009). | `world`. |
+| `FlowFieldGenerator` | [`src/FlowFieldGenerator.ts`](../../src/FlowFieldGenerator.ts) | Procedural noise field (`genField` / `getFlowFieldValue`) and the food-gradient solver (`computeFoodGradient`) with the QA-022 dirty flag. | `world`. |
+
+Entities, grids, and the collaborators reach through `world.X` only for
+**shared state** (`mouse`, `paintMode`, the entity arrays, `layerByName`,
+dimensions). No collaborator reaches through `world` for **its core job**
+— that's what makes the split a real decoupling rather than a rename.
+The remaining `World ↔ grids ↔ boids` import cycle (entities still
+`import { World } from '../World'` for typing) is ARC-008 territory.

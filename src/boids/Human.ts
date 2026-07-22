@@ -7,7 +7,9 @@
  * On `die()`, spawns a `Zombie` that **reuses the dying human's `id`** so
  * the GL instanced buffer slot is recycled (see {@link Boid}'s id invariant)
  * — `World.boids.push(boid)` rather than indexed assignment, because the
- * dead Human's own `draw()` will zero its slot on the next frame.
+ * `Renderer.writeBoidBuffers` pass visits the appended Zombie AFTER the
+ * dead Human, so the Zombie's live values overwrite the dead Human's
+ * zeroed slot (see QA-026).
  *
  * Colour: cyan by default, shifting through the precomputed
  * `HUNGER_GRADIENT_LUT` (ARC-004) as hunger rises. The LUT replaces a
@@ -179,9 +181,10 @@ export class Human extends Boid {
     // QA-026: use the array's canonical add API rather than the legacy
     // dense-id assumption (`boids[boid.id] = boid` worked only because ids
     // are assigned densely from 0). The Zombie keeps the dying Human's id,
-    // which is what the GL buffer slot index is — draw() iterates all
-    // entries and the dead Human's draw() zeroes its own slot, so the
-    // appended Zombie's write to that slot wins.
+    // which is what the GL buffer slot index is — `Renderer.writeBoidBuffers`
+    // iterates `world.boids` in insertion order, so the dead Human (earlier
+    // in the array) writes `rad_static.x = 0` first and the appended Zombie
+    // (same id) overwrites that slot with its live values.
     this.World.boids.push(boid);
     for (const r of this.World.rings) {
       if (r.duration) continue;

@@ -5,10 +5,11 @@
  * spatial hashing (insert / query / re-index) is inherited from
  * {@link HashGrid}.
  *
- * Drawn only when `World.gridMode === 'boid'` (see `World.drawBoidGrid`).
+ * Drawn only when `World.gridMode === 'boid'` (see `Renderer.drawBoidGrid`).
  */
 import chroma from 'chroma-js';
 import { Boid } from '../boids/Boid';
+import { IGridGl } from '../interfaces';
 import { HashGrid } from './HashGrid';
 
 export class BoidGrid extends HashGrid<Boid> {
@@ -18,8 +19,12 @@ export class BoidGrid extends HashGrid<Boid> {
   //   .domain([0, 1, 2, 3, 4, 5]);
   deadBoids: Set<Boid> = new Set<Boid>();
 
-  override draw(_ctx: WebGL2RenderingContext): void {
-    const buffers = this.options.world.gridGl;
+  /**
+   * ARC-011 / ARC-002: write each changed cell's density-sampled colour
+   * into the supplied {@link IGridGl} bundle. The `Renderer` (which owns
+   * the bundle) calls this and then uploads the typed array.
+   */
+  override draw(buffers: IGridGl): void {
     let id: number;
     for (const cell of this.changedCells) {
       id = cell.id * 4;

@@ -1,155 +1,74 @@
 /**
- * World — the simulation orchestrator (currently a God object; see
- * ARC-002 / `docs/architecture/system-overview.md#planned-refactoring-arc-002`).
+ * World — the simulation orchestrator. After ARC-002 this is a THIN shell
+ * around four collaborators; each used to be an inline responsibility of
+ * `World` and is now its own module:
  *
- * Owns, today: the WebGL2 context and every program/buffer bundle
- * (`boidGl` / `gridGl` / `flowGridGl` / `ringGl`); the entity factory
- * (`initBoids`, `randomizeBoids`); the procedural flow-field generator
- * (`genField`, `getFlowFieldValue`, `computeFoodGradient`); the
- * requestAnimationFrame frame loop (`draw`); DOM/canvas input state
- * (`mouse`, `paintMode`, `gridMode`, key/mouse listeners); and the
- * HUD stats interval.
+ * - {@link Renderer} (`src/Renderer.ts`) — owns EVERY WebGL concern: the
+ *   four GL program/buffer bundles (`boidGl` / `gridGl` / `flowGridGl` /
+ *   `ringGl`), the `init*Gl` methods, the draw methods, uniform setup, and
+ *   the context-loss restore. Also absorbs ARC-011 — the per-instance
+ *   buffer writes that used to live on `Boid.draw` / `Ring.draw` are now
+ *   `Renderer.writeBoidBuffers` / `Renderer.writeRingBuffers`, iterating
+ *   the entity arrays and writing each entity's pure state.
+ * - {@link Input} (`src/Input.ts`) — DOM/canvas input controller. Owns
+ *   every keyboard / mouse / contextmenu / help-toggle listener and the
+ *   `mouse` state object (`IMouse`). Sole writer of the shared
+ *   `paintMode` / `paintSize` / `gridMode` fields below.
+ * - {@link Spawner} (`src/Spawner.ts`) — entity factory and the per-World
+ *   boid-id allocator (ARC-009).
+ * - {@link FlowFieldGenerator} (`src/FlowFieldGenerator.ts`) — procedural
+ *   noise field + the food-gradient solver, with the QA-022 dirty flag.
+ *
+ * What `World` KEPT (its actual orchestration job): the grids (`flowGrid`
+ * /`boidGrid`), the entity collections (`boids` / `rings` / `humans` /
+ * `zombies` / `food`), the `layers` map, dimensions, the `options`
+ * (`IWorldOptions`), the tick/draw loop (delegating per-frame work to the
+ * collaborators), `resize`, `dispose`, the agent-operability hooks
+ * (`exitAfter` / `exitFrames` / `fixedStep` / `dumpState` / fixed size),
+ * and the context-loss listener setup.
  *
  * Lifecycle:
  *
  * - Constructed exactly once from `src/index.ts`. The constructor returns
  *   early (and sets {@link disabled}) when WebGL2 is unavailable, leaving
- *   `ctx` undefined — index.ts checks `world.disabled` before starting the
- *   render loop.
- * - {@link dispose} cancels the RAF, clears timers, and removes every
- *   window/canvas listener the constructor attached. Called from a
- *   `beforeunload` listener and safe to call multiple times.
+ *   `ctx` undefined — `index.ts` checks `world.disabled` before starting
+ *   the render loop.
+ * - {@link dispose} cancels the RAF, clears timers, disposes each
+ *   collaborator, and removes every window/canvas listener the constructor
+ *   attached. Called from a `beforeunload` listener and safe to call
+ *   multiple times.
  * - **Context-loss restore.** `webglcontextlost` cancels the RAF and calls
  *   `event.preventDefault()` so the canvas stays attached.
  *   `webglcontextrestored` sets `needsGlRestore`; the next `draw()` calls
- *   {@link restoreGlContext} which re-runs the three `init*Gl` methods.
+ *   {@link Renderer.restoreGlContext} which re-runs the `init*Gl` methods.
  *   Simulation state (boids, grids, cache) is plain JS and survives — only
  *   the GPU resources were lost.
  *
- * Per-frame dirty flag: `foodGradientDirty` is set by `Food.tick` /
- * `Food.die` via {@link markFoodGradientDirty} and consumed once at the top
- * of {@link draw} (before any boid reads the flow field), collapsing an
- * O(foods × cells) recompute to one pass per frame.
- *
  * @see docs/architecture/system-overview.md — full frame-loop and per-shader
- *      attribute-packing reference.
+ *      attribute-packing reference (the diagram and frame walk were written
+ *      for the post-ARC-002 shape this file now matches).
  */
-import { makeNoise2D } from 'fast-simplex-noise';
-import * as twgl from 'twgl.js';
-import { BufferInfo, m4, ProgramInfo } from 'twgl.js';
+import { GameClock, GameClockDefaultOptions, IGameTime } from './GameClock';
 import { Boid } from './boids/Boid';
 import { Food } from './boids/Food';
 import { Human } from './boids/Human';
 import { Zombie } from './boids/Zombie';
-import { GameClock, GameClockDefaultOptions } from './GameClock';
 import { BoidGrid } from './grids/BoidGrid';
-import { FlowGrid, FlowTypeColor, FlowTypes, IFlowValue } from './grids/FlowGrid';
+import { FlowGrid } from './grids/FlowGrid';
 import { HashGridOptions } from './grids/HashGrid';
-import { QueryLayerByName } from './interfaces';
-import { clamp, epsilon, vec2, vec4 } from './math';
-import { getSeed, rand } from './math/random';
+import {
+  GridDrawMode,
+  IMouse,
+  PaintMode,
+  QueryLayerByName
+} from './interfaces';
+import { getSeed } from './math/random';
+import { FlowFieldGenerator } from './FlowFieldGenerator';
+import { Input } from './Input';
+import { Renderer } from './Renderer';
 import { Ring } from './Ring';
-
-import grid_vs_shader from './shaders/grid.vs';
-import grid_fs_shader from './shaders/grid.fs';
-
-import boid_vs_shader from './shaders/boid.vs';
-import boid_fs_shader from './shaders/boid.fs';
-
-import ring_vs_shader from './shaders/ring.vs';
-import ring_fs_shader from './shaders/ring.fs';
-
-
-// Seeded from `rand()` so the flow field is reproducible under `?seed=N`
-// (deterministic screenshot equivalence), not `makeNoise2D`'s default RNG.
-const noise = makeNoise2D(rand);
-export type PaintMode = 'none' | 'wall' | 'stroke' | 'attract' | 'repel';
-export const PaintModes: PaintMode[] = ['none', 'wall', 'stroke', 'attract', 'repel'];
-
-export type GridDrawMode = 'none' | 'flow' | 'boid';
-export const GridDrawModes: GridDrawMode[] = ['none', 'flow', 'boid'];
-
-/**
- * Ring program buffer bundle (`ring.vs` / `ring.fs`). Per-instance data is
- * packed at `id * 4` (one `vec4` per ring, divisor 1):
- * - `pos_rad.xy` = world position
- * - `pos_rad.z`  = radius
- * - `pos_rad.w`  = remaining duration (seconds). When `< EPSILON` the vertex
- *   shader degenerates the position outside the clip volume, so finished
- *   rings are culled without buffer compaction.
- * - `color.xyz`  = ring tint
- * - `color.w`    = stripe thickness
- *
- * @see src/shaders/ring.vs
- */
-export interface IRingGl {
-  pos_rad: Float32Array;
-  color: Float32Array;
-  programInfo: ProgramInfo;
-  bufferInfo: BufferInfo;
-}
-
-
-/**
- * Boid program buffer bundle (`boid.vs` / `boid.fs`). Per-instance data is
- * packed at `id * 4` (three `vec4`s per boid, divisor 1):
- * - `pos_vel.xy`  = world position
- * - `pos_vel.zw`  = velocity vector (px/s)
- * - `color`       = RGBA tint
- * - `rad_static.x` = radius. When `< EPSILON` (dead boid) the vertex shader
- *   emits a degenerate position outside the clip volume and the fragment
- *   shader `discard`s — see `src/shaders/boid.vs` / `boid.fs`.
- * - `rad_static.y` = static flag (1 = static, 0 = dynamic)
- * - `rad_static.zw` = unused (kept `vec4`-aligned)
- *
- * @see src/shaders/boid.vs
- * @see src/shaders/boid.fs
- */
-export interface IBoidGl {
-  pos_vel: Float32Array;
-  color: Float32Array;
-  rad_static: Float32Array;
-  programInfo: ProgramInfo;
-  bufferInfo: BufferInfo;
-}
-
-/**
- * Grid program buffer bundle (`grid.vs` / `grid.fs`). One `color` `vec4`
- * per cell (divisor 1); `gl_InstanceID` reconstructs the cell's world center
- * in the vertex shader so no per-cell position attribute is needed. Shared
- * by `BoidGrid` (debug density draw) and `FlowGrid` (debug flow draw);
- * `gridMode` uniform selects the fragment branch.
- *
- * @see src/shaders/grid.vs
- */
-export interface IGridGl {
-  color: Float32Array;
-  programInfo: ProgramInfo;
-  bufferInfo: BufferInfo;
-}
-
-/**
- * Flow grid buffer bundle — extends {@link IGridGl} with the per-cell
- * `vel_len` `vec4` (divisor 1):
- * - `vel_len.xy` = flow direction (normalized on the write side)
- * - `vel_len.z`  = flow strength `cv.l`
- * - `vel_len.w`  = solid flag (0/1)
- */
-export interface IFlowGridGl extends IGridGl {
-  v: Float32Array;
-}
-
-export interface IMouse {
-  p: vec2;
-  op: vec2;
-  d: vec2;
-  glP: [number, number, number, number];
-  buttons: [boolean, boolean, boolean, boolean];
-  clicked: [boolean, boolean, boolean, boolean];
-  shift: boolean;
-  control: boolean;
-  alt: boolean;
-}
+import { Spawner } from './Spawner';
+import * as twgl from 'twgl.js';
 
 /**
  * Agent-operability options wired in from `src/util/params.ts` → `src/index.ts`.
@@ -157,7 +76,7 @@ export interface IMouse {
  * identically to today: random seed per load, real deltaTime, window-sized
  * canvas, never auto-exits, no `window.__zombies`.
  *
- * See {@link parseUrlParams} for the corresponding URL flags.
+ * See `parseUrlParams` for the corresponding URL flags.
  */
 export interface IWorldOptions {
   /** Lock `GameClock.deltaTime` to `1/60`s (`?fixedStep=1`). */
@@ -204,28 +123,6 @@ declare global {
   }
 }
 
-const DefaultBufferValues = {
-  vert_pos: {
-    numComponents: 2,
-    data: [
-      -0.5, -0.5,
-      0.5, -0.5,
-      -0.5, 0.5,
-      -0.5, 0.5,
-      0.5, -0.5,
-      0.5, 0.5
-    ]
-  },
-  texcoord: [
-    0, 1,
-    1, 1,
-    0, 0,
-    0, 0,
-    1, 1,
-    1, 0
-  ]
-};
-
 export class World {
   canvas: HTMLCanvasElement;
   // The QA-009 fallback can early-return from the constructor before ctx is
@@ -245,7 +142,6 @@ export class World {
   boidGrid!: BoidGrid;
   flowGridOptions!: HashGridOptions;
   boidGridOptions!: HashGridOptions;
-  fieldScale: number = this.flowCellSize * 0.005;
   boids: Boid[] = [];
   rings: Ring[] = [];
   boidSize: number = 8;
@@ -255,20 +151,41 @@ export class World {
   showField = true;
   numBoids = 100;
   gameClock!: GameClock;
-  // QA-023: fieldRandomScale is set ONCE per World instance (class-field
-  // initializer runs at construction, before resize()/genField() are called).
-  // Previously genField() re-randomized it on every resize, making the flow
-  // field "jump" when the window was resized.
-  fieldRandomScale: number = rand() * 0.001;
-  u_matrix: m4.Mat4 = m4.identity();
-  boidGl!: IBoidGl;
-  gridGl!: IGridGl;
-  flowGridGl!: IFlowGridGl;
-  ringGl!: IRingGl;
 
   // QA-009: when WebGL2 is unavailable, the constructor shows a user-facing
   // message and sets `disabled` so index.ts can skip starting the render loop.
   disabled: boolean = false;
+
+  /**
+   * Shared input state — Input is the sole writer, FlowGrid.tick (paint
+   * logic) and the Renderer (uniform values) read. The field is allocated
+   * by {@link Input}'s constructor and exposed here via a getter so the
+   * existing `world.mouse` read sites keep working without each having to
+   * reach through `world.input`.
+   */
+  get mouse(): IMouse { return this.input.mouse; }
+  /** Current paint mode (writer: Input click handler; readers: FlowGrid, Renderer uniforms). */
+  paintMode: PaintMode = 'none';
+  /** Current paint brush radius in pixels (writer: Input keypress 0-9). */
+  paintSize: number = this.flowCellSize * 8;
+  /** Current grid debug draw mode (writer: Input keypress G). */
+  gridMode: GridDrawMode = 'flow';
+
+  layers: QueryLayerByName = new Map<string, number>();
+  statsEl!: HTMLDivElement;
+  helpEl!: HTMLDivElement;
+  helpToggleEl!: HTMLDivElement;
+  humans: Set<Human> = new Set<Human>();
+  zombies: Set<Zombie> = new Set<Zombie>();
+  food: Set<Food> = new Set<Food>();
+  endTime: number = 0;
+
+  // ARC-002: the four collaborators. Constructed in the constructor body
+  // (after `ctx` is known to exist) and disposed in {@link dispose}.
+  renderer!: Renderer;
+  input!: Input;
+  spawner!: Spawner;
+  flowFieldGen!: FlowFieldGenerator;
 
   // QA-007/QA-013: lifecycle state for context-loss recovery and clean disposal.
   private contextLost: boolean = false;
@@ -276,15 +193,6 @@ export class World {
   private statsIntervalId: ReturnType<typeof setInterval> | null = null;
   private rafId: number | null = null;
   private resizeDebounceTimeout: ReturnType<typeof setTimeout> | null = null;
-  // QA-022: dirty flag for the food gradient. Food state changes mark dirty;
-  // the tick loop recomputes at most once per frame (see draw()).
-  private foodGradientDirty: boolean = false;
-  // ARC-009: per-World boid-id allocator. Replaces the module-level
-  // `let id = 0` in Boid.ts so each World's boids get dense ids in
-  // [0, numBoids) — required by the GL instanced buffers, which are sized
-  // to numBoids and indexed by `boid.id`. A second World or an HMR reload
-  // that constructs a fresh World starts from 0 independently.
-  private boidIdCounter: number = 0;
   // Tracked event listeners so dispose() can remove them.
   private boundContextLost: ((e: Event) => void) | null = null;
   private boundContextRestored: (() => void) | null = null;
@@ -293,31 +201,6 @@ export class World {
   // Agent-operability: the wall-clock timestamp captured at construction,
   // used by `draw()` to honour `?exitAfter=MS`. Zero when exitAfter is null.
   private exitAfterStartMs: number = 0;
-
-  mouse: IMouse = {
-    p: new vec2(),
-    op: new vec2(),
-    d: new vec2(),
-    glP: [0, 0, 0, 0],
-    buttons: [false, false, false, false],
-    clicked: [false, false, false, false],
-    shift: false,
-    control: false,
-    alt: false
-  };
-
-  layers: QueryLayerByName = new Map<string, number>();
-  public paintMode: PaintMode = 'none';
-  public paintSize: number = this.flowCellSize * 8;
-  statsEl!: HTMLDivElement;
-  helpEl!: HTMLDivElement;
-  helpToggleEl!: HTMLDivElement;
-  humans: Set<Human> = new Set<Human>();
-  zombies: Set<Zombie> = new Set<Zombie>();
-  food: Set<Food> = new Set<Food>();
-  gridMode: GridDrawMode = 'flow';
-  endTime: number = 0;
-
 
   constructor(private readonly options: IWorldOptions = WorldDefaultOptions) {
     // Agent-operability: anchor for `?exitAfter=MS`. Captured at construction
@@ -356,69 +239,18 @@ export class World {
 
     this.gameClock = new GameClock({ ...GameClockDefaultOptions, fixedStep: this.options.fixedStep });
 
-    this.helpToggleEl.addEventListener('click', () => {
-      this.helpEl.classList.toggle('hidden');
-    });
-    window.addEventListener('keypress', (event: KeyboardEvent) => {
-      if (event.key >= '0' && event.key <= '9') {
-        this.paintSize = parseInt(event.key) * this.flowCellSize;
-      }
-      if (event.code === 'KeyG') {
-        this.gridMode = GridDrawModes[(GridDrawModes.indexOf(this.gridMode) + 1) % GridDrawModes.length];
-      }
-      if (event.code === 'KeyH') {
-        this.helpEl.classList.toggle('hidden');
-      }
-    });
+    // ARC-002: construct the collaborators. Order matters — Spawner and
+    // FlowFieldGenerator only store the World reference at construction
+    // time and read world.X later, so they're safe to instantiate before
+    // resize() populates the grids. Input.bind() attaches DOM listeners
+    // whose handlers also read world.flowGrid, but those handlers fire
+    // asynchronously (well after this constructor returns).
+    this.renderer = new Renderer(this.ctx, this);
+    this.input = new Input(this, this.canvas, this.helpEl, this.helpToggleEl);
+    this.spawner = new Spawner(this);
+    this.flowFieldGen = new FlowFieldGenerator(this);
+    this.input.bind();
 
-    document.addEventListener('contextmenu', event => event.preventDefault());
-    const mouseClickHandler = (event: MouseEvent) => {
-      this.mouse.clicked[event.button] = true;
-      this.mouse.shift = event.shiftKey;
-      this.mouse.alt = event.altKey;
-      this.mouse.control = event.ctrlKey;
-
-      if (event.button === 1) {
-        if (event.shiftKey) {
-          this.flowGrid.drawFlowType = FlowTypes[(FlowTypes.indexOf(this.flowGrid.drawFlowType) + 1) % FlowTypes.length];
-          this.flowGrid.markAllCellsChanged();
-        } else {
-          this.paintMode = PaintModes[(PaintModes.indexOf(this.paintMode) + 1) % PaintModes.length];
-        }
-      }
-      event.preventDefault();
-      return false;
-    };
-    this.canvas.addEventListener('click', mouseClickHandler);
-    this.canvas.addEventListener('auxclick', mouseClickHandler);
-
-    this.canvas.addEventListener('mouseleave', () => {
-      this.mouse.clicked.fill(false);
-      this.mouse.buttons.fill(false);
-      this.mouse.shift = false;
-      this.mouse.alt = false;
-      this.mouse.control = false;
-    });
-    this.canvas.addEventListener('mousemove', (event: MouseEvent) => {
-      this.mouse.op.x = this.mouse.p.x;
-      this.mouse.op.y = this.mouse.p.y;
-      this.mouse.p.x = event.x;
-      this.mouse.p.y = event.y;
-      this.mouse.glP[2] = this.mouse.glP[0];
-      this.mouse.glP[3] = this.mouse.glP[1];
-      this.mouse.glP[0] = this.mouse.p.x;
-      this.mouse.glP[1] = this.mouse.p.y;
-      this.mouse.shift = event.shiftKey;
-      this.mouse.alt = event.altKey;
-      this.mouse.control = event.ctrlKey;
-      vec2.direction(this.mouse.p, this.mouse.op, this.mouse.d);
-    });
-    this.canvas.addEventListener('mouseup', (event: MouseEvent) => {
-      this.mouse.buttons[event.button] = false;
-    });
-    this.canvas.addEventListener('mousedown', (event: MouseEvent) => {
-      this.mouse.buttons[event.button] = true;
-    });
     // QA-008: the previous listener was `() => () => { /* this.resize(); */ }` —
     // a curried no-op whose inner arrow was never called. Debounce the real
     // call so a drag-resize doesn't thrash the grid.
@@ -436,9 +268,10 @@ export class World {
     // QA-007: WebGL2 context-loss recovery. On `webglcontextlost` we cancel
     // the pending RAF and preventDefault so the canvas stays attached. On
     // `webglcontextrestored` we set the needsGlRestore flag; the draw loop
-    // re-runs the init*Gl methods and resumes rendering on the next frame.
-    // The simulation state (boids, grids,getDataRadius cache) is plain JS and
-    // survives; only GL programs/buffers need re-creation.
+    // calls `renderer.restoreGlContext()` and resumes rendering on the next
+    // frame. The simulation state (boids, grids, getDataRadius cache) is
+    // plain JS and survives; only GL programs/buffers need re-creation
+    // (handled by the Renderer).
     this.boundContextLost = (event: Event) => {
       event.preventDefault();
       this.contextLost = true;
@@ -458,15 +291,13 @@ export class World {
     this.boundBeforeUnload = () => this.dispose();
     window.addEventListener('beforeunload', this.boundBeforeUnload);
 
-    twgl.addExtensionsToContext(this.ctx);
-    this.ctx.disable(this.ctx.DEPTH_TEST);
-    this.ctx.clearColor(0, 0, 0, 1);
+    this.renderer.initGlState();
     this.resize();
 
-    this.initBoidGl();
-    this.initBoids();
-    this.initRingGl();
-    this.initGridGl();
+    this.renderer.initBoidGl();
+    this.spawner.initBoids();
+    this.renderer.initRingGl();
+    this.renderer.initGridGl();
 
     this.statsIntervalId = setInterval(() => {
       if (this.humans.size) {
@@ -512,18 +343,28 @@ export class World {
   }
 
   /**
-   * QA-022: Food state changes (size thresholds, death) call this instead of
-   * recomputing the gradient inline. The tick loop checks the flag once per
-   * frame and recomputes if dirty — collapses O(foods × cells)/frame to one
-   * pass per frame.
+   * QA-022: delegates to {@link FlowFieldGenerator.markFoodGradientDirty}.
+   * Kept on `World` because `Food.tick` / `Food.die` reach through
+   * `this.World.markFoodGradientDirty()` — the delegation lets the existing
+   * entity code keep its shape while the dirty flag lives next to the
+   * solver that consumes it.
    */
   markFoodGradientDirty(): void {
-    this.foodGradientDirty = true;
+    this.flowFieldGen.markFoodGradientDirty();
   }
 
   /**
-   * QA-007/QA-013: clear timers, cancel RAF, and remove all window/canvas
-   * listeners that the constructor attached. Safe to call multiple times.
+   * ARC-009: delegates to {@link Spawner.nextBoidId}. Kept on `World`
+   * because `Boid`'s constructor reaches through `options.world.nextBoidId()`.
+   */
+  nextBoidId(): number {
+    return this.spawner.nextBoidId();
+  }
+
+  /**
+   * QA-007/QA-013: clear timers, cancel RAF, dispose each collaborator,
+   * and remove all window/canvas listeners that the constructor attached.
+   * Safe to call multiple times.
    */
   dispose(): void {
     if (this.rafId !== null) {
@@ -539,6 +380,7 @@ export class World {
       this.resizeDebounceTimeout = null;
     }
     this.gameClock.dispose();
+    this.input?.dispose();
     if (this.boundResize) {
       window.removeEventListener('resize', this.boundResize);
       this.boundResize = null;
@@ -555,21 +397,6 @@ export class World {
       window.removeEventListener('beforeunload', this.boundBeforeUnload);
       this.boundBeforeUnload = null;
     }
-  }
-
-  /**
-   * QA-007: re-create GL programs and buffers after a context-restore. The
-   * simulation state is intact; only the GPU resources were lost.
-   */
-  private restoreGlContext(): void {
-    twgl.addExtensionsToContext(this.ctx);
-    this.ctx.disable(this.ctx.DEPTH_TEST);
-    this.ctx.clearColor(0, 0, 0, 1);
-    this.initBoidGl();
-    this.initRingGl();
-    this.initGridGl();
-    // Buffer data (positions, colours) is re-uploaded on the next draw() by
-    // each entity's draw() method, so no further work is needed here.
   }
 
   get CurrentFrame(): number {
@@ -594,168 +421,6 @@ export class World {
     id = Math.pow(2, this.layers.size + 1);
     this.layers.set(name, id);
     return id;
-  }
-
-  /**
-   * ARC-009: allocate the next dense boid id for this World. Boid constructor
-   * calls this when no explicit `id` is passed in options. Reset to 0 at the
-   * start of initBoids() so each World's boids are densely numbered from 0
-   * (matches the size of the GL instanced buffers allocated in initBoidGl).
-   */
-  nextBoidId(): number {
-    return this.boidIdCounter++;
-  }
-
-  /**
-   * Compile the ring program and allocate the `ringGl` buffer bundle sized
-   * to `numBoids` instances. Re-run on context restore (see
-   * {@link restoreGlContext}) — buffer data is re-uploaded on the next
-   * `draw()` by each `Ring.draw()`.
-   */
-  initRingGl() {
-    const vs = ring_vs_shader;
-    const fs = ring_fs_shader;
-
-    const programInfo = twgl.createProgramInfo(this.ctx, [vs, fs]);
-
-    const pos_rad = new Float32Array(this.numBoids * 4);
-    const color = new Float32Array(this.numBoids * 4);
-    const bufferInfo = twgl.createBufferInfoFromArrays(
-      this.ctx,
-      {
-        ...DefaultBufferValues,
-        pos_rad: {
-          numComponents: 4,
-          data: pos_rad,
-          divisor: 1
-        },
-        color: {
-          numComponents: 4,
-          data: color,
-          divisor: 1
-        }
-      }
-    );
-
-    this.ringGl = {
-      pos_rad,
-      color,
-      programInfo,
-      bufferInfo
-    };
-  }
-
-  /**
-   * Compile the boid program (`boid.vs` / `boid.fs`) and allocate the
-   * `boidGl` buffer bundle sized to `numBoids` instances. The three
-   * per-instance attributes (`pos_vel`, `color`, `rad_static`) all use
-   * `divisor: 1`; the shared `vert_pos` / `texcoord` come from
-   * {@link DefaultBufferValues}. Re-run on context restore.
-   *
-   * @see IBoidGl for the per-instance packing layout.
-   */
-  initBoidGl() {
-    const vs = boid_vs_shader;
-    const fs = boid_fs_shader;
-
-    const programInfo = twgl.createProgramInfo(this.ctx, [vs, fs]);
-
-    const pos_vel = new Float32Array(this.numBoids * 4);
-    const color = new Float32Array(this.numBoids * 4);
-    const rad_static = new Float32Array(this.numBoids * 4);
-    const bufferInfo = twgl.createBufferInfoFromArrays(
-      this.ctx,
-      {
-        ...DefaultBufferValues,
-        pos_vel: {
-          numComponents: 4,
-          data: pos_vel,
-          divisor: 1
-        },
-        color: {
-          numComponents: 4,
-          data: color,
-          divisor: 1
-        },
-        rad_static: {
-          numComponents: 4,
-          data: rad_static,
-          divisor: 1
-        }
-      }
-    );
-    this.boidGl = {
-      pos_vel,
-      color,
-      rad_static,
-      programInfo,
-      bufferInfo
-    };
-  }
-
-
-  /**
-   * Compile the grid program (`grid.vs` / `grid.fs`) and allocate two
-   * buffer bundles: `gridGl` (sized to `boidGrid.cells.length`, used for
-   * density debug draw) and `flowGridGl` (sized to `flowGrid.cells.length`,
-   * carries both `color` and `vel_len`). Both use `divisor: 1` per-cell
-   * attributes; the cell's world position is reconstructed from
-   * `gl_InstanceID` in the vertex shader. Re-run on context restore.
-   */
-  initGridGl() {
-    const vs = grid_vs_shader;
-    const fs = grid_fs_shader;
-
-    // compile shaders, link program, look up locations
-    const programInfo = twgl.createProgramInfo(this.ctx, [vs, fs]);
-
-    const gridColor = new Float32Array(this.boidGrid.cells.length * 4);
-    const flowColor = new Float32Array(this.flowGrid.cells.length * 4);
-    const flowV = new Float32Array(this.flowGrid.cells.length * 4);
-
-    const gridBufferInfo = twgl.createBufferInfoFromArrays(
-      this.ctx,
-      {
-        ...DefaultBufferValues,
-        color: {
-          numComponents: 4,
-          data: gridColor,
-          divisor: 1
-        },
-        vel_len: {
-          numComponents: 4,
-          data: new Float32Array(this.flowGrid.cells.length * 4),
-          divisor: 1
-        }
-      });
-
-    const flowBufferInfo = twgl.createBufferInfoFromArrays(
-      this.ctx,
-      {
-        ...DefaultBufferValues,
-        color: {
-          numComponents: 4,
-          data: flowColor,
-          divisor: 1
-        },
-        vel_len: {
-          numComponents: 4,
-          data: flowV,
-          divisor: 1
-        }
-      });
-
-    this.gridGl = {
-      color: gridColor,
-      programInfo,
-      bufferInfo: gridBufferInfo
-    };
-    this.flowGridGl = {
-      color: flowColor,
-      v: flowV,
-      programInfo,
-      bufferInfo: flowBufferInfo
-    };
   }
 
   resize() {
@@ -802,201 +467,29 @@ export class World {
       this.boidGrid.resize(this.boidGridOptions, true);
     }
 
-    this.genField();
+    this.flowFieldGen.genField();
 
-    twgl.resizeCanvasToDisplaySize(this.canvas);
-    this.ctx.viewport(0, 0, this.width, this.height);
-  }
-
-  genField() {
-    this.flowGrid.clear();
-    for (let y = 0; y < this.gridYW; y++) {
-      for (let x = 0; x < this.gridXW; x++) {
-        const s = x === 0 || y === 0 || x === this.gridXW - 1 || y === this.gridYW - 1;
-        if (!s) continue;
-        this.flowGrid.addCelData(
-          x, y, false,
-          this.getFlowFieldValue(x, y, s)
-        );
-      }
-    }
-  }
-
-  getFlowFieldValue(x: number, y: number, s: boolean): IFlowValue {
-    const scale = this.fieldScale + this.fieldRandomScale;
-    const nx = (x - this.widthD2) * scale;
-    const ny = (y - this.heightD2) * scale;
-    const rad = noise(nx, ny);
-    const p = vec2.angle2Vec(rad * Math.PI);
-    return {
-      id: 0,
-      layer: this.layerByName('boid'),
-      p,
-      l: 1.0,
-      lastCellIndex: -1,
-      cellIndex: -1,
-      static: s,
-      solid: s
-    };
-  }
-
-  getBaseUniforms() {
-    const gameTime = this.gameClock.gameTime;
-    return {
-      u_matrix: this.u_matrix,
-      iDimensions: this.dimensions,   // viewport resolution (in pixels)
-      iTime: gameTime.currentTime,    // shader playback time (in seconds)
-      iTimeDelta: gameTime.deltaTime, // render time (in seconds)
-      iFrameRate: gameTime.fps,       // shader frame rate
-      iFrame: gameTime.currentFrame,   // shader playback frame
-      iMousePos: this.mouse.glP
-    };
-  }
-
-  initBoids() {
-    // ARC-009: reset the per-World id allocator so this World's boids get
-    // dense ids in [0, numBoids), matching the GL buffer slot count.
-    this.boidIdCounter = 0;
-    for (let i = 0; i < this.numBoids; i++) {
-      const o = {
-        world: this,
-        grid: this.boidGrid,
-        p: new vec2(
-          clamp(rand() * this.width, this.boidCellSize * 2, this.width - this.boidCellSize * 2),
-          clamp(rand() * this.height, this.boidCellSize * 2, this.height - this.boidCellSize * 2)
-        ),
-        v: new vec2().random(10, this.humanMaxSpeed),
-        r: this.boidSize,
-        maxSpeed: this.humanMaxSpeed,
-        static: false
-      };
-
-      let b: Boid;
-      if (i < 3) {
-        b = new Food(o);
-      } else {
-        if (i < Math.floor(this.numBoids / 4)) {
-          o.maxSpeed = this.zombieMaxSpeed;
-          o.v.random(10, o.maxSpeed);
-          b = new Zombie(o);
-        } else {
-          o.v.random(10, o.maxSpeed);
-          b = new Human(o);
-        }
-      }
-      this.boids.push(b);
-      this.rings.push(new Ring({
-        world: this,
-        id: i,
-        p: new vec2(),
-        thickness: 0.01,
-        r: 0,
-        duration: 0,
-        speed: 50,
-        color: new vec4([1, 0, 0, 1])
-      }));
-    }
-    this.computeFoodGradient();
-  }
-
-  randomizeBoids() {
-    this.boids.forEach(b => {
-      b.p.set_xy(rand() * this.width, rand() * this.height);
-      b.v.random(this.humanMaxSpeed / 2, this.humanMaxSpeed);
-    });
-    this.boidGrid.reposition();
-  }
-
-  drawBoidGrid() {
-    const ctx = this.ctx;
-
-    this.ctx.useProgram(this.gridGl.programInfo.program);
-
-    twgl.setUniforms(this.gridGl.programInfo, {
-      ...this.getBaseUniforms(),
-      gridCellSize: this.boidCellSize,
-      gridWidth: this.boidGrid.gridXW,
-      gridHeight: this.boidGrid.gridYW,
-      gridMode: 1,
-      paintMode: PaintModes.indexOf(this.paintMode),
-      paintSize: this.paintSize
-    });
-    this.boidGrid.draw(ctx);
-    this.boidGrid.cleanCache();
-    twgl.setAttribInfoBufferFromArray(ctx, this.gridGl.bufferInfo.attribs!.color, this.gridGl.color);
-
-    twgl.setBuffersAndAttributes(ctx, this.gridGl.programInfo, this.gridGl.bufferInfo);
-
-    this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.boidGrid.cells.length);
-  }
-
-  drawFlowGrid() {
-    const ctx = this.ctx;
-
-    this.ctx.useProgram(this.flowGridGl.programInfo.program);
-
-    twgl.setUniforms(this.flowGridGl.programInfo, {
-      ...this.getBaseUniforms(),
-      gridCellSize: this.flowCellSize,
-      gridWidth: this.flowGrid.gridXW,
-      gridHeight: this.flowGrid.gridYW,
-      gridMode: 2,
-      paintMode: PaintModes.indexOf(this.paintMode),
-      paintSize: this.paintSize,
-      lineColor: FlowTypeColor.get(this.flowGrid.drawFlowType)!.rgba
-    });
-    this.flowGrid.draw(ctx);
-    this.flowGrid.cleanCache();
-    twgl.setAttribInfoBufferFromArray(ctx, this.flowGridGl.bufferInfo.attribs!.color, this.flowGridGl.color);
-    twgl.setAttribInfoBufferFromArray(ctx, this.flowGridGl.bufferInfo.attribs!.vel_len, this.flowGridGl.v);
-
-    twgl.setBuffersAndAttributes(ctx, this.flowGridGl.programInfo, this.flowGridGl.bufferInfo);
-
-    this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.flowGrid.cells.length);
-  }
-
-  drawBoids() {
-    const ctx = this.ctx;
-
-    this.ctx.useProgram(this.boidGl.programInfo.program);
-
-    twgl.setUniforms(this.boidGl.programInfo, this.getBaseUniforms());
-    twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs!.pos_vel, this.boidGl.pos_vel);
-    twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs!.color, this.boidGl.color);
-    twgl.setAttribInfoBufferFromArray(ctx, this.boidGl.bufferInfo.attribs!.rad_static, this.boidGl.rad_static);
-    twgl.setBuffersAndAttributes(ctx, this.boidGl.programInfo, this.boidGl.bufferInfo);
-    this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.numBoids);
-  }
-
-  drawRings() {
-    const ctx = this.ctx;
-
-    this.ctx.useProgram(this.ringGl.programInfo.program);
-
-    twgl.setUniforms(this.ringGl.programInfo, this.getBaseUniforms());
-    twgl.setAttribInfoBufferFromArray(ctx, this.ringGl.bufferInfo.attribs!.pos_rad, this.ringGl.pos_rad);
-    twgl.setAttribInfoBufferFromArray(ctx, this.ringGl.bufferInfo.attribs!.color, this.ringGl.color);
-    twgl.setBuffersAndAttributes(ctx, this.ringGl.programInfo, this.ringGl.bufferInfo);
-    this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.numBoids);
+    this.renderer.resize();
   }
 
   /**
    * Frame entry point (called via requestAnimationFrame). Order:
    * 1. Context-loss gate — keep the RAF alive but skip GL work while lost.
-   * 2. Context-restore gate — re-run the three `init*Gl` methods once on
-   *    the first frame after restore.
+   * 2. Context-restore gate — delegate to `renderer.restoreGlContext()`
+   *    on the first frame after restore.
    * 3. Advance the `GameClock` (single source of `IGameTime`).
-   * 4. Clear, set ortho projection.
+   * 4. Clear, set ortho projection (Renderer-owned `u_matrix`).
    * 5. Tick `flowGrid` and `boidGrid` (paint + fade; boidGrid is a no-op).
    * 6. Apply the food-gradient dirty flag once if set (before any boid
    *    reads the flow field, so all boids see a consistent gradient).
    * 7. Optional grid debug draw (`gridMode === 'boid' | 'flow'`).
-   * 8. Tick + draw every boid. Each writes into its `id` slot in `boidGl`.
-   * 9. Tick + draw every ring.
-   * 10. `drawRings()` + `drawBoids()` issue the instanced draw calls.
-   * 11. Reset `mouse.clicked`, re-arm RAF.
+   * 8. Tick every boid / ring. Entities expose pure state — no GL writes.
+   * 9. `renderer.drawRings()` + `renderer.drawBoids()` write the
+   *    per-instance buffers from entity state and issue the instanced draws.
+   * 10. Reset `mouse.clicked`, re-arm RAF (subject to agent-operability
+   *     exit conditions).
    */
-  public draw() {
+  public draw(): void {
     // QA-007: while the GL context is lost, GL calls would throw or no-op,
     // so skip the render block but keep the RAF loop alive so we recover
     // automatically when `webglcontextrestored` fires.
@@ -1006,47 +499,52 @@ export class World {
     }
     // QA-007: on the first frame after restore, re-create programs/buffers.
     if (this.needsGlRestore) {
-      this.restoreGlContext();
+      this.renderer.restoreGlContext();
       this.needsGlRestore = false;
     }
 
-    const gameTime = this.gameClock.gameTime;
+    const gameTime: IGameTime = this.gameClock.gameTime;
 
     this.gameClock.tick();
 
-    const m4 = twgl.m4;
     const ctx = this.ctx;
-    const boids = this.boids;
     ctx.clear(ctx.COLOR_BUFFER_BIT);
 
-    m4.ortho(0, ctx.canvas.width, ctx.canvas.height, 0, -1, 1, this.u_matrix);
+    // Recompute the ortho projection each frame in case the canvas was
+    // resized (canvas.width / height are the source of truth post-resize).
+    twgl.m4.ortho(0, ctx.canvas.width, ctx.canvas.height, 0, -1, 1, this.renderer.u_matrix);
+
     this.flowGrid.tick(gameTime);
     this.boidGrid.tick(gameTime);
 
     // QA-022: apply the food-gradient dirty flag once per frame, BEFORE any
     // boid reads the flow field, so all boids see a consistent gradient.
-    if (this.foodGradientDirty) {
-      this.computeFoodGradient();
-      this.foodGradientDirty = false;
-    }
+    this.flowFieldGen.applyFoodGradientIfDirty();
 
     if (this.gridMode === 'boid') {
-      this.drawBoidGrid();
+      this.renderer.drawBoidGrid();
     } else if (this.gridMode === 'flow') {
-      this.drawFlowGrid();
+      this.renderer.drawFlowGrid();
     }
 
-    for (const b of boids) {
-      b.tick(gameTime);
-      b.draw(ctx);
+    // ARC-011: entities are ticked for state only — no per-entity GL writes.
+    // A Human→Zombie conversion inside b.tick() appends a Zombie to this.boids
+    // with the dying human's reused id; the Zombie is therefore visited
+    // later in this same loop, and the Renderer's subsequent
+    // writeBoidBuffers() pass writes its slot last (the QA-026 invariant).
+    const boids = this.boids;
+    for (let i = 0; i < boids.length; i++) {
+      boids[i].tick(gameTime);
     }
-    for (const r of this.rings) {
-      r.tick(gameTime);
-      r.draw(ctx);
+    const rings = this.rings;
+    for (let i = 0; i < rings.length; i++) {
+      rings[i].tick(gameTime);
     }
-    this.drawRings();
-    this.drawBoids();
-    this.mouse.clicked.fill(false);
+
+    this.renderer.drawRings();
+    this.renderer.drawBoids();
+    this.input.endFrame();
+
     // Agent-operability: `?exitAfter=MS` — once MS wall-clock ms have elapsed
     // since construction, do NOT re-arm the RAF. The framebuffer holds the
     // last fully-rendered frame, which is the deterministic screenshot point.
@@ -1068,43 +566,5 @@ export class World {
     this.rafId = requestAnimationFrame(() => {
       this.draw();
     });
-  }
-
-  computeFoodGradient(): void {
-    const food: Food[] = Array.from(this.food.values()).filter(f => f.flowEnabled);
-    const flowGrid = this.flowGrid;
-    const t = new vec2();
-    const maxDist = Math.max(this.width, this.height) / 4;
-    const layer = this.layerByName('food');
-    for (const cell of flowGrid.cells) {
-      let cv = cell.items[layer];
-      if (!cv) {
-        cv = {
-          id: 0,
-          layer: layer,
-          p: new vec2(),
-          l: 0,
-          lastCellIndex: -1,
-          cellIndex: -1,
-          static: true,
-          solid: false
-        };
-        flowGrid.addCelData(cell.p.x, cell.p.y, false, cv);
-      }
-      if (!food.length) {
-        cv.p.reset();
-        cv.l = 0;
-      } else {
-        t.reset();
-        for (const f of food) {
-          const dv = vec2.difference(f.p, cell.wc);
-          const l = clamp(dv.length(), epsilon, maxDist);
-          t.add(dv.scale((1 / l) * (1.1 - (l / maxDist))));
-        }
-        cv.l = 1;
-        t.normalize();
-        cv.p.set_xy(t.x, t.y);
-      }
-    }
   }
 }
