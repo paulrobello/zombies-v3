@@ -9,11 +9,10 @@ export class ForwardBehavior<T extends Boid> extends BoidBehavior<T> {
     this.name = 'ForwardBehavior';
   }
 
-  public override tick(gameTime: IGameTime): boolean {
-    if (!this.enabled) return false;
+  public override tick(gameTime: IGameTime): void {
+    if (!this.enabled) return;
     const b = this.boid;
     b.v.x += b.d.x * gameTime.deltaTime * this.scale;
     b.v.y += b.d.y * gameTime.deltaTime * this.scale;
-    return true;
   }
 }

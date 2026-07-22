@@ -92,9 +92,14 @@ export class Human extends Boid {
     this.foodLayer = this.World.layerByName('food');
   }
 
-  override tick(gameTime: IGameTime): boolean {
-    if (!super.tick(gameTime)) {
-      return false;
+  override tick(gameTime: IGameTime): void {
+    super.tick(gameTime);
+    // ARC-010: previously `if (!super.tick(gameTime)) return false;` consumed
+    // Boid.tick's boolean return. Now that IProgressible.tick is void, check
+    // this.alive directly — Boid.tick bails early when dead, leaving the
+    // fields Human.tick reads (hunger, position) untouched.
+    if (!this.alive) {
+      return;
     }
     // const grid = this.options.grid;
     this.hunger += gameTime.deltaTime * this.hungerSpeed;
@@ -125,7 +130,7 @@ export class Human extends Boid {
     }
     if (this.hunger > HUNGER_MAX) {
       this.die();
-      return false;
+      return;
     }
     // ARC-004: LUT lookup replaces per-frame chroma.scale()(.gl()) allocation.
     // Component-wise copy avoids even the rgba-array allocation of `c.rgba`.
@@ -137,7 +142,6 @@ export class Human extends Boid {
     this.color.g = c.g;
     this.color.b = c.b;
     this.color.a = c.a;
-    return true;
   }
 
   override die() {

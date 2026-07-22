@@ -21,13 +21,11 @@ export interface IBoidOptions {
   d?: vec2,
   a?: vec2,
   r?: number,
-  maxSpeed?: number,
+  maxSpeed?: number;
   layer?: number;
   static?: boolean;
 }
 
-
-let id = 0;
 
 export class Boid implements IPositional, IDirectional, ICellIndexable, IProgressible, IDrawable, IGridQueryable {
   public id: number;
@@ -80,7 +78,15 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
 
   constructor(options: IBoidOptions) {
     this.options = options;
-    this.id = options.id === undefined ? id++ : options.id;
+    // ARC-009: ID allocation moved off the module-level singleton onto the
+    // owning World. A second World instance (or an HMR reload that constructs
+    // a fresh World) gets its own counter starting at 0, so its boids get
+    // dense ids in [0, numBoids) — which is what the GL instanced buffers
+    // (sized to numBoids and indexed by id) require. Human.die still passes
+    // an explicit `id: this.id` when spawning a Zombie, bypassing the
+    // allocator to reuse the dying human's slot, so the dense-id invariant
+    // holds across conversion.
+    this.id = options.id === undefined ? options.world.nextBoidId() : options.id;
     this.grid = options.grid;
     this.layer = options.layer || this.options.world.layerByName('boid');
     this.static = options.static || false;
@@ -130,9 +136,9 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     }
   }
 
-  tick(gameTime: IGameTime): boolean {
+  tick(gameTime: IGameTime): void {
     if (!this.alive) {
-      return false;
+      return;
     }
     this.age += gameTime.deltaTime;
     // if (this.r <= 0) {
@@ -183,7 +189,7 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     // the rest of tick() has already run (position clamp, grid re-insert),
     // and the only remaining work is the flow contribution we skip here.
     if (!cell) {
-      return true;
+      return;
     }
     let cv: IFlowValue | undefined = cell.items[this.layer];
     if (!cv) {
@@ -219,7 +225,6 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     // }else{
     //   this.color.rgb = [0, 1, 0];
     // }
-    return true;
   }
 
   draw(_ctx: WebGL2RenderingContext): void {

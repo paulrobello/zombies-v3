@@ -56,8 +56,7 @@ export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgres
     this.resize(options);
   }
 
-  tick(_gameTime: IGameTime): boolean {
-    return true;
+  tick(_gameTime: IGameTime): void {
   }
 
   get width(): number {
@@ -141,9 +140,19 @@ export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgres
     const cellSize = this.options.cellSize;
     let blockRadius;
     if (worldSpace) {
+      // ARC-007a: radius is in world units (pixels). Convert to cell-count
+      // before clamping against computeNeighborRadius (also cell-count).
       blockRadius = Math.min(~~(radius / cellSize), this.options.computeNeighborRadius);
     } else {
-      radius = radius * cellSize;
+      // ARC-007a: radius is already in cell-count units. The previous code
+      // multiplied by cellSize here and then compared the resulting world-
+      // space value against computeNeighborRadius (cell-count), which always
+      // clamped to the cap for any radius >= 1 — the bug was masked only
+      // because callers wrapped the result in Math.min(9, …). Compare
+      // cell-count to cell-count so the clamp is meaningful. For the only
+      // current caller (FlowGrid wall-paint, radius=1) the observable
+      // result is unchanged: 3x3 block -> 9, then the caller's Math.min(9,…)
+      // still yields 9 on any grid with >= 9 neighbours.
       blockRadius = Math.min(radius, this.options.computeNeighborRadius);
     }
 

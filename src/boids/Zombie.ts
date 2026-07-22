@@ -44,12 +44,12 @@ export class Zombie extends Boid {
     this.World.zombies.add(this);
   }
 
-  override tick(gameTime: IGameTime): boolean {
+  override tick(gameTime: IGameTime): void {
     if (this.age < 3 && gameTime.currentFrame !== 0) {
       this.age += gameTime.deltaTime;
-      return false;
+      return;
     }
-    return super.tick(gameTime);
+    super.tick(gameTime);
   }
 
   override die() {

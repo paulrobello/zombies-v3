@@ -11,7 +11,13 @@ export interface IDirectional {
 
 
 export interface IProgressible {
-  tick: (gameTime: IGameTime) => boolean;
+  // ARC-010: the boolean return value every implementor previously declared
+  // was universally ignored at call sites (World.draw, Boid.applyBehaviors).
+  // The only real consumers were the `if (!super.tick(gameTime)) return false;`
+  // patterns inside Human/Zombie/Food, which actually meant "did Boid bail
+  // because dead?" — those now check `this.alive` directly after the super
+  // call, so the interface can honestly be `void`.
+  tick: (gameTime: IGameTime) => void;
 }
 
 export interface IDrawable {

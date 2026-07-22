@@ -21,8 +21,8 @@ export class AttractionPointBehavior<T extends Boid> extends BoidBehavior<T> {
     this.target = options.target;
   }
 
-  public override tick(_gameTime: IGameTime): boolean {
-    if (!this.enabled) return false;
+  public override tick(_gameTime: IGameTime): void {
+    if (!this.enabled) return;
     const b = this.boid;
     const p: vec2 = b.p;
     const v: vec2 = b.v;
@@ -32,6 +32,5 @@ export class AttractionPointBehavior<T extends Boid> extends BoidBehavior<T> {
     const ml: number = clamp(d.length(), m / 4, m);
     d.scale((1 / l) * (m - ml) / m * this.scale);
     v.add(d);
-    return true;
   }
 }

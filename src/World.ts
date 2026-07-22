@@ -143,6 +143,12 @@ export class World {
   // QA-022: dirty flag for the food gradient. Food state changes mark dirty;
   // the tick loop recomputes at most once per frame (see draw()).
   private foodGradientDirty: boolean = false;
+  // ARC-009: per-World boid-id allocator. Replaces the module-level
+  // `let id = 0` in Boid.ts so each World's boids get dense ids in
+  // [0, numBoids) — required by the GL instanced buffers, which are sized
+  // to numBoids and indexed by `boid.id`. A second World or an HMR reload
+  // that constructs a fresh World starts from 0 independently.
+  private boidIdCounter: number = 0;
   // Tracked event listeners so dispose() can remove them.
   private boundContextLost: ((e: Event) => void) | null = null;
   private boundContextRestored: (() => void) | null = null;
@@ -424,6 +430,16 @@ export class World {
     return id;
   }
 
+  /**
+   * ARC-009: allocate the next dense boid id for this World. Boid constructor
+   * calls this when no explicit `id` is passed in options. Reset to 0 at the
+   * start of initBoids() so each World's boids are densely numbered from 0
+   * (matches the size of the GL instanced buffers allocated in initBoidGl).
+   */
+  nextBoidId(): number {
+    return this.boidIdCounter++;
+  }
+
   initRingGl() {
     const vs = ring_vs_shader;
     const fs = ring_fs_shader;
@@ -644,6 +660,9 @@ export class World {
   }
 
   initBoids() {
+    // ARC-009: reset the per-World id allocator so this World's boids get
+    // dense ids in [0, numBoids), matching the GL buffer slot count.
+    this.boidIdCounter = 0;
     for (let i = 0; i < this.numBoids; i++) {
       const o = {
         world: this,

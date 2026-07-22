@@ -21,20 +21,19 @@ export class AlignBehavior<T extends Boid> extends BoidBehavior<T> {
     this.margin = options.margin;
   }
 
-  public override tick(_gameTime: IGameTime): boolean {
-    if (!this.enabled) return false;
+  public override tick(_gameTime: IGameTime): void {
+    if (!this.enabled) return;
     const b = this.boid;
     const grid: BoidGrid = b.options.grid;
     const r = b.r * 2 + this.margin;
     const nearest = grid.getDataRadius(b.p.x, b.p.y, r, true, b, true);
-    if (!nearest.length) return false;
+    if (!nearest.length) return;
     const n = nearest[0].data;
-    if (n.speed < epsilon) return false;
+    if (n.speed < epsilon) return;
 
     // if (Math.random()<0.0001) console.log(nearest[0].data)
     // normalize direction of neighbor and scale then add it to ours
     b.v.x += (n.v.x / n.speed) * this.scale;
     b.v.y += (n.v.y / n.speed) * this.scale;
-    return true;
   }
 }

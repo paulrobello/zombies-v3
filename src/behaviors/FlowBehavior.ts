@@ -34,19 +34,19 @@ export class FlowBehavior<T extends Boid> extends BoidBehavior<T> {
     this.layer = options.layer;
   }
 
-  public override tick(gameTime: IGameTime): boolean {
-    if (!this.enabled) return false;
+  public override tick(gameTime: IGameTime): void {
+    if (!this.enabled) return;
     const b: Boid = this.boid;
     const p: Ivec2 = b.p;
     const v: Ivec2 = b.v;
     const cell = this.flowGrid.getCell(p.x, p.y, true);
-    if (!cell || cell.items.length <= this.layer) return false;
+    if (!cell || cell.items.length <= this.layer) return;
     // QA-019: outer `flow` was previously shadowed by an inner `const d: vec2`
     // in the solid branch — renamed here so the IFlowValue binding stays
     // readable in both branches.
     const flow: IFlowValue | undefined = cell.items[this.layer];
     if (!flow) {
-      return false;
+      return;
     }
     const scale = this.scale;
     if (flow.solid) {
@@ -55,13 +55,12 @@ export class FlowBehavior<T extends Boid> extends BoidBehavior<T> {
       const push = dv.scale(1 / l);
       // QA-012: reuse b.scratch.t instead of allocating a new vec2 per frame.
       v.add(push.scale((b.speed + TUNING.baseSpeedBoost) * gameTime.deltaTime * TUNING.pushForceScale, b.scratch.t));
-      return true;
+      return;
     }
     if (!flow.l) {
-      return false;
+      return;
     }
     v.x += flow.p.x * flow.l * scale;
     v.y += flow.p.y * flow.l * scale;
-    return true;
   }
 }

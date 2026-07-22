@@ -22,19 +22,18 @@ export class ConvertHumanBehavior<T extends Boid> extends BoidBehavior<T> {
     this.minAgeBeforeConvert = options.minAgeBeforeConvert;
   }
 
-  public override tick(_gameTime: IGameTime): boolean {
-    if (!this.enabled) return false;
+  public override tick(_gameTime: IGameTime): void {
+    if (!this.enabled) return;
 
     const b = this.boid;
-    if (b.age < this.minAgeBeforeConvert) return false;
+    if (b.age < this.minAgeBeforeConvert) return;
 
     const p: vec2 = b.p;
     const grid = b.options.grid;
     const nearest = grid.getDataRadius(p.x, p.y, b.r * 2 + this.margin, true, b, true, this.layerId);
-    if (!nearest.length) return false;
+    if (!nearest.length) return;
     for (const na of nearest) {
       na.data.die();
     }
-    return true;
   }
 }

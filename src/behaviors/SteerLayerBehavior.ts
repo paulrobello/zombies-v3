@@ -42,8 +42,8 @@ export class SteerLayerBehavior<T extends Boid> extends BoidBehavior<T> {
     this.breakingPower = options.breakingPower;
   }
 
-  public override tick(gameTime: IGameTime): boolean {
-    if (!this.enabled) return false;
+  public override tick(gameTime: IGameTime): void {
+    if (!this.enabled) return;
 
     const b: Boid = this.boid;
     const p: vec2 = b.p;
@@ -52,7 +52,7 @@ export class SteerLayerBehavior<T extends Boid> extends BoidBehavior<T> {
     const r: number = b.r * 2 + this.radius;
     const nearest: IDataRadiusResults<Boid> = grid.getDataRadius(p.x, p.y, r, true, b, this.nearest, this.layerId);
     this.lastResults = nearest;
-    if (!nearest.length) return false;
+    if (!nearest.length) return;
 
     // QA-012: reuse the per-Boid scratch vec2 instead of allocating per tick.
     const t = b.scratch.t;
@@ -69,6 +69,5 @@ export class SteerLayerBehavior<T extends Boid> extends BoidBehavior<T> {
       v.x += d.x * l;
       v.y += d.y * l;
     }
-    return true;
   }
 }

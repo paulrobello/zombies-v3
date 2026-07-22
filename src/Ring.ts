@@ -35,14 +35,13 @@ export class Ring implements IProgressible, IDrawable {
     this.color = options.color;
   }
 
-  tick(gameTime: IGameTime): boolean {
+  tick(gameTime: IGameTime): void {
     if (this.duration <= 0) {
-      return false;
+      return;
     }
     this.duration = Math.max(0, this.duration - gameTime.deltaTime);
     this.r += gameTime.deltaTime * this.speed;
     this.speed += gameTime.deltaTime * 50;
-    return true;
   }
 
   draw(_ctx: WebGL2RenderingContext): void {

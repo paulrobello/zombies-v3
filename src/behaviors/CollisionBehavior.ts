@@ -43,9 +43,9 @@ export class CollisionBehavior<T extends Boid> extends BoidBehavior<T> {
     this.predictive = options.predictive;
   }
 
-  public override tick(gameTime: IGameTime): boolean {
-    if (!this.enabled) return false;
-    if (this.checkedFrame === gameTime.currentFrame) return false;
+  public override tick(gameTime: IGameTime): void {
+    if (!this.enabled) return;
+    if (this.checkedFrame === gameTime.currentFrame) return;
     this.checkedFrame = gameTime.currentFrame;
 
     const b = this.boid;
@@ -55,7 +55,7 @@ export class CollisionBehavior<T extends Boid> extends BoidBehavior<T> {
     // grab all neighbors within N times our radius
     let md = b.r * (this.predictive ? TUNING.predictiveRadiusFactor : TUNING.nonPredictiveRadiusFactor); // max distance
     const nearest = grid.getDataRadius(p.x, p.y, md, true, b, false, this.layerMask);
-    if (!nearest.length) return false;
+    if (!nearest.length) return;
 
     // QA-012: reuse the per-Boid scratch pool instead of allocating four
     // vec2 temporaries every tick. Each named slot is used as a `dest`
@@ -123,6 +123,5 @@ export class CollisionBehavior<T extends Boid> extends BoidBehavior<T> {
       } // for na of nearest
       if (!anyHit) break;
     } // iterations
-    return true;
   } // tick
 }

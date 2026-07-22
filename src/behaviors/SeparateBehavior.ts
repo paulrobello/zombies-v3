@@ -20,8 +20,8 @@ export class SeparateBehavior<T extends Boid> extends BoidBehavior<T> {
     this.margin = options.margin;
   }
 
-  public override tick(_gameTime: IGameTime): boolean {
-    if (!this.enabled) return false;
+  public override tick(_gameTime: IGameTime): void {
+    if (!this.enabled) return;
 
     const b = this.boid;
     const p: vec2 = b.p;
@@ -29,7 +29,7 @@ export class SeparateBehavior<T extends Boid> extends BoidBehavior<T> {
     const grid = b.options.grid;
     const r = b.r * 2 + this.margin;
     const nearest = grid.getDataRadius(p.x, p.y, r, true, b, false);
-    if (!nearest.length) return false;
+    if (!nearest.length) return;
 
     // QA-012: reuse the per-Boid scratch vec2 instead of allocating per tick.
     const tempD = b.scratch.dTemp;
@@ -42,6 +42,5 @@ export class SeparateBehavior<T extends Boid> extends BoidBehavior<T> {
       v.x += d.x * dist * this.scale;
       v.y += d.y * dist * this.scale;
     }
-    return true;
   }
 }
