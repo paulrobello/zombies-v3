@@ -1,3 +1,5 @@
+#include "./common.glsl";
+
 // Heading stripe rule (fix(render): boid heading stripe commits):
 // The boid carries a thin red "heading stripe" along its leading edge so a
 // viewer can read which direction it is moving. v_angle is the boid's
@@ -11,7 +13,6 @@
 // stripe is then the narrow band where the perpendicular component of dir is
 // small, i.e. the fragment lies close to the v_angle axis. Stationary boids
 // (v_static > 0) skip the stripe entirely and render as a plain disc.
-#include "./common.glsl";
 
 // QA-027: per-file tuning knobs. The disc/r2 literals (0.5, 0.25) are
 // self-evident geometry of the unit quad; only the stripe width is a
