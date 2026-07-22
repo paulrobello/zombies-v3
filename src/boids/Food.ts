@@ -21,7 +21,8 @@ export class Food extends Boid {
       return false;
     }
 
-    this.r = Math.min(this.grid.cellSize * 0.5, this.r += gameTime.deltaTime * 0.5);
+    this.r += gameTime.deltaTime * 0.5;
+    this.r = Math.min(this.grid.cellSize * 0.5, this.r);
     if (this.flowEnabled && this.r < Food.MinSize) {
       this.flowEnabled = false;
       this.World.markFoodGradientDirty();
