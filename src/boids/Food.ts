@@ -24,10 +24,10 @@ export class Food extends Boid {
     this.r = Math.min(this.grid.cellSize * 0.5, this.r += gameTime.deltaTime * 0.5);
     if (this.flowEnabled && this.r < Food.MinSize) {
       this.flowEnabled = false;
-      this.World.computeFoodGradient();
+      this.World.markFoodGradientDirty();
     } else if (!this.flowEnabled && this.r >= this.grid.cellSize * 0.45) {
       this.flowEnabled = true;
-      this.World.computeFoodGradient();
+      this.World.markFoodGradientDirty();
     }
     return true;
   }
@@ -36,6 +36,6 @@ export class Food extends Boid {
     super.die();
     this.World.food.delete(this);
     this.flowEnabled = false;
-    this.World.computeFoodGradient();
+    this.World.markFoodGradientDirty();
   }
 }

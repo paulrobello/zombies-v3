@@ -45,7 +45,6 @@ export class FlowGrid extends HashGrid<IFlowValue> {
 
   override resize(options: HashGridOptions, doReposition: boolean = false): void {
     super.resize(options, doReposition);
-    console.log('FlowGrid.resize');
     for (const cell of this.cells) {
       cell.items.length = 256;
     }
@@ -53,7 +52,6 @@ export class FlowGrid extends HashGrid<IFlowValue> {
 
   override addCelDataByIndex(cellIndex: number, v: IFlowValue): void {
     if (!isFinite(cellIndex) || cellIndex < 0 || cellIndex >= this.cells.length) {
-      // debugger;
       throw new Error(`Cell index out of bounds ${cellIndex}, ${this.cells.length}`);
     }
     const cell = this.cells[cellIndex];
@@ -175,13 +173,6 @@ export class FlowGrid extends HashGrid<IFlowValue> {
     numNeighbors = this.numNeighbors(cell, ps, true);
     for (let i = 0; i < numNeighbors; i++) {
       const n: Cell<IFlowValue> = cell.neighbors[i];
-      // if (pm === 'attract') {
-      //   n.color.rgba = [0.3, 0.5, 0.3, 1.0];
-      // } else if (pm === 'repel') {
-      //   n.color.rgba = [0.5, 0.3, 0.3, 1.0];
-      // } else {
-      //   n.color.rgba = [0.3, 0.3, 0.5, 1.0];
-      // }
       let cv: IFlowValue | undefined = n.items[mask];
       if (!cv) {
         cv = {

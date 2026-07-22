@@ -92,7 +92,10 @@ const DefaultBufferValues = {
 
 export class World {
   canvas: HTMLCanvasElement;
-  ctx: WebGL2RenderingContext;
+  // The QA-009 fallback can early-return from the constructor before ctx is
+  // assigned; the definite-assignment assertion is safe because index.ts
+  // checks `world.disabled` before touching GL state.
+  ctx!: WebGL2RenderingContext;
   width: number = 0;
   height: number = 0;
   widthD2: number = 0;
@@ -115,13 +118,36 @@ export class World {
   zombieMaxSpeed = 16;
   showField = true;
   numBoids = 100;
-  gameClock: GameClock;
-  fieldRandomScale: number = 0.001;
+  gameClock!: GameClock;
+  // QA-023: fieldRandomScale is set ONCE per World instance (class-field
+  // initializer runs at construction, before resize()/genField() are called).
+  // Previously genField() re-randomized it on every resize, making the flow
+  // field "jump" when the window was resized.
+  fieldRandomScale: number = Math.random() * 0.001;
   u_matrix: m4.Mat4 = m4.identity();
   boidGl!: IBoidGl;
   gridGl!: IGridGl;
   flowGridGl!: IFlowGridGl;
   ringGl!: IRingGl;
+
+  // QA-009: when WebGL2 is unavailable, the constructor shows a user-facing
+  // message and sets `disabled` so index.ts can skip starting the render loop.
+  disabled: boolean = false;
+
+  // QA-007/QA-013: lifecycle state for context-loss recovery and clean disposal.
+  private contextLost: boolean = false;
+  private needsGlRestore: boolean = false;
+  private statsIntervalId: ReturnType<typeof setInterval> | null = null;
+  private rafId: number | null = null;
+  private resizeDebounceTimeout: ReturnType<typeof setTimeout> | null = null;
+  // QA-022: dirty flag for the food gradient. Food state changes mark dirty;
+  // the tick loop recomputes at most once per frame (see draw()).
+  private foodGradientDirty: boolean = false;
+  // Tracked event listeners so dispose() can remove them.
+  private boundContextLost: ((e: Event) => void) | null = null;
+  private boundContextRestored: (() => void) | null = null;
+  private boundResize: (() => void) | null = null;
+  private boundBeforeUnload: (() => void) | null = null;
 
   mouse: IMouse = {
     p: new vec2(),
@@ -138,9 +164,9 @@ export class World {
   layers: QueryLayerByName = new Map<string, number>();
   public paintMode: PaintMode = 'none';
   public paintSize: number = this.flowCellSize * 8;
-  statsEl: HTMLDivElement;
-  helpEl: HTMLDivElement;
-  helpToggleEl: HTMLDivElement;
+  statsEl!: HTMLDivElement;
+  helpEl!: HTMLDivElement;
+  helpToggleEl!: HTMLDivElement;
   humans: Set<Human> = new Set<Human>();
   zombies: Set<Zombie> = new Set<Zombie>();
   food: Set<Food> = new Set<Food>();
@@ -156,7 +182,12 @@ export class World {
     this.canvas = canvas;
     const ctx = canvas.getContext('webgl2');
     if (!ctx) {
-      throw new Error('WebGL2 is not supported by this browser/context');
+      // QA-009: graceful user-facing fallback instead of an opaque TypeError.
+      // Show a message over the blank canvas and stop init cleanly so we do
+      // not proceed to set up GL objects on a null context.
+      this.disabled = true;
+      this.showWebGL2UnsupportedMessage();
+      return;
     }
     this.ctx = ctx;
     const statsEl = document.getElementById('stats');
@@ -168,9 +199,6 @@ export class World {
     this.statsEl = statsEl;
     this.helpEl = helpEl;
     this.helpToggleEl = helpToggleEl;
-    // setTimeout(() => {
-    //   this.helpEl.classList.toggle('hidden');
-    // }, 5000);
 
     this.layerByName('boid');
     this.layerByName('human');
@@ -183,13 +211,11 @@ export class World {
       this.helpEl.classList.toggle('hidden');
     });
     window.addEventListener('keypress', (event: KeyboardEvent) => {
-      console.log(event);
       if (event.key >= '0' && event.key <= '9') {
         this.paintSize = parseInt(event.key) * this.flowCellSize;
       }
       if (event.code === 'KeyG') {
         this.gridMode = GridDrawModes[(GridDrawModes.indexOf(this.gridMode) + 1) % GridDrawModes.length];
-        console.log(this.gridMode);
       }
       if (event.code === 'KeyH') {
         this.helpEl.classList.toggle('hidden');
@@ -198,26 +224,21 @@ export class World {
 
     document.addEventListener('contextmenu', event => event.preventDefault());
     const mouseClickHandler = (event: MouseEvent) => {
-      console.log('button click ', event.button);
       this.mouse.clicked[event.button] = true;
       this.mouse.shift = event.shiftKey;
       this.mouse.alt = event.altKey;
       this.mouse.control = event.ctrlKey;
 
       if (event.button === 1) {
-        console.log(event);
         if (event.shiftKey) {
           this.flowGrid.drawFlowType = FlowTypes[(FlowTypes.indexOf(this.flowGrid.drawFlowType) + 1) % FlowTypes.length];
           this.flowGrid.markAllCellsChanged();
-          console.log(this.flowGrid.drawFlowType);
         } else {
           this.paintMode = PaintModes[(PaintModes.indexOf(this.paintMode) + 1) % PaintModes.length];
-          console.log(this.paintMode);
         }
       }
       event.preventDefault();
       return false;
-      // this.randomizeBoids();
     };
     this.canvas.addEventListener('click', mouseClickHandler);
     this.canvas.addEventListener('auxclick', mouseClickHandler);
@@ -249,17 +270,45 @@ export class World {
     this.canvas.addEventListener('mousedown', (event: MouseEvent) => {
       this.mouse.buttons[event.button] = true;
     });
-    window.addEventListener('resize', () => () => {
-      // this.resize();
-    });
-    // window.addEventListener('wheel', throttle((event: WheelEvent) => {
-    //   this.paintSize = clamp(
-    //     this.paintSize + (event.deltaY < 0 ? this.wheelInc : -this.wheelInc),
-    //     0,
-    //     this.flowGrid.options.computeNeighborRadius * this.flowGrid.options.cellSize
-    //   );
-    //   console.log(this.paintSize);
-    // }, 2000, {leading: true, trailing: false}));
+    // QA-008: the previous listener was `() => () => { /* this.resize(); */ }` —
+    // a curried no-op whose inner arrow was never called. Debounce the real
+    // call so a drag-resize doesn't thrash the grid.
+    this.boundResize = () => {
+      if (this.resizeDebounceTimeout !== null) {
+        clearTimeout(this.resizeDebounceTimeout);
+      }
+      this.resizeDebounceTimeout = setTimeout(() => {
+        this.resize();
+        this.resizeDebounceTimeout = null;
+      }, 150);
+    };
+    window.addEventListener('resize', this.boundResize);
+
+    // QA-007: WebGL2 context-loss recovery. On `webglcontextlost` we cancel
+    // the pending RAF and preventDefault so the canvas stays attached. On
+    // `webglcontextrestored` we set the needsGlRestore flag; the draw loop
+    // re-runs the init*Gl methods and resumes rendering on the next frame.
+    // The simulation state (boids, grids,getDataRadius cache) is plain JS and
+    // survives; only GL programs/buffers need re-creation.
+    this.boundContextLost = (event: Event) => {
+      event.preventDefault();
+      this.contextLost = true;
+      if (this.rafId !== null) {
+        cancelAnimationFrame(this.rafId);
+        this.rafId = null;
+      }
+    };
+    this.boundContextRestored = () => {
+      this.contextLost = false;
+      this.needsGlRestore = true;
+    };
+    this.canvas.addEventListener('webglcontextlost', this.boundContextLost);
+    this.canvas.addEventListener('webglcontextrestored', this.boundContextRestored);
+
+    // QA-013: ensure timer/listener cleanup on page unload.
+    this.boundBeforeUnload = () => this.dispose();
+    window.addEventListener('beforeunload', this.boundBeforeUnload);
+
     twgl.addExtensionsToContext(this.ctx);
     this.ctx.disable(this.ctx.DEPTH_TEST);
     this.ctx.clearColor(0, 0, 0, 1);
@@ -270,12 +319,85 @@ export class World {
     this.initRingGl();
     this.initGridGl();
 
-    setInterval(() => {
+    this.statsIntervalId = setInterval(() => {
       if (this.humans.size) {
         this.endTime = this.CurrentTime;
       }
       this.statsEl.innerText = `Humans: ${this.humans.size} Zombies: ${this.zombies.size} Flow Draw Mode: ${this.flowGrid.drawFlowType} Flow Paint Mode: ${this.paintMode} FPS ${this.FPS.toFixed(0)} Humans lived for ${this.endTime.toFixed(0)} seconds`;
     }, 1000);
+  }
+
+  /**
+   * QA-009: Renders a fullscreen message over the canvas when WebGL2 is
+   * unavailable. Kept as a DOM overlay rather than crashing so the user sees
+   * a clear, supportable message instead of a white screen.
+   */
+  private showWebGL2UnsupportedMessage(): void {
+    const el = document.createElement('div');
+    el.textContent = 'WebGL2 is required to run this simulation. Please use a WebGL2-capable browser.';
+    el.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#111;color:#eee;font-family:sans-serif;padding:1rem;text-align:center;z-index:10;';
+    document.body.appendChild(el);
+  }
+
+  /**
+   * QA-022: Food state changes (size thresholds, death) call this instead of
+   * recomputing the gradient inline. The tick loop checks the flag once per
+   * frame and recomputes if dirty — collapses O(foods × cells)/frame to one
+   * pass per frame.
+   */
+  markFoodGradientDirty(): void {
+    this.foodGradientDirty = true;
+  }
+
+  /**
+   * QA-007/QA-013: clear timers, cancel RAF, and remove all window/canvas
+   * listeners that the constructor attached. Safe to call multiple times.
+   */
+  dispose(): void {
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+    if (this.statsIntervalId !== null) {
+      clearInterval(this.statsIntervalId);
+      this.statsIntervalId = null;
+    }
+    if (this.resizeDebounceTimeout !== null) {
+      clearTimeout(this.resizeDebounceTimeout);
+      this.resizeDebounceTimeout = null;
+    }
+    this.gameClock.dispose();
+    if (this.boundResize) {
+      window.removeEventListener('resize', this.boundResize);
+      this.boundResize = null;
+    }
+    if (this.boundContextLost) {
+      this.canvas.removeEventListener('webglcontextlost', this.boundContextLost);
+      this.boundContextLost = null;
+    }
+    if (this.boundContextRestored) {
+      this.canvas.removeEventListener('webglcontextrestored', this.boundContextRestored);
+      this.boundContextRestored = null;
+    }
+    if (this.boundBeforeUnload) {
+      window.removeEventListener('beforeunload', this.boundBeforeUnload);
+      this.boundBeforeUnload = null;
+    }
+  }
+
+  /**
+   * QA-007: re-create GL programs and buffers after a context-restore. The
+   * simulation state is intact; only the GPU resources were lost.
+   */
+  private restoreGlContext(): void {
+    twgl.addExtensionsToContext(this.ctx);
+    this.ctx.disable(this.ctx.DEPTH_TEST);
+    this.ctx.clearColor(0, 0, 0, 1);
+    this.initBoidGl();
+    this.initRingGl();
+    this.initGridGl();
+    // Buffer data (positions, colours) is re-uploaded on the next draw() by
+    // each entity's draw() method, so no further work is needed here.
   }
 
   get CurrentFrame(): number {
@@ -303,8 +425,6 @@ export class World {
   }
 
   initRingGl() {
-    console.log('initRingGl');
-
     const vs = ring_vs_shader;
     const fs = ring_fs_shader;
 
@@ -338,8 +458,6 @@ export class World {
   }
 
   initBoidGl() {
-    console.log('initBoidGl');
-
     const vs = boid_vs_shader;
     const fs = boid_fs_shader;
 
@@ -380,7 +498,6 @@ export class World {
 
 
   initGridGl() {
-    console.log('initGridGl');
     const vs = grid_vs_shader;
     const fs = grid_fs_shader;
 
@@ -482,8 +599,6 @@ export class World {
   }
 
   genField() {
-    console.log('genField');
-    this.fieldRandomScale = Math.random() * 0.001;
     this.flowGrid.clear();
     for (let y = 0; y < this.gridYW; y++) {
       for (let x = 0; x < this.gridXW; x++) {
@@ -547,7 +662,7 @@ export class World {
       if (i < 3) {
         b = new Food(o);
       } else {
-        if (i < this.numBoids / 4) {
+        if (i < Math.floor(this.numBoids / 4)) {
           o.maxSpeed = this.zombieMaxSpeed;
           o.v.random(10, o.maxSpeed);
           b = new Zombie(o);
@@ -556,7 +671,6 @@ export class World {
           b = new Human(o);
         }
       }
-      // const b: Boid = new Human(o);
       this.boids.push(b);
       this.rings.push(new Ring({
         world: this,
@@ -597,7 +711,6 @@ export class World {
     this.boidGrid.draw(ctx);
     this.boidGrid.cleanCache();
     twgl.setAttribInfoBufferFromArray(ctx, this.gridGl.bufferInfo.attribs!.color, this.gridGl.color);
-    // twgl.setAttribInfoBufferFromArray(ctx, this.gridGl.bufferInfo.attribs!.vel_len, []);
 
     twgl.setBuffersAndAttributes(ctx, this.gridGl.programInfo, this.gridGl.bufferInfo);
 
@@ -655,6 +768,19 @@ export class World {
   }
 
   public draw() {
+    // QA-007: while the GL context is lost, GL calls would throw or no-op,
+    // so skip the render block but keep the RAF loop alive so we recover
+    // automatically when `webglcontextrestored` fires.
+    if (this.contextLost) {
+      this.rafId = requestAnimationFrame(() => this.draw());
+      return;
+    }
+    // QA-007: on the first frame after restore, re-create programs/buffers.
+    if (this.needsGlRestore) {
+      this.restoreGlContext();
+      this.needsGlRestore = false;
+    }
+
     const gameTime = this.gameClock.gameTime;
 
     this.gameClock.tick();
@@ -667,6 +793,13 @@ export class World {
     m4.ortho(0, ctx.canvas.width, ctx.canvas.height, 0, -1, 1, this.u_matrix);
     this.flowGrid.tick(gameTime);
     this.boidGrid.tick(gameTime);
+
+    // QA-022: apply the food-gradient dirty flag once per frame, BEFORE any
+    // boid reads the flow field, so all boids see a consistent gradient.
+    if (this.foodGradientDirty) {
+      this.computeFoodGradient();
+      this.foodGradientDirty = false;
+    }
 
     if (this.gridMode === 'boid') {
       this.drawBoidGrid();
@@ -685,7 +818,8 @@ export class World {
     this.drawRings();
     this.drawBoids();
     this.mouse.clicked.fill(false);
-    requestAnimationFrame(() => {
+    // QA-013: track the RAF id so dispose() can cancel it.
+    this.rafId = requestAnimationFrame(() => {
       this.draw();
     });
   }
@@ -717,15 +851,13 @@ export class World {
       } else {
         t.reset();
         for (const f of food) {
-          const dv = vec2.difference(f.p, cell.wc); //.scale(f.r / (this.boidCellSize / 2));
+          const dv = vec2.difference(f.p, cell.wc);
           const l = clamp(dv.length(), epsilon, maxDist);
-          t.add(dv.scale((1 / l) * (1.1 - (l / maxDist)))); //.normalize();
+          t.add(dv.scale((1 / l) * (1.1 - (l / maxDist))));
         }
         cv.l = 1;
-        // cv.l = t.length();
         t.normalize();
         cv.p.set_xy(t.x, t.y);
-
       }
     }
   }

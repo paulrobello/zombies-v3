@@ -42,7 +42,7 @@ export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgres
   gridXW: number;
   gridYW: number;
   cellSizeD2: number;
-  getDataRadiusCache: Map<string, IDataCacheResult<T>> = new Map<string, IDataCacheResult<T>>();
+  getDataRadiusCache: Map<number, IDataCacheResult<T>> = new Map<number, IDataCacheResult<T>>();
   changedCells: Set<Cell<T>> = new Set<Cell<T>>();
   drpc = '#8d3100';
 
@@ -77,7 +77,6 @@ export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgres
   }
 
   resize(options: HashGridOptions, doReposition: boolean = false): void {
-    console.log('HashGrid.resize');
     let recompute = (!this.options ||
       this.options.width !== options.width ||
       this.options.height !== options.height ||
@@ -156,93 +155,139 @@ export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgres
     return numNeighbors;
   }
 
+  /**
+   * Bit-packed numeric cache key for getDataRadius results.
+   *
+   * Layout (bits, MSB→LSB): closest[48] | mask[40..47] | (selfId+1)[24..39] | cellId[0..23]
+   * - cellId: 24 bits → supports up to ~16M cells (a 4096×4096 grid at cellSize=32 is ~16K).
+   * - selfId+1: 16 bits → selfId -1 (no-self sentinel) maps to 0; real ids 0..65534 occupy 1..65535.
+   * - mask: 8 bits → covers layer bitmasks up to 2^7=128 (current codebase tops out at 16).
+   * - closest: 1 bit.
+   *
+   * Total < 2^49 ≈ 5.6e14, well within Number.MAX_SAFE_INTEGER (2^53-1), so equality
+   * checks are exact. Replacing the old `${c.id}|${self?.id || 0}|${mask}|${closest}`
+   * string key fixes the QA-006 id-0 collision (`|| 0` collapsed a real id-0 entity
+   * onto the no-self queries) and the broader `|| 0` falsy-coalescing pattern.
+   */
+  private static cacheKey(cellId: number, selfId: number, mask: number, closest: boolean): number {
+    return (closest ? 0x1000000000000 : 0)
+      + ((mask & 0xFF) * 0x10000000000)
+      + ((selfId + 1) * 0x1000000)
+      + cellId;
+  }
+
   getDataRadius(x: number, y: number, radius: number, worldSpace: boolean = false, self?: T, closest: boolean = false, mask: number = 0): IDataRadiusResults<T> {
-    let data: IDataRadiusResults<T> = [];
     const c = this.getCell(x, y, worldSpace);
     if (!c) {
-      console.warn('getDataRadius no cell found at', x, y, radius, worldSpace);
-      return data;
+      return [];
     }
-    const radius2 = radius * radius;
-    let hashKey = `${c.id}|${(self?.id || 0)}|${mask}|${closest ? 1 : 0}`;
+
     if (this.options.maxQueryCacheFrames) {
-      let getDataRadiusCacheResult = this.getDataRadiusCache.get(hashKey);
-      // if we look for cache hit with closest, but don't find it, broaden key to query that includes more
-      if (!getDataRadiusCacheResult && closest) {
-        getDataRadiusCacheResult = this.getDataRadiusCache.get(`${c.id}|${(self?.id || 0)}|${mask}|0`);
-      }
-
-      // check if we have cache hit
-      if (getDataRadiusCacheResult) {
-        // ensure the cache has not expired
-        if (this.options.world.CurrentFrame - getDataRadiusCacheResult.frame < this.options.maxQueryCacheFrames) {
-          // cache query did not have any results just return the empty array
-          if (!getDataRadiusCacheResult.data.length) {
-            return getDataRadiusCacheResult.data;
-          }
-          // current query is for closest but results are not for closest then just return first result from cache
-          if (closest && !getDataRadiusCacheResult.closest) {
-            return [getDataRadiusCacheResult.data[0]];
-          }
-          if (radius < getDataRadiusCacheResult.radius) {
-            getDataRadiusCacheResult.data = getDataRadiusCacheResult.data.filter(i => i.dist2 <= radius2);
-          }
-          return getDataRadiusCacheResult.data;
-        } else {
-          // cache expired remove it
-          this.getDataRadiusCache.delete(hashKey);
-        }
+      const cached = this.readQueryCache(c.id, self, mask, closest, radius);
+      if (cached) {
+        return cached;
       }
     }
 
+    const data = this.queryNeighbors(c, x, y, radius, worldSpace, self, closest, mask);
+
+    if (this.options.maxQueryCacheFrames) {
+      this.writeQueryCache(c.id, self, mask, closest, radius, data);
+    }
+    return data;
+  }
+
+  private readQueryCache(cellId: number, self: T | undefined, mask: number, closest: boolean, radius: number): IDataRadiusResults<T> | undefined {
+    const selfId = self?.id ?? -1;
+    const key = HashGrid.cacheKey(cellId, selfId, mask, closest);
+    let result = this.getDataRadiusCache.get(key);
+    // Broaden: a closest=true miss may be servable from a closest=false cache entry
+    // (the first item of a sorted all-neighbours result is the closest).
+    if (!result && closest) {
+      result = this.getDataRadiusCache.get(HashGrid.cacheKey(cellId, selfId, mask, false));
+    }
+    if (!result) {
+      return undefined;
+    }
+    if (this.options.world.CurrentFrame - result.frame >= this.options.maxQueryCacheFrames) {
+      this.getDataRadiusCache.delete(key);
+      return undefined;
+    }
+    if (!result.data.length) {
+      return result.data;
+    }
+    if (closest && !result.closest) {
+      return [result.data[0]];
+    }
+    // Phase-2 filter fix (QA-002): a narrower-radius query must filter out
+    // cached entries whose dist2 exceeds the new radius2. The result is
+    // returned directly (NOT written back to the cache, so the wider cached
+    // radius remains available for future queries).
+    if (radius < result.radius) {
+      const radius2 = radius * radius;
+      return result.data.filter(i => i.dist2 <= radius2);
+    }
+    return result.data;
+  }
+
+  private writeQueryCache(cellId: number, self: T | undefined, mask: number, closest: boolean, radius: number, data: IDataRadiusResults<T>): void {
+    const selfId = self?.id ?? -1;
+    const key = HashGrid.cacheKey(cellId, selfId, mask, closest);
+    this.getDataRadiusCache.set(key, {frame: this.options.world.CurrentFrame, closest, radius, data});
+  }
+
+  private queryNeighbors(c: Cell<T>, x: number, y: number, radius: number, worldSpace: boolean, self: T | undefined, closest: boolean, mask: number): IDataRadiusResults<T> {
     const cellSize = this.options.cellSize;
     const p = new vec2(x * (worldSpace ? 1 : cellSize), y * (worldSpace ? 1 : cellSize));
-    let dist2: number;
+    const radius2 = radius * radius;
+    const numNeighbors = this.numNeighbors(c, radius, true);
+    if (closest) {
+      return this.findClosest(c, p, radius2, numNeighbors, self, mask);
+    }
+    return this.findAll(c, p, radius2, numNeighbors, self, mask);
+  }
+
+  private findClosest(c: Cell<T>, p: vec2, radius2: number, numNeighbors: number, self: T | undefined, mask: number): IDataRadiusResults<T> {
     let nearest: number = Infinity;
     let nearestData: T | undefined;
     let nearestDv: vec2 | undefined;
-    const numNeighbors = this.numNeighbors(c, radius, true);
     for (let ni = 0; ni < numNeighbors; ni++) {
       const n = c.neighbors[ni];
       for (const i of n.items) {
         if (i === self) continue;
-        if (mask && !(i.layer & mask)) {
-          continue;
-        }
-
+        if (mask && !(i.layer & mask)) continue;
         const dv = vec2.difference(i.p, p);
-        dist2 = dv.squaredLength();
+        const dist2 = dv.squaredLength();
         if (dist2 <= radius2 && dist2 < nearest) {
           nearest = dist2;
           nearestData = i;
           nearestDv = dv;
         }
-        if (!closest) {
+      }
+    }
+    // Preserves the original falsy-`nearest` check (a dist2 of 0 is treated as "no match");
+    // see audit QA-018 — refactor must not change observable behaviour.
+    if (!nearest || !nearestData || !nearestDv) {
+      return [];
+    }
+    return [{data: nearestData, dist2: nearest, dv: nearestDv}];
+  }
+
+  private findAll(c: Cell<T>, p: vec2, radius2: number, numNeighbors: number, self: T | undefined, mask: number): IDataRadiusResults<T> {
+    const data: IDataRadiusResults<T> = [];
+    for (let ni = 0; ni < numNeighbors; ni++) {
+      const n = c.neighbors[ni];
+      for (const i of n.items) {
+        if (i === self) continue;
+        if (mask && !(i.layer & mask)) continue;
+        const dv = vec2.difference(i.p, p);
+        const dist2 = dv.squaredLength();
+        if (dist2 <= radius2) {
           data.push({data: i, dv, dist2});
         }
       }
     }
-    if (closest) {
-      if (!nearest || !nearestData || !nearestDv) {
-        data = [];
-        if (this.options.maxQueryCacheFrames) {
-          this.getDataRadiusCache.set(hashKey, {frame: this.options.world.CurrentFrame, closest, radius, data});
-        }
-        return data;
-      }
-      data = [{data: nearestData, dist2: nearest, dv: nearestDv}];
-      if (this.options.maxQueryCacheFrames) {
-        this.getDataRadiusCache.set(hashKey, {frame: this.options.world.CurrentFrame, closest, radius, data});
-      }
-      return data;
-    }
-
-    data = data
-      .filter(i => i.dist2 <= radius2)
-      .sort((a, b) => a.dist2 - b.dist2);
-    if (this.options.maxQueryCacheFrames) {
-      this.getDataRadiusCache.set(hashKey, {frame: this.options.world.CurrentFrame, closest, radius, data});
-    }
+    data.sort((a, b) => a.dist2 - b.dist2);
     return data;
   }
 
@@ -303,7 +348,6 @@ export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgres
 
   addCelDataByIndex(cellIndex: number, v: T): void {
     if (!isFinite(cellIndex) || cellIndex < 0 || cellIndex >= this.cells.length) {
-      // debugger;
       throw new Error(`Cell index out of bounds ${cellIndex}, ${this.cells.length}`);
     }
     const cell = this.cells[cellIndex];
@@ -334,13 +378,32 @@ export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgres
     const i = items.indexOf(data);
     if (i === -1) {
       return false;
-
     }
     items.splice(i, 1);
     this.allData.delete(data);
     data.cellIndex = -1;
     this.changedCells.add(cell);
+    // QA-021: mutation during a query loop (e.g. ConvertHumanBehavior kills a
+    // human mid-iteration) must not serve a stale neighbour list to the next
+    // caller in the same frame. Drop every cache entry keyed on this cell so
+    // the next getDataRadius re-queries. Cache is disabled today
+    // (maxQueryCacheFrames: 0); this is the safety net for when it is enabled.
+    this.invalidateCellCache(cell.id);
     return true;
+  }
+
+  /**
+   * Drop all getDataRadius cache entries whose key references `cellId`.
+   * The key packs cellId into its low 24 bits (see {@link cacheKey}); the
+   * masked comparison is exact for any cellId < 2^24 (~16M cells).
+   */
+  private invalidateCellCache(cellId: number): void {
+    if (!this.getDataRadiusCache.size) return;
+    for (const key of this.getDataRadiusCache.keys()) {
+      if ((key & 0xFFFFFF) === cellId) {
+        this.getDataRadiusCache.delete(key);
+      }
+    }
   }
 
   clearCelData(x: number, y: number, worldSpace: boolean): void {
@@ -383,20 +446,7 @@ export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgres
       buffers.color[id + 1] = cell.color.g;
       buffers.color[id + 2] = cell.color.b;
       buffers.color[id + 3] = 1;
-      // if (cell.wp.x === 0) {
-      //   buffers.color[id * 4] = 0.5;
-      //   buffers.color[id * 4 + 1] = 0.5;
-      //   buffers.color[id * 4 + 2] = 0;
-      //   buffers.color[id * 4 + 3] = 1;
-      // }
-      // if (cell.wp.y === 0) {
-      //   buffers.color[id * 4] = 0;
-      //   buffers.color[id * 4 + 1] = 0.5;
-      //   buffers.color[id * 4 + 2] = 0.5;
-      //   buffers.color[id * 4 + 3] = 1;
-      // }
     }
-    // if (Math.random() > 0.99) console.log('changed', this.getDataRadiusCache.size);
   }
 
   cleanCache() {

@@ -22,6 +22,7 @@ export class GameClock {
   lastTime: number = 0;
   fpsFrameCount: number = 0;
   options: IGameClockOptions;
+  private fpsIntervalId: ReturnType<typeof setInterval> | null = null;
   gameTime: IGameTime = {
     currentTime: 0,
     deltaTime: 0,
@@ -33,7 +34,7 @@ export class GameClock {
     this.options = options;
     const gameTime = this.gameTime;
     this.startTime = performance.now();
-    setInterval(() => {
+    this.fpsIntervalId = setInterval(() => {
       if (gameTime.fps) {
         gameTime.fps = (gameTime.fps + this.fpsFrameCount) / 2;
       } else {
@@ -41,6 +42,13 @@ export class GameClock {
       }
       this.fpsFrameCount = 0;
     }, 1000);
+  }
+
+  dispose(): void {
+    if (this.fpsIntervalId !== null) {
+      clearInterval(this.fpsIntervalId);
+      this.fpsIntervalId = null;
+    }
   }
 
   tick() {
@@ -59,7 +67,6 @@ export class GameClock {
     }
 
     this.lastTime = gameTime.currentTime;
-    // if (Math.random()<0.001) console.log(gameTime);
     gameTime.deltaTime = clamp(gameTime.deltaTime, this.options.minDeltaTime, this.options.maxDeltaTime);
     this.fpsFrameCount++;
   }
