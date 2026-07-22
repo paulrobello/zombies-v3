@@ -93,15 +93,15 @@ const DefaultBufferValues = {
 export class World {
   canvas: HTMLCanvasElement;
   ctx: WebGL2RenderingContext;
-  width!: number;
-  height!: number;
-  widthD2!: number;
-  heightD2!: number;
+  width: number = 0;
+  height: number = 0;
+  widthD2: number = 0;
+  heightD2: number = 0;
   dimensions: [number, number] = [0, 0];
   flowCellSize: number = 32;
   boidCellSize: number = 32;
-  gridXW!: number;
-  gridYW!: number;
+  gridXW: number = 0;
+  gridYW: number = 0;
   flowGrid!: FlowGrid;
   boidGrid!: BoidGrid;
   flowGridOptions!: HashGridOptions;
@@ -149,11 +149,25 @@ export class World {
 
 
   constructor() {
-    this.canvas = document.getElementById('canvas') as HTMLCanvasElement;
-    this.ctx = this.canvas.getContext('webgl2')!;
-    this.statsEl = document.getElementById('stats') as HTMLDivElement;
-    this.helpEl = document.getElementById('help') as HTMLDivElement;
-    this.helpToggleEl = document.getElementById('helpToggle') as HTMLDivElement;
+    const canvas = document.getElementById('canvas');
+    if (!(canvas instanceof HTMLCanvasElement)) {
+      throw new Error('Canvas element #canvas not found or is not an HTMLCanvasElement');
+    }
+    this.canvas = canvas;
+    const ctx = canvas.getContext('webgl2');
+    if (!ctx) {
+      throw new Error('WebGL2 is not supported by this browser/context');
+    }
+    this.ctx = ctx;
+    const statsEl = document.getElementById('stats');
+    const helpEl = document.getElementById('help');
+    const helpToggleEl = document.getElementById('helpToggle');
+    if (!(statsEl instanceof HTMLDivElement) || !(helpEl instanceof HTMLDivElement) || !(helpToggleEl instanceof HTMLDivElement)) {
+      throw new Error('Required DOM elements (stats/help/helpToggle) not found or are not HTMLDivElements');
+    }
+    this.statsEl = statsEl;
+    this.helpEl = helpEl;
+    this.helpToggleEl = helpToggleEl;
     // setTimeout(() => {
     //   this.helpEl.classList.toggle('hidden');
     // }, 5000);

@@ -152,11 +152,14 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
       throw new Error(`newCellIndex is undefined for ${p.x} and ${p.y}`);
     }
     if (this.cellIndex !== newCellIndex) {
-      grid.removeCelDataByIndex(this.lastCellIndex, this);
+      grid.removeCelDataByIndex(this.cellIndex, this);
       grid.addCelDataByIndex(newCellIndex, this);
     }
     const flowGrid = this.options.world.flowGrid;
-    const cell = flowGrid.getCell(p.x, p.y, true)!;
+    const cell = flowGrid.getCell(p.x, p.y, true);
+    if (!cell) {
+      throw new Error(`flowGrid.getCell returned no cell for (${p.x}, ${p.y})`);
+    }
     let cv: IFlowValue | undefined = cell.items[this.layer];
     if (!cv) {
       cv = {

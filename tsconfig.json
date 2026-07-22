@@ -11,6 +11,7 @@
     ],
     "sourceMap": true,
     "skipLibCheck": true,
+    "strict": true,
     "noImplicitOverride": true,
     "noImplicitReturns": true,
     "experimentalDecorators": true,

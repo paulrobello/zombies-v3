@@ -185,7 +185,7 @@ export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgres
             return [getDataRadiusCacheResult.data[0]];
           }
           if (radius < getDataRadiusCacheResult.radius) {
-            getDataRadiusCacheResult.data.filter(i => i.dist2 <= radius2);
+            getDataRadiusCacheResult.data = getDataRadiusCacheResult.data.filter(i => i.dist2 <= radius2);
           }
           return getDataRadiusCacheResult.data;
         } else {
@@ -200,7 +200,7 @@ export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgres
     let dist2: number;
     let nearest: number = Infinity;
     let nearestData: T | undefined;
-    let nearestDv!: vec2;
+    let nearestDv: vec2 | undefined;
     const numNeighbors = this.numNeighbors(c, radius, true);
     for (let ni = 0; ni < numNeighbors; ni++) {
       const n = c.neighbors[ni];
@@ -223,7 +223,7 @@ export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgres
       }
     }
     if (closest) {
-      if (!nearest || !nearestData) {
+      if (!nearest || !nearestData || !nearestDv) {
         data = [];
         if (this.options.maxQueryCacheFrames) {
           this.getDataRadiusCache.set(hashKey, {frame: this.options.world.CurrentFrame, closest, radius, data});

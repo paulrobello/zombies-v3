@@ -1,5 +1,3 @@
-import { mat4 } from './mat4';
-
 import { epsilon } from './constants';
 
 export class vec4 {
@@ -310,14 +308,6 @@ export class vec4 {
     dest.w *= length;
 
     return dest;
-  }
-
-  multiplyMat4(matrix: mat4, dest?: vec4): vec4 {
-    if (!dest) {
-      dest = this;
-    }
-
-    return matrix.multiplyVec4(this, dest);
   }
 
   static mix(vector: vec4, vector2: vec4, time: number, dest?: vec4): vec4 {

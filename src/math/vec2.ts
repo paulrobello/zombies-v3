@@ -1,6 +1,4 @@
 import { epsilon } from './constants';
-import { mat2 } from './mat2';
-import { mat3 } from './mat3';
 
 
 export interface Ivec2 {
@@ -200,8 +198,8 @@ export class vec2 implements Ivec2 {
     if (!dest) {
       dest = this;
     }
-    this.x /= vector.x;
-    this.y /= vector.y;
+    dest.x = this.x / vector.x;
+    dest.y = this.y / vector.y;
 
     return dest;
   }
@@ -253,22 +251,6 @@ export class vec2 implements Ivec2 {
 
   directionTo(vector: vec2, dest?: vec2): vec2 {
     return vec2.direction(this, vector, dest);
-  }
-
-  multiplyMat2(matrix: mat2, dest?: vec2): vec2 {
-    if (!dest) {
-      dest = this;
-    }
-
-    return matrix.multiplyVec2(this, dest);
-  }
-
-  multiplyMat3(matrix: mat3, dest?: vec2): vec2 {
-    if (!dest) {
-      dest = this;
-    }
-
-    return matrix.multiplyVec2(this, dest);
   }
 
   rotateRight(dest?: vec2): vec2 {
