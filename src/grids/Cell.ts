@@ -1,3 +1,18 @@
+/**
+ * A single spatial-hash cell. Stores its grid coordinates (`p`), world-space
+ * top-left (`wp`) and center (`wc`) positions, a tint colour for the debug
+ * grid draw (`color`), the pre-computed neighbour list (`neighbors`, sorted
+ * nearest-first by squared distance to `wc`), and the items currently
+ * spatially assigned to this cell (`items`).
+ *
+ * `items` is overloaded by grid type: `HashGrid<Boid>` uses it as a dense
+ * push-array of entities; `FlowGrid` overrides `addCelDataByIndex` so each
+ * layer bitmask writes to its own `items[layer]` slot (sparse-by-layer
+ * storage, see `FlowGrid.resize`).
+ *
+ * `markChanged` adds this cell to `HashGrid.changedCells` so the debug-draw
+ * pass knows it needs a colour re-upload.
+ */
 import { IPositional } from '../interfaces';
 import { vec2, Ivec2, vec4 } from '../math';
 import { HashGrid, HashGridCellItem } from './HashGrid';

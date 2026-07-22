@@ -1,3 +1,9 @@
+/**
+ * Classic boids "alignment" — steer to match the heading direction of
+ * nearby neighbours. Samples the nearest neighbour and adds its normalized
+ * velocity scaled by `this.scale`. Currently commented out in `Boid`'s
+ * constructor; kept as a reference behaviour.
+ */
 import { BoidGrid } from '../grids/BoidGrid';
 import { Boid } from '../boids/Boid';
 import { IGameTime } from '../GameClock';

@@ -1,3 +1,9 @@
+/**
+ * Classic boids "separation" — steer away from nearby neighbours to avoid
+ * crowding. Force scales with proximity: closer neighbours contribute a
+ * stronger perpendicular (rotate-right) impulse. Currently commented out
+ * in `Boid`'s constructor; kept as a reference behaviour.
+ */
 import { Boid } from '../boids/Boid';
 import { IGameTime } from '../GameClock';
 import { vec2, epsilon, clamp } from '../math';

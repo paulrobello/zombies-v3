@@ -1,3 +1,12 @@
+/**
+ * Structural interfaces shared across the simulation: `IPositional` /
+ * `IDirectional` (field shapes for entities), `IProgressible` / `IDrawable`
+ * (the tick + draw contracts used by `World.draw`), and the layer-name →
+ * bitmask lookup types used by the spatial grids.
+ *
+ * @see src/World.ts — the only caller of `IProgressible.tick` and `IDrawable.draw`.
+ * @see src/grids/HashGrid.ts — uses `QueryLayerByName` to allocate layer bitmasks.
+ */
 import { IGameTime } from './GameClock';
 import { Ivec2 } from './math';
 

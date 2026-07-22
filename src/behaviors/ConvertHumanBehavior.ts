@@ -1,3 +1,11 @@
+/**
+ * Zombie→Human contact conversion. Each tick, queries the `human` layer for
+ * any neighbour within `b.r * 2 + margin` and calls `die()` on every hit —
+ * `Human.die` spawns a fresh Zombie in its place (reusing the dying human's
+ * `id` slot). The `minAgeBeforeConvert` gate skips freshly-spawned zombies
+ * (paired with `Zombie.tick`'s own age check, this enforces the 3-second
+ * stun window during which a zombie cannot convert anyone).
+ */
 import { Boid } from '../boids/Boid';
 import { IGameTime } from '../GameClock';
 import { vec2 } from '../math';

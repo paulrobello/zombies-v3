@@ -1,3 +1,13 @@
+/**
+ * Food entity — a static, immobile boid that humans seek and eat. Lives on
+ * the `'food'` layer (`World.layerByName('food')`), grows over time up to
+ * half a flow-cell, and toggles its contribution to the food-gradient flow
+ * field on/off as it crosses `Food.MinSize` and the regrowth threshold. Both
+ * transitions call `World.markFoodGradientDirty()` so the gradient is
+ * recomputed once next frame rather than per-state-change.
+ *
+ * @see Boid for the base class and the `id`-as-GL-slot invariant.
+ */
 import { IGameTime } from '../GameClock';
 import { Boid, IBoidOptions } from './Boid';
 

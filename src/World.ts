@@ -1,3 +1,39 @@
+/**
+ * World — the simulation orchestrator (currently a God object; see
+ * ARC-002 / `docs/architecture/system-overview.md#planned-refactoring-arc-002`).
+ *
+ * Owns, today: the WebGL2 context and every program/buffer bundle
+ * (`boidGl` / `gridGl` / `flowGridGl` / `ringGl`); the entity factory
+ * (`initBoids`, `randomizeBoids`); the procedural flow-field generator
+ * (`genField`, `getFlowFieldValue`, `computeFoodGradient`); the
+ * requestAnimationFrame frame loop (`draw`); DOM/canvas input state
+ * (`mouse`, `paintMode`, `gridMode`, key/mouse listeners); and the
+ * HUD stats interval.
+ *
+ * Lifecycle:
+ *
+ * - Constructed exactly once from `src/index.ts`. The constructor returns
+ *   early (and sets {@link disabled}) when WebGL2 is unavailable, leaving
+ *   `ctx` undefined — index.ts checks `world.disabled` before starting the
+ *   render loop.
+ * - {@link dispose} cancels the RAF, clears timers, and removes every
+ *   window/canvas listener the constructor attached. Called from a
+ *   `beforeunload` listener and safe to call multiple times.
+ * - **Context-loss restore.** `webglcontextlost` cancels the RAF and calls
+ *   `event.preventDefault()` so the canvas stays attached.
+ *   `webglcontextrestored` sets `needsGlRestore`; the next `draw()` calls
+ *   {@link restoreGlContext} which re-runs the three `init*Gl` methods.
+ *   Simulation state (boids, grids, cache) is plain JS and survives — only
+ *   the GPU resources were lost.
+ *
+ * Per-frame dirty flag: `foodGradientDirty` is set by `Food.tick` /
+ * `Food.die` via {@link markFoodGradientDirty} and consumed once at the top
+ * of {@link draw} (before any boid reads the flow field), collapsing an
+ * O(foods × cells) recompute to one pass per frame.
+ *
+ * @see docs/architecture/system-overview.md — full frame-loop and per-shader
+ *      attribute-packing reference.
+ */
 import { makeNoise2D } from 'fast-simplex-noise';
 import * as twgl from 'twgl.js';
 import { BufferInfo, m4, ProgramInfo } from 'twgl.js';
@@ -30,6 +66,19 @@ export const PaintModes: PaintMode[] = ['none', 'wall', 'stroke', 'attract', 're
 export type GridDrawMode = 'none' | 'flow' | 'boid';
 export const GridDrawModes: GridDrawMode[] = ['none', 'flow', 'boid'];
 
+/**
+ * Ring program buffer bundle (`ring.vs` / `ring.fs`). Per-instance data is
+ * packed at `id * 4` (one `vec4` per ring, divisor 1):
+ * - `pos_rad.xy` = world position
+ * - `pos_rad.z`  = radius
+ * - `pos_rad.w`  = remaining duration (seconds). When `< EPSILON` the vertex
+ *   shader degenerates the position outside the clip volume, so finished
+ *   rings are culled without buffer compaction.
+ * - `color.xyz`  = ring tint
+ * - `color.w`    = stripe thickness
+ *
+ * @see src/shaders/ring.vs
+ */
 export interface IRingGl {
   pos_rad: Float32Array;
   color: Float32Array;
@@ -38,6 +87,21 @@ export interface IRingGl {
 }
 
 
+/**
+ * Boid program buffer bundle (`boid.vs` / `boid.fs`). Per-instance data is
+ * packed at `id * 4` (three `vec4`s per boid, divisor 1):
+ * - `pos_vel.xy`  = world position
+ * - `pos_vel.zw`  = velocity vector (px/s)
+ * - `color`       = RGBA tint
+ * - `rad_static.x` = radius. When `< EPSILON` (dead boid) the vertex shader
+ *   emits a degenerate position outside the clip volume and the fragment
+ *   shader `discard`s — see `src/shaders/boid.vs` / `boid.fs`.
+ * - `rad_static.y` = static flag (1 = static, 0 = dynamic)
+ * - `rad_static.zw` = unused (kept `vec4`-aligned)
+ *
+ * @see src/shaders/boid.vs
+ * @see src/shaders/boid.fs
+ */
 export interface IBoidGl {
   pos_vel: Float32Array;
   color: Float32Array;
@@ -46,12 +110,28 @@ export interface IBoidGl {
   bufferInfo: BufferInfo;
 }
 
+/**
+ * Grid program buffer bundle (`grid.vs` / `grid.fs`). One `color` `vec4`
+ * per cell (divisor 1); `gl_InstanceID` reconstructs the cell's world center
+ * in the vertex shader so no per-cell position attribute is needed. Shared
+ * by `BoidGrid` (debug density draw) and `FlowGrid` (debug flow draw);
+ * `gridMode` uniform selects the fragment branch.
+ *
+ * @see src/shaders/grid.vs
+ */
 export interface IGridGl {
   color: Float32Array;
   programInfo: ProgramInfo;
   bufferInfo: BufferInfo;
 }
 
+/**
+ * Flow grid buffer bundle — extends {@link IGridGl} with the per-cell
+ * `vel_len` `vec4` (divisor 1):
+ * - `vel_len.xy` = flow direction (normalized on the write side)
+ * - `vel_len.z`  = flow strength `cv.l`
+ * - `vel_len.w`  = solid flag (0/1)
+ */
 export interface IFlowGridGl extends IGridGl {
   v: Float32Array;
 }
@@ -440,6 +520,12 @@ export class World {
     return this.boidIdCounter++;
   }
 
+  /**
+   * Compile the ring program and allocate the `ringGl` buffer bundle sized
+   * to `numBoids` instances. Re-run on context restore (see
+   * {@link restoreGlContext}) — buffer data is re-uploaded on the next
+   * `draw()` by each `Ring.draw()`.
+   */
   initRingGl() {
     const vs = ring_vs_shader;
     const fs = ring_fs_shader;
@@ -473,6 +559,15 @@ export class World {
     };
   }
 
+  /**
+   * Compile the boid program (`boid.vs` / `boid.fs`) and allocate the
+   * `boidGl` buffer bundle sized to `numBoids` instances. The three
+   * per-instance attributes (`pos_vel`, `color`, `rad_static`) all use
+   * `divisor: 1`; the shared `vert_pos` / `texcoord` come from
+   * {@link DefaultBufferValues}. Re-run on context restore.
+   *
+   * @see IBoidGl for the per-instance packing layout.
+   */
   initBoidGl() {
     const vs = boid_vs_shader;
     const fs = boid_fs_shader;
@@ -513,6 +608,14 @@ export class World {
   }
 
 
+  /**
+   * Compile the grid program (`grid.vs` / `grid.fs`) and allocate two
+   * buffer bundles: `gridGl` (sized to `boidGrid.cells.length`, used for
+   * density debug draw) and `flowGridGl` (sized to `flowGrid.cells.length`,
+   * carries both `color` and `vel_len`). Both use `divisor: 1` per-cell
+   * attributes; the cell's world position is reconstructed from
+   * `gl_InstanceID` in the vertex shader. Re-run on context restore.
+   */
   initGridGl() {
     const vs = grid_vs_shader;
     const fs = grid_fs_shader;
@@ -786,6 +889,22 @@ export class World {
     this.ctx.drawArraysInstanced(this.ctx.TRIANGLES, 0, 6, this.numBoids);
   }
 
+  /**
+   * Frame entry point (called via requestAnimationFrame). Order:
+   * 1. Context-loss gate — keep the RAF alive but skip GL work while lost.
+   * 2. Context-restore gate — re-run the three `init*Gl` methods once on
+   *    the first frame after restore.
+   * 3. Advance the `GameClock` (single source of `IGameTime`).
+   * 4. Clear, set ortho projection.
+   * 5. Tick `flowGrid` and `boidGrid` (paint + fade; boidGrid is a no-op).
+   * 6. Apply the food-gradient dirty flag once if set (before any boid
+   *    reads the flow field, so all boids see a consistent gradient).
+   * 7. Optional grid debug draw (`gridMode === 'boid' | 'flow'`).
+   * 8. Tick + draw every boid. Each writes into its `id` slot in `boidGl`.
+   * 9. Tick + draw every ring.
+   * 10. `drawRings()` + `drawBoids()` issue the instanced draw calls.
+   * 11. Reset `mouse.clicked`, re-arm RAF.
+   */
   public draw() {
     // QA-007: while the GL context is lost, GL calls would throw or no-op,
     // so skip the render block but keep the RAF loop alive so we recover

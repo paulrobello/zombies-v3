@@ -1,3 +1,18 @@
+/**
+ * Expanding-ring visual effect emitted when a Human converts into a Zombie.
+ * A fixed pool of `numBoids` rings is allocated by `World.initBoids`; each
+ * ring has a `duration` that ticks down and a `radius` that grows. A ring
+ * with `duration <= 0` is "available" — `Human.die` finds the first
+ * available ring, sets its duration / position, and the next frame the ring
+ * expands outward.
+ *
+ * Per-instance data is written into `World.ringGl` at `id * 4` (see
+ * `IRingGl`). The vertex shader degenerates the position outside clip
+ * volume when `pos_rad.w` (duration) is `< EPSILON`, so inactive rings are
+ * culled without buffer compaction.
+ *
+ * @see src/World.ts IRingGl for the buffer packing layout.
+ */
 import { IGameTime } from './GameClock';
 import { IDrawable, IProgressible } from './interfaces';
 import { vec2, vec4 } from './math';

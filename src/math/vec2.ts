@@ -1,3 +1,24 @@
+/**
+ * 2D vector math used across the simulation. The library is intentionally
+ * minimal — `mat2`/`mat3`/`mat4`/`vec3`/`quat` were deleted as dead code
+ * (audit QA-005); orthographic projection goes through twgl.js's `m4`.
+ *
+ * Conventions (see `docs/architecture/system-overview.md#srcmath-conventions`):
+ *
+ * - **`dest?` mutate-or-return.** Every arithmetic method takes an optional
+ *   trailing `dest`. Pass one to write the result into it (and return it);
+ *   omit it to mutate `this` in place and return `this`. The hot loop in
+ *   `Boid.tick` and the behaviours reuses a per-Boid scratch pool
+ *   (`Boid.scratch.{t, fp1, fp2, dTemp}`) via this parameter, so per-frame
+ *   allocation stays at zero.
+ * - **Return-on-singular.** `normalize` / `direction` of a zero-length
+ *   vector write `(0, 0)` into `dest` and return it; they do not throw.
+ *   Callers that need a non-zero result should clamp inputs above `epsilon`.
+ * - **Frozen statics.** `vec2.zero` / `one` / `up` / `down` / `left` /
+ *   `right` are `Object.freeze`'d. Reads type-check as `vec2`, but any
+ *   mutation (`vec2.zero.add(v)` without `dest`, or `vec2.zero.x = 5`)
+ *   throws in strict mode (ESM is always strict).
+ */
 import { epsilon } from './constants';
 
 

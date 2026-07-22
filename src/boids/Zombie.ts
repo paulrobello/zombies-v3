@@ -1,3 +1,15 @@
+/**
+ * Zombie entity — chases humans, converts them on contact, and is stunned
+ * (cannot move or convert) for the first 3 seconds of life (including after
+ * a Human→Zombie conversion). Behaviour set (in run-order): collision,
+ * chase-humans steer, boid-flow, zombie-flow, convert-human.
+ *
+ * The spawn-stun (`age < 3`) is enforced by `tick` returning before
+ * `super.tick` — newly converted zombies don't immediately convert their
+ * neighbours.
+ *
+ * @see Boid for the base class.
+ */
 import { CollisionBehavior } from '../behaviors/CollisionBehavior';
 import { ConvertHumanBehavior } from '../behaviors/ConvertHumanBehavior';
 import { FlowBehavior } from '../behaviors/FlowBehavior';

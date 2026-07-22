@@ -1,3 +1,10 @@
+/**
+ * Steer away from the world edges. Applies a velocity impulse scaled by
+ * closeness to each edge inside a `margin`-pixel border. Default-installed
+ * by `Boid`'s constructor (second entry in the `behaviors` map). Works in
+ * tandem with the hard position clamp in `Boid.tick` — the clamp prevents
+ * escape; this behaviour makes the approach gradual.
+ */
 import { Boid } from '../boids/Boid';
 import { IGameTime } from '../GameClock';
 import { vec2 } from '../math';

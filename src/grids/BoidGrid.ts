@@ -1,3 +1,12 @@
+/**
+ * `HashGrid<Boid>` with a density-coloured debug draw. Per-cell colour is
+ * sampled from a `chroma-js` scale keyed on `cell.items.length`, so the
+ * debug grid reads as a heat-map of entity density. The actual entity
+ * spatial hashing (insert / query / re-index) is inherited from
+ * {@link HashGrid}.
+ *
+ * Drawn only when `World.gridMode === 'boid'` (see `World.drawBoidGrid`).
+ */
 import chroma from 'chroma-js';
 import { Boid } from '../boids/Boid';
 import { HashGrid } from './HashGrid';

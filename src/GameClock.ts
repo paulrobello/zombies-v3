@@ -1,3 +1,14 @@
+/**
+ * Game clock — the single source of `IGameTime` (`currentTime`, `deltaTime`,
+ * `currentFrame`, `fps`) consumed by every `tick` method. Clamps `deltaTime`
+ * to `[minDeltaTime, maxDeltaTime]` (default `[0.01, 0.1]`) so a tab
+ * backgrounded for minutes doesn't produce a single multi-second step that
+ * tunnels boids through walls.
+ *
+ * FPS is sampled by a 1Hz `setInterval` that halves the running average
+ * with the per-frame count. The interval id is tracked so `dispose()` can
+ * clear it (QA-013); `World.dispose` calls `gameClock.dispose()`.
+ */
 import { clamp } from './math';
 
 export interface IGameClockOptions {

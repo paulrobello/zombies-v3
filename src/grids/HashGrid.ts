@@ -1,3 +1,24 @@
+/**
+ * Uniform-grid spatial hash used for neighbour queries. `BoidGrid` and
+ * `FlowGrid` both extend this; `BoidGrid` colours cells by density,
+ * `FlowGrid` overrides storage so each layer bitmask has its own slot in
+ * `cell.items` (see `FlowGrid.addCelDataByIndex`).
+ *
+ * Per-instance data lives in `cell.items` (a sparse-by-layer array for
+ * `FlowGrid`, a dense push-array for everything else). Cells pre-compute
+ * their neighbour list once in `computeNeighbors(radius)` (in cell-count
+ * units), sorted nearest-first by squared distance to the cell's world
+ * center — so `getDataRadius` queries read neighbours in approximate
+ * distance order without re-sorting.
+ *
+ * **Cache.** `getDataRadius` results are cached per `(cell, selfId, mask,
+ * closest, radius)` key when `options.maxQueryCacheFrames > 0`. Both grids
+ * set it to `0` today (cache disabled); the bit-packed numeric key (see
+ * {@link HashGrid.cacheKey}) and `invalidateCellCache` are the safety net
+ * for when it is enabled.
+ *
+ * @see docs/architecture/system-overview.md#component-diagram
+ */
 import { Cell, ICellIndexable } from './Cell';
 import { IGameTime } from '../GameClock';
 import { IDrawable, IPositional, IProgressible } from '../interfaces';
@@ -136,6 +157,22 @@ export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgres
     } // x
   }
 
+  /**
+   * Compute how many of `cell.neighbors` to visit for a query of the given
+   * radius. Returns a count in `[1, cell.neighbors.length]` covering a
+   * `(2·blockRadius + 1)²` block, clamped to the pre-computed neighbour list
+   * (see {@link computeNeighbors}).
+   *
+   * @param cell        - The query cell (its `neighbors` are read).
+   * @param radius      - Query radius. Units depend on `worldSpace`.
+   * @param worldSpace  - When `true`, `radius` is in world units (pixels) and
+   *                      is divided by `cellSize` before clamping against
+   *                      `computeNeighborRadius` (also cell-count). When
+   *                      `false`, `radius` is already in cell-count units.
+   *                      ARC-007a fixed a unit-confusion bug where the two
+   *                      were compared without conversion.
+   * @returns           - Neighbour count to iterate over.
+   */
   numNeighbors(cell: Cell<T>, radius: number, worldSpace: boolean): number {
     const cellSize = this.options.cellSize;
     let blockRadius;
@@ -185,6 +222,33 @@ export class HashGrid<T extends HashGridCellItem> implements IDrawable, IProgres
       + cellId;
   }
 
+  /**
+   * Find items within `radius` of `(x, y)`. The hot-path neighbour query used
+   * by every behaviour (collision, separation, alignment, steer, conversion).
+   *
+   * @param x          - Query X. World pixels when `worldSpace = true`,
+   *                      cell coordinates otherwise.
+   * @param y          - Query Y. Same unit as `x`.
+   * @param radius     - Search radius. Same unit as `x`/`y` (world pixels
+   *                      when `worldSpace`, cell-count otherwise).
+   * @param worldSpace - When `true`, `x`/`y`/`radius` are world pixels and
+   *                      are divided by `cellSize` for the cell lookup. When
+   *                      `false`, they are cell coordinates already.
+   * @param self       - Optional item to exclude from results (the querying
+   *                      boid). Encoded into the cache key via
+   *                      {@link cacheKey} so self-include vs self-exclude
+   *                      queries do not share entries.
+   * @param closest    - When `true`, return only the single nearest item
+   *                      (still wrapped in the result-array shape).
+   * @param mask       - Layer bitmask. Non-zero filters results to items
+   *                      whose `layer` matches (`(i.layer & mask) !== 0`).
+   *                      Built by `World.layerByName(name)` which returns
+   *                      `2^(n+1)` per registered layer.
+   * @returns          - Sorted ascending by `dist2` (or a single-element
+   *                      array when `closest`). Empty when no match. The
+   *                      cache may be consulted or written depending on
+   *                      `options.maxQueryCacheFrames`.
+   */
   getDataRadius(x: number, y: number, radius: number, worldSpace: boolean = false, self?: T, closest: boolean = false, mask: number = 0): IDataRadiusResults<T> {
     const c = this.getCell(x, y, worldSpace);
     if (!c) {

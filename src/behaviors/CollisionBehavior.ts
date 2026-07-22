@@ -1,3 +1,24 @@
+/**
+ * Collision detection and response. Two modes selected by the `predictive`
+ * option:
+ *
+ * - **Predictive.** Projects both boids forward by `deltaTime` before
+ *   testing overlap, so the avoidance impulse fires before contact. Used by
+ *   both `Human` and `Zombie`.
+ * - **Reactive (the implicit `else` branch, currently commented off in the
+ *   source).** Tests current overlap only.
+ *
+ * The response combines a separating impulse along the contact normal and a
+ * tangential "turn right" impulse so boids slide past each other rather
+ * than stacking. Runs at most `iterations` passes per tick; the per-boid
+ * `checkedFrame` field is stamped on each neighbour's same-named behaviour
+ * so a neighbour processed later in the same frame skips duplicate work.
+ *
+ * Allocates no vec2s: uses the per-Boid scratch pool (`b.scratch.{t, fp1,
+ * fp2, dTemp}`) via the `dest?` convention (QA-012).
+ *
+ * @see docs/architecture/system-overview.md#srcmath-conventions
+ */
 import { Boid } from '../boids/Boid';
 import { IGameTime } from '../GameClock';
 import { clamp, epsilon, vec2 } from '../math';

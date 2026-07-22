@@ -1,3 +1,17 @@
+/**
+ * Steer toward (or away from, with negative `scale`) the nearest entity on
+ * a given layer. Used by `Human` to seek food (`scale > 0`, `nearest = true`)
+ * and avoid zombies (`scale = -2`, `nearest = false` — average over all
+ * zombies in range), and by `Zombie` to chase humans.
+ *
+ * `breakingDistance` + `breakingPower` apply a decelerating impulse when
+ * the boid is close enough to its target and moving above
+ * `TUNING.breakingSpeedFraction` of `maxSpeed`, so a seeking boid slows on
+ * approach rather than overshooting.
+ *
+ * `lastResults` caches the most recent `getDataRadius` return for inspection
+ * (debug draw); it is not used to short-circuit the next tick.
+ */
 import { Boid } from '../boids/Boid';
 import { IGameTime } from '../GameClock';
 import { BoidGrid } from '../grids/BoidGrid';

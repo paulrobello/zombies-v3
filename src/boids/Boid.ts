@@ -1,3 +1,29 @@
+/**
+ * Base entity for the simulation. Owns position / velocity / direction /
+ * radius, a behaviour set (`behaviors: Map<string, BoidBehavior<Boid>>`,
+ * Strategy pattern), and a per-instance scratch `vec2` pool reused by the
+ * hot loop.
+ *
+ * Two invariants matter beyond the field declarations:
+ *
+ * - **`id` is the GL buffer slot.** `Boid.draw` writes its per-instance data
+ *   at `this.id * 4` in the `pos_vel` / `color` / `rad_static` typed arrays
+ *   on `World.boidGl`, so `id` must be dense in `[0, numBoids)` to match the
+ *   buffer size. `World.nextBoidId` allocates ids per-World (ARC-009);
+ *   `Human.die` passes an explicit `id` when spawning its replacement
+ *   Zombie so the dying human's slot is reused without resizing the buffers.
+ * - **Scratch pool aliasing.** {@link Boid.scratch} holds four `vec2` slots
+ *   (`t`, `fp1`, `fp2`, `dTemp`) allocated once. Each slot is the `dest` of
+ *   at most one call per expression (see `src/math/vec2.ts`'s `dest?`
+ *   convention). Behaviours reach into this pool rather than allocating
+ *   fresh temporaries every tick.
+ *
+ * Subclasses: {@link Human}, {@link Zombie}, {@link Food} in this directory.
+ *
+ * @see src/behaviors/BoidBehavior.ts — Strategy contract for `behaviors`.
+ * @see docs/architecture/system-overview.md — full frame-loop and buffer
+ *      layout reference.
+ */
 import { AvoidBoundaryBehavior } from '../behaviors/AvoidBoundaryBehavior';
 import { BoidBehavior } from '../behaviors/BoidBehavior';
 import { ForwardBehavior } from '../behaviors/ForwardBehavior';
@@ -41,6 +67,20 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
   public speed: number = 0;
   public maxSpeed: number = 10;
 
+  /**
+   * Strategy-pattern behaviour set. Iterated in **insertion order** every
+   * tick by {@link applyBehaviors}; subclasses populate this in their
+   * constructor (see `Human` / `Zombie`). The map key is a stable name
+   * shared with the behaviour's own `this.name` so behaviours can look each
+   * other up by name (used by `CollisionBehavior` to mark neighbours as
+   * processed for the frame).
+   *
+   * Run-order is the insertion order: base `Boid` adds `ForwardBehavior`
+   * then `AvoidBoundaryBehavior`; subclasses append their own (collision,
+   * flow, steer, convert). `BoidBehavior.scale` is a per-behaviour
+   * multiplier on its output force, `enabled` gates it on/off without
+   * removing it (e.g. `Human` toggles `findFood.enabled` based on hunger).
+   */
   public behaviors: Map<string, BoidBehavior<Boid>> = new Map<string, BoidBehavior<Boid>>();
   public grid: HashGrid<Boid>;
   public lastCellIndex: number = -1;
@@ -136,6 +176,27 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     }
   }
 
+  /**
+   * Per-frame update. Runs behaviours, clamps speed, integrates position
+   * (`p += v · dt`), clamps to the world bounds, applies drag, and re-indexes
+   * the boid in the `BoidGrid` if it crossed a cell boundary. Then writes a
+   * flow-field contribution into the `FlowGrid` cell the boid now occupies.
+   *
+   * Three contracts worth knowing:
+   *
+   * - **Cell re-index.** If the new position falls in a different cell,
+   *   `removeCelDataByIndex(this.cellIndex, this)` followed by
+   *   `addCelDataByIndex(newCellIndex, this)` moves the boid. `cellIndex`
+   *   is the authoritative location, not `p`.
+   * - **Flow-guard.** A boid clamped to the world edge can be off the flow
+   *   grid (`flowGrid.getCell` returns `undefined` outside the field).
+   *   `tick` returns early *after* the position clamp and grid re-index but
+   *   *before* the flow contribution — the rest of the frame's work is
+   *   unaffected (QA-011).
+   * - **Dead boids bail.** `if (!this.alive) return;` — subclasses check
+   *   `this.alive` after `super.tick(gameTime)` rather than relying on a
+   *   return value (ARC-010).
+   */
   tick(gameTime: IGameTime): void {
     if (!this.alive) {
       return;

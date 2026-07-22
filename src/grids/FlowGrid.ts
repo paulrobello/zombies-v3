@@ -1,3 +1,29 @@
+/**
+ * `HashGrid<IFlowValue>` — the paintable multi-layer flow field that every
+ * boid reads to decide where to steer. Each cell stores one `IFlowValue` per
+ * layer bitmask (`boid`, `human`, `zombie`, `food`) so behaviours can layer
+ * independent flows without overwriting each other.
+ *
+ * Overrides the parent's storage: `addCelDataByIndex` writes to
+ * `cell.items[v.layer]` (sparse-by-layer) instead of pushing, and `resize`
+ * pre-allocates `cell.items.length = 256` so any layer bitmask up to 2^7 has
+ * a slot. (Adding an 8th layer would silently overflow — flagged as
+ * ARC-006/QA-017.)
+ *
+ * Two responsibilities per `tick`:
+ *
+ * - **Fade.** Non-static flow cells decay toward zero strength over time
+ *   (rate per layer via `flowMaskFade`).
+ * - **Paint.** When the user is holding a mouse button, applies the current
+ *   `World.paintMode` (`wall` / `stroke` / `attract` / `repel`) to the cells
+ *   under the cursor, on the currently-selected flow layer
+ *   (`World.flowGrid.drawFlowType`).
+ *
+ * Drawn when `World.gridMode === 'flow'` (see `World.drawFlowGrid`).
+ *
+ * @see World.computeFoodGradient — writes a synthetic per-cell flow that
+ *      points every food-aware boid toward the nearest `Food`.
+ */
 import { Cell, ICellIndexable } from './Cell';
 import { IGameTime } from '../GameClock';
 import { HashGrid, HashGridOptions, IGridQueryable } from './HashGrid';

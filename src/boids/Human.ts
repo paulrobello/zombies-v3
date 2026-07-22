@@ -1,3 +1,21 @@
+/**
+ * Human entity — wanders, grows hungry, seeks food, flees zombies, and on
+ * death converts into a `Zombie`. Behaviour set (in run-order): collision,
+ * boid-flow, human-flow, food-flow (hunger-gated), find-food steer
+ * (hunger-gated), avoid-zombie steer.
+ *
+ * On `die()`, spawns a `Zombie` that **reuses the dying human's `id`** so
+ * the GL instanced buffer slot is recycled (see {@link Boid}'s id invariant)
+ * — `World.boids.push(boid)` rather than indexed assignment, because the
+ * dead Human's own `draw()` will zero its slot on the next frame.
+ *
+ * Colour: cyan by default, shifting through the precomputed
+ * `HUNGER_GRADIENT_LUT` (ARC-004) as hunger rises. The LUT replaces a
+ * per-frame `chroma.scale()(.gl())` call that allocated a fresh rgba array
+ * for every living human every tick.
+ *
+ * @see Boid for the base class and behaviour-composition contract.
+ */
 import chroma from 'chroma-js';
 import { CollisionBehavior } from '../behaviors/CollisionBehavior';
 import { FlowBehavior } from '../behaviors/FlowBehavior';

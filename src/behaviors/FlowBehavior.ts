@@ -1,3 +1,20 @@
+/**
+ * Sample the `FlowGrid` and apply a steering force along the cell's flow
+ * vector. Two branches based on the sampled `IFlowValue`:
+ *
+ * - **Solid.** A wall the boid is overlapping or about to enter: pushes the
+ *   boid away from the cell's world center with a strong impulse
+ *   (`TUNING.pushForceScale`). Virtual base-speed boost
+ *   (`TUNING.baseSpeedBoost`) ensures even stationary boids get pushed.
+ * - **Flow.** Adds `flow.p · flow.l · scale` to the boid's velocity. Flow
+ *   strength `flow.l` ranges 0..1 — a freshly-painted cell has `l = 1` and
+ *   fades via `FlowGrid.fadeCells` unless refreshed or marked `static`.
+ *
+ * Per-entity `layer` selects which slot of the cell's `items` array to
+ * read. `Human`, for example, runs three FlowBehaviours against `boid`,
+ * `human`, and `food` layers simultaneously; `Food` flow is hunger-gated
+ * via `enabled`.
+ */
 import { Boid } from '../boids/Boid';
 import { IGameTime } from '../GameClock';
 import { FlowGrid, IFlowValue } from '../grids/FlowGrid';

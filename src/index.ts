@@ -1,3 +1,13 @@
+/**
+ * App entry point. Loads the stylesheet, wires top-level error handlers
+ * (SEC-006), constructs the {@link World}, and starts the render loop —
+ * unless the constructor returned with `world.disabled` set (WebGL2
+ * unavailable, QA-009), in which case the user-facing fallback message
+ * is already on screen.
+ *
+ * The module is imported by `webpack` as the bundle entry (see
+ * `webpack.config.js`). Side-effectful by design — no exports.
+ */
 import '../static/css/main.css';
 import { World } from './World';
 

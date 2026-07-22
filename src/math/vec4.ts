@@ -1,3 +1,18 @@
+/**
+ * 4-component vector used for entity colours and per-instance shader
+ * attributes. Follows the same `dest?` mutate-or-return convention as
+ * {@link vec2} (write to `dest` if provided, else mutate `this`).
+ *
+ * The instance stores its components in a length-4 `values` array; the
+ * `x`/`y`/`z`/`w` and `r`/`g`/`b`/`a` accessors are aliases on the same
+ * storage. `set xyzw([...])` and the rgba setters are the canonical
+ * bulk-write paths.
+ *
+ * Unlike `vec2`, the static helpers (`sum`, `difference`, `product`,
+ * `mix`, etc.) and the per-instance `add` / `subtract` / `multiply` /
+ * `divide` methods do **not** all take `dest?` — some mutate `this`
+ * unconditionally. Check the call site before relying on aliasing.
+ */
 import { epsilon } from './constants';
 
 export class vec4 {

@@ -1,3 +1,9 @@
+/**
+ * Steer toward a fixed `IPositional` target (typically a `vec2` point).
+ * Force scales with distance — far targets pull harder. Currently commented
+ * out in `Boid`'s constructor; kept as a reference behaviour for
+ * goal-directed steering.
+ */
 import { Boid } from '../boids/Boid';
 import { IGameTime } from '../GameClock';
 import { IPositional } from '../interfaces';

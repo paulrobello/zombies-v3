@@ -1,3 +1,10 @@
+/**
+ * The simplest behaviour — applies a constant forward thrust along the
+ * boid's current heading direction (`boid.d`). Default-installed by
+ * `Boid`'s constructor (first entry in the `behaviors` map, so it runs
+ * before any other behaviour). Without this, a boid with no other active
+ * steering would slow to a stop under drag.
+ */
 import { Boid } from '../boids/Boid';
 import { IGameTime } from '../GameClock';
 import { BoidBehavior, IBehaviorOptions } from './BoidBehavior';
