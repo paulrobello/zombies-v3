@@ -12,8 +12,7 @@ import { BoidBehavior, IBehaviorOptions } from './BoidBehavior';
 export class ForwardBehavior<T extends Boid> extends BoidBehavior<T> {
 
   constructor(boid: T, scale: number = 1, options: IBehaviorOptions) {
-    super(boid, scale, options);
-    this.name = 'ForwardBehavior';
+    super(boid, 'ForwardBehavior', scale, options);
   }
 
   public override tick(gameTime: IGameTime): void {

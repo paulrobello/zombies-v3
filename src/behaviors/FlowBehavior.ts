@@ -21,9 +21,9 @@ import { FlowGrid, IFlowValue } from '../grids/FlowGrid';
 import { clamp, epsilon, Ivec2, vec2 } from '../math';
 import { BoidBehavior, IBehaviorOptions } from './BoidBehavior';
 
-// QA-027: per-file tuning knobs. Exhaustive extraction of every numeric
-// literal is intentionally backlog — only the non-obvious force/scale
-// multipliers are surfaced here.
+// QA-027: per-file tuning knobs. Only non-obvious force/scale multipliers
+// are surfaced; self-evident flow-magnitude math (`flow.p * flow.l`) stays
+// inline.
 const TUNING = {
   // Clamp on the away-from-solid distance — keeps the inverse within sane bounds.
   maxDistanceClamp: 1000,
@@ -45,8 +45,7 @@ export class FlowBehavior<T extends Boid> extends BoidBehavior<T> {
   layer: number;
 
   constructor(boid: T, scale: number, options: IFlowBehaviorOptions) {
-    super(boid, scale, options);
-    this.name = 'FlowBehavior';
+    super(boid, 'FlowBehavior', scale, options);
     this.flowGrid = options.flowGrid;
     this.layer = options.layer;
   }

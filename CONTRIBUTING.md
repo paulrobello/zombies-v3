@@ -23,9 +23,13 @@ cd zombies-v3
 yarn install
 ```
 
-`yarn install` respects the `resolutions` block in `package.json`
-(`picomatch` is pinned for a known transitive vulnerability). Do not delete
-that block when upgrading dependencies.
+`yarn install` respects the `resolutions` block in `package.json`. The
+`picomatch` resolution is **load-bearing**: it pins a transitive dependency
+that drove `yarn audit` to zero vulnerabilities (see the audit-callout commit
+`fe8a68d`). Do **not** sweep it away with a bare `yarn upgrade` — if a
+`yarn upgrade` or Dependabot PR touches `picomatch`, run `yarn audit` and
+confirm it still reports **0 vulnerabilities** before merging. Same applies
+to `ajv` if it is re-introduced.
 
 ## Development loop
 
@@ -137,12 +141,12 @@ The contract lives in `src/behaviors/BoidBehavior.ts`:
 
 ```ts
 export class BoidBehavior<T extends Boid> implements IProgressible {
-  public name!: string;
+  public readonly name: string;
   public enabled: boolean;
   public boid: T;
   public scale: number;
 
-  constructor(boid: T, scale: number = 1, options: IBehaviorOptions);
+  constructor(boid: T, name: string, scale: number = 1, options: IBehaviorOptions);
 
   tick(_gameTime: IGameTime): boolean;   // return true if it applied a force
 }
@@ -153,9 +157,10 @@ export class BoidBehavior<T extends Boid> implements IProgressible {
   crosses a threshold).
 - **`scale`** — the per-behaviour weight applied to its computed impulse.
   Tune relative weights between behaviours rather than their internals.
-- **`name`** — assigned by the subclass constructor; used as the
+- **`name`** — `readonly`, supplied by each subclass via
+  `super(boid, '<BehaviorName>', scale, options)`; used as the
   `behaviors.set(key, …)` key so the same behaviour can be looked up by name
-  at runtime.
+  at runtime. Subclasses do not assign `this.name` directly.
 
 ### Worked example: a "flee from nearest threat" behaviour
 
@@ -176,8 +181,7 @@ export class FleeBehavior<T extends Boid> extends BoidBehavior<T> {
   threatLayer: number;
 
   constructor(boid: T, scale: number = 1, options: IFleeBehaviorOptions) {
-    super(boid, scale, options);
-    this.name = 'FleeBehavior';
+    super(boid, 'FleeBehavior', scale, options);
     this.margin = options.margin;
     this.threatLayer = options.threatLayer;
   }

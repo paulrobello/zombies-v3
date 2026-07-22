@@ -14,6 +14,8 @@ import { clamp } from './math';
 export interface IGameClockOptions {
   minDeltaTime: number;
   maxDeltaTime: number;
+  /** Lock `deltaTime` to {@link FIXED_DELTA_TIME} every frame for deterministic runs. */
+  fixedStep: boolean;
 }
 
 export interface IGameTime {
@@ -25,14 +27,25 @@ export interface IGameTime {
 
 export const GameClockDefaultOptions: IGameClockOptions = {
   minDeltaTime: 0.01,
-  maxDeltaTime: 0.1
+  maxDeltaTime: 0.1,
+  fixedStep: false
 };
+
+/**
+ * Fixed delta time (seconds per frame) used when `fixedStep` is on. 1/60
+ * matches a 60Hz display's expected frame rate; choosing a constant — rather
+ * than measuring real elapsed time — makes the simulation deterministic so a
+ * screenshot taken at `?exitAfter=500` is byte-equivalent across runs.
+ */
+export const FIXED_DELTA_TIME: number = 1 / 60;
 
 export class GameClock {
   startTime: number = 0;
   lastTime: number = 0;
   fpsFrameCount: number = 0;
   options: IGameClockOptions;
+  /** True iff the clock is in deterministic fixed-step mode (`?fixedStep=1`). */
+  fixedStep: boolean;
   private fpsIntervalId: ReturnType<typeof setInterval> | null = null;
   gameTime: IGameTime = {
     currentTime: 0,
@@ -43,6 +56,7 @@ export class GameClock {
 
   constructor(options: IGameClockOptions = GameClockDefaultOptions) {
     this.options = options;
+    this.fixedStep = options.fixedStep;
     const gameTime = this.gameTime;
     this.startTime = performance.now();
     this.fpsIntervalId = setInterval(() => {
@@ -63,22 +77,33 @@ export class GameClock {
   }
 
   tick() {
-    const t = performance.now();
     const gameTime: IGameTime = this.gameTime;
     gameTime.currentFrame++;
-    gameTime.currentTime = (t - this.startTime) / 1000;
-    if (isNaN(gameTime.currentTime)) {
-      gameTime.currentTime = 0;
-    }
-    if (this.lastTime) {
-      gameTime.deltaTime = (gameTime.currentTime - this.lastTime);
-    }
-    if (isNaN(gameTime.deltaTime)) {
-      gameTime.deltaTime = 0;
+
+    if (this.fixedStep) {
+      // Deterministic mode: ignore wall clock and advance by FIXED_DELTA_TIME.
+      // `currentTime` advances by the same dt so shader iTime is reproducible
+      // too; `deltaTime` skips the clamp since FIXED_DELTA_TIME (~0.0167) is
+      // already inside [minDeltaTime, maxDeltaTime]. `lastTime` is left alone
+      // — it is only used to derive deltaTime from currentTime in real mode.
+      gameTime.currentTime += FIXED_DELTA_TIME;
+      gameTime.deltaTime = FIXED_DELTA_TIME;
+    } else {
+      const t = performance.now();
+      gameTime.currentTime = (t - this.startTime) / 1000;
+      if (isNaN(gameTime.currentTime)) {
+        gameTime.currentTime = 0;
+      }
+      if (this.lastTime) {
+        gameTime.deltaTime = (gameTime.currentTime - this.lastTime);
+      }
+      if (isNaN(gameTime.deltaTime)) {
+        gameTime.deltaTime = 0;
+      }
+      this.lastTime = gameTime.currentTime;
+      gameTime.deltaTime = clamp(gameTime.deltaTime, this.options.minDeltaTime, this.options.maxDeltaTime);
     }
 
-    this.lastTime = gameTime.currentTime;
-    gameTime.deltaTime = clamp(gameTime.deltaTime, this.options.minDeltaTime, this.options.maxDeltaTime);
     this.fpsFrameCount++;
   }
 }

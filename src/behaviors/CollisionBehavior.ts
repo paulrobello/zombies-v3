@@ -24,9 +24,9 @@ import { IGameTime } from '../GameClock';
 import { clamp, epsilon, vec2 } from '../math';
 import { BoidBehavior, IBehaviorOptions } from './BoidBehavior';
 
-// QA-027: per-file tuning knobs for collision response. Exhaustive
-// extraction of every numeric literal is backlog; only the non-obvious
-// force/radius multipliers are surfaced here.
+// QA-027: per-file tuning knobs for collision response. Only non-obvious
+// force/radius multipliers are surfaced; self-evident geometric literals
+// (`b.r + n.r`, array indices, half-penetration ` / 2`) stay inline.
 const TUNING = {
   // Neighbour search radius = b.r * N. Predictive uses a wider shell so the
   // avoidance impulse fires before the overlap actually happens.
@@ -55,9 +55,8 @@ export class CollisionBehavior<T extends Boid> extends BoidBehavior<T> {
   predictive: boolean;
 
   constructor(boid: T, scale: number, options: ICollisionBehaviorOptions) {
-    super(boid, scale, options);
+    super(boid, 'CollisionBehavior', scale, options);
 
-    this.name = 'CollisionBehavior';
     this.margin = options.margin;
     this.iterations = options.iterations;
     this.layerMask = options.layerMask;

@@ -22,8 +22,7 @@ export class AvoidBoundaryBehavior<T extends Boid> extends BoidBehavior<T> {
   margin: number;
 
   constructor(boid: T, scale: number = 1, options: IAvoidBoundaryBehaviorOptions = AvoidBoundaryBehaviorDefaultOptions) {
-    super(boid, scale, options);
-    this.name = 'AvoidBoundaryBehavior';
+    super(boid, 'AvoidBoundaryBehavior', scale, options);
     this.margin = options.margin;
   }
 

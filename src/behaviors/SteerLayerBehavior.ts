@@ -19,9 +19,9 @@ import { IDataRadiusResults } from '../grids/HashGrid';
 import { vec2, epsilon, clamp } from '../math';
 import { BoidBehavior, IBehaviorOptions } from './BoidBehavior';
 
-// QA-027: per-file tuning knob. Exhaustive extraction of every numeric
-// literal is backlog; only the non-obvious speed-fraction threshold is
-// surfaced here.
+// QA-027: per-file tuning knob. Only the non-obvious speed-fraction
+// threshold is surfaced; self-evident geometric literals (`b.r * 2`,
+// the `(r + 1) - dist` falloff) stay inline.
 const TUNING = {
   // When within breakingDistance and moving above this fraction of maxSpeed,
   // the boid applies a decelerating impulse. 0.5 = "half speed or faster".
@@ -46,8 +46,7 @@ export class SteerLayerBehavior<T extends Boid> extends BoidBehavior<T> {
   breakingPower: number;
 
   constructor(boid: T, scale: number, options: ISteerLayerBehaviorOptions) {
-    super(boid, scale, options);
-    this.name = 'SteerLayerBehavior';
+    super(boid, 'SteerLayerBehavior', scale, options);
     this.radius = options.radius;
     this.layerName = options.layerName;
     this.nearest = options.nearest;

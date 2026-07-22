@@ -1,5 +1,9 @@
 #include "./common.glsl";
 
+// QA-027: per-file tuning knob. Only the dir-line half-width is surfaced;
+// the `vec2(0.5)` / `dot(dir,dir) >= 0.25` literals are unit-quad geometry.
+#define GRID_DIR_LINE_HALF_WIDTH 0.05
+
 flat in int v_gridMode;
 flat in float v_solid;
 in vec2 v_angle;
@@ -20,7 +24,7 @@ void main() {
                         // forward half
                         if (v_speed > EPSILON && dot(vec2(- v_angle.x, v_angle.y), dir) > 0.0) {
                             // dir line
-                            if (abs(dot(v_angle.yx, dir)) < 0.05) {
+                            if (abs(dot(v_angle.yx, dir)) < GRID_DIR_LINE_HALF_WIDTH) {
                                 FragColor = v_line_color * clamp(v_speed, 0.0, 1.0);
                             }
                         }

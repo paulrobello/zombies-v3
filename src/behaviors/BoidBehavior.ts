@@ -13,10 +13,12 @@
  *   scales invert the force direction (e.g. `SteerLayerBehavior` with
  *   `scale = -2` for "avoid this layer" — see `Human`'s `AvoidZombie`).
  *
- * `name` is set by each subclass's constructor and doubles as the
- * `behaviors` map key. It is also read across behaviours: `CollisionBehavior`
- * looks up the neighbour's same-named behaviour to short-circuit duplicate
- * processing in the same frame (`checkedFrame`).
+ * `name` is supplied by each subclass via `super(boid, '<Name>', …)` and
+ * doubles as the `behaviors` map key. It is also read across behaviours:
+ * `CollisionBehavior` looks up the neighbour's same-named behaviour to
+ * short-circuit duplicate processing in the same frame (`checkedFrame`).
+ * It is `readonly` once set in the base constructor — no caller mutates it
+ * post-construction (verified via par-mem `get_symbol_context` sweep).
  *
  * The {@link tick} base implementation is a no-op; subclasses override it
  * and call `super.tick` only for the gating check.
@@ -31,13 +33,14 @@ export interface IBehaviorOptions {
 }
 
 export class BoidBehavior<T extends Boid> implements IProgressible {
-  public name!: string;
+  public readonly name: string;
   public enabled: boolean;
   public boid: T;
   public scale: number;
 
-  constructor(boid: T, scale: number = 1, options: IBehaviorOptions) {
+  constructor(boid: T, name: string, scale: number = 1, options: IBehaviorOptions) {
     this.boid = boid;
+    this.name = name;
     this.scale = scale;
     this.enabled = options.enabled !== undefined ? options.enabled : true;
   }

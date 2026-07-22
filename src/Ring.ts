@@ -71,6 +71,15 @@ export class Ring implements IProgressible, IDrawable {
       buffers.color[i + 2] = this.color.b;
       buffers.color[i + 3] = this.thickness;
     }
+    // Written unconditionally — including when `duration <= 0` — so the
+    // `pos_rad.w` slot the ring vertex shader tests against EPSILON
+    // (ring.vs:14) reflects this ring's *current* lifecycle state. The ring
+    // pool is a fixed-size buffer indexed by `id`; if a slot transitions
+    // from active to inactive this frame and we skipped this write, the
+    // shader would keep drawing a stale ring from last frame's leftover
+    // `pos_rad.w`. Writing the actual duration (0 once expired) lets the
+    // shader cull inactive rings via clip-space degeneration without buffer
+    // compaction (see class docstring).
     buffers.pos_rad[i + 3] = this.duration;
   }
 }

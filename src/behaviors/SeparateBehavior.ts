@@ -9,6 +9,15 @@ import { IGameTime } from '../GameClock';
 import { vec2, epsilon, clamp } from '../math';
 import { BoidBehavior, IBehaviorOptions } from './BoidBehavior';
 
+// QA-027: per-file tuning knobs. Only non-obvious force/distance multipliers
+// are surfaced; self-evident geometric literals (`b.r * 2`, array indices)
+// stay inline.
+const TUNING = {
+  // Cap on the distance used to normalise the separation-direction vector,
+  // matching the clamp in CollisionBehavior / FlowBehavior.
+  maxDistanceClamp: 1000
+};
+
 export interface ISeparateBehaviorOptions extends IBehaviorOptions {
   margin: number;
 }
@@ -21,8 +30,7 @@ export class SeparateBehavior<T extends Boid> extends BoidBehavior<T> {
   margin: number;
 
   constructor(boid: T, scale: number = 1, options: ISeparateBehaviorOptions = DefaultSeparateBehaviorOptions) {
-    super(boid, scale, options);
-    this.name = 'SeparateBehavior';
+    super(boid, 'SeparateBehavior', scale, options);
     this.margin = options.margin;
   }
 
@@ -42,7 +50,7 @@ export class SeparateBehavior<T extends Boid> extends BoidBehavior<T> {
     for (const na of nearest) {
       const n = na.data;
       const d2 = na.dist2;
-      let dist = clamp(Math.sqrt(d2), epsilon, 1000);
+      let dist = clamp(Math.sqrt(d2), epsilon, TUNING.maxDistanceClamp);
       const d = vec2.difference(n.p, p, tempD).scale(1 / dist).rotateRight();
       dist = (r - dist) / r;
       v.x += d.x * dist * this.scale;

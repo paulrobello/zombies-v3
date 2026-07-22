@@ -12,6 +12,12 @@
 // small, i.e. the fragment lies close to the v_angle axis. Stationary boids
 // (v_static > 0) skip the stripe entirely and render as a plain disc.
 #include "./common.glsl";
+
+// QA-027: per-file tuning knobs. The disc/r2 literals (0.5, 0.25) are
+// self-evident geometry of the unit quad; only the stripe width is a
+// visual tuning knob.
+#define HEADING_STRIPE_HALF_WIDTH 0.1
+
 in vec2 v_texcoord;
 in vec4 v_color;
 in vec2 v_angle;
@@ -31,7 +37,7 @@ void main() {
         discard;
     }
     if (v_static < EPSILON && dot(v_angle, dir) < 0.0) {
-        if (abs(dot(vec2(-v_angle.y, v_angle.x), dir)) < 0.1) {
+        if (abs(dot(vec2(-v_angle.y, v_angle.x), dir)) < HEADING_STRIPE_HALF_WIDTH) {
             FragColor = vec4(1.0, 0.0, 0.0, 1.0);
         } else {
             FragColor = v_color;

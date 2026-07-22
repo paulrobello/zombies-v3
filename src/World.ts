@@ -41,12 +41,13 @@ import { Boid } from './boids/Boid';
 import { Food } from './boids/Food';
 import { Human } from './boids/Human';
 import { Zombie } from './boids/Zombie';
-import { GameClock } from './GameClock';
+import { GameClock, GameClockDefaultOptions } from './GameClock';
 import { BoidGrid } from './grids/BoidGrid';
 import { FlowGrid, FlowTypeColor, FlowTypes, IFlowValue } from './grids/FlowGrid';
 import { HashGridOptions } from './grids/HashGrid';
 import { QueryLayerByName } from './interfaces';
 import { clamp, epsilon, vec2, vec4 } from './math';
+import { getSeed, rand } from './math/random';
 import { Ring } from './Ring';
 
 import grid_vs_shader from './shaders/grid.vs';
@@ -59,7 +60,9 @@ import ring_vs_shader from './shaders/ring.vs';
 import ring_fs_shader from './shaders/ring.fs';
 
 
-const noise = makeNoise2D();
+// Seeded from `rand()` so the flow field is reproducible under `?seed=N`
+// (deterministic screenshot equivalence), not `makeNoise2D`'s default RNG.
+const noise = makeNoise2D(rand);
 export type PaintMode = 'none' | 'wall' | 'stroke' | 'attract' | 'repel';
 export const PaintModes: PaintMode[] = ['none', 'wall', 'stroke', 'attract', 'repel'];
 
@@ -148,6 +151,59 @@ export interface IMouse {
   alt: boolean;
 }
 
+/**
+ * Agent-operability options wired in from `src/util/params.ts` → `src/index.ts`.
+ * All fields default to "off" so the live demo (no URL params) behaves
+ * identically to today: random seed per load, real deltaTime, window-sized
+ * canvas, never auto-exits, no `window.__zombies`.
+ *
+ * See {@link parseUrlParams} for the corresponding URL flags.
+ */
+export interface IWorldOptions {
+  /** Lock `GameClock.deltaTime` to `1/60`s (`?fixedStep=1`). */
+  fixedStep: boolean;
+  /** Stop the RAF after this many ms of wall-clock time (`?exitAfter=MS`). */
+  exitAfter: number | null;
+  /** Stop the RAF after this many logical frames (`?exitFrames=N`); frame-count
+   *  stop is independent of wall clock / display refresh, so it is the
+   *  deterministic-capture mode for screenshot equivalence. */
+  exitFrames: number | null;
+  /** Force the canvas to a fixed pixel width (`?width=W`). */
+  fixedWidth: number | null;
+  /** Force the canvas to a fixed pixel height (`?height=H`). */
+  fixedHeight: number | null;
+  /** Expose `window.__zombies` with live state getters (`?dumpState=1`). */
+  dumpState: boolean;
+}
+
+export const WorldDefaultOptions: IWorldOptions = {
+  fixedStep: false,
+  exitAfter: null,
+  exitFrames: null,
+  fixedWidth: null,
+  fixedHeight: null,
+  dumpState: false
+};
+
+/**
+ * Live snapshot of simulation state exposed on `window.__zombies` when
+ * `?dumpState=1` is set. Every field is a getter, so reads always reflect
+ * the latest frame — no per-frame assignment needed.
+ */
+export interface ZombieStateSnapshot {
+  readonly boidCount: number;
+  readonly fps: number;
+  readonly seed: number;
+  readonly frame: number;
+  readonly fixedStep: boolean;
+}
+
+declare global {
+  interface Window {
+    __zombies?: ZombieStateSnapshot;
+  }
+}
+
 const DefaultBufferValues = {
   vert_pos: {
     numComponents: 2,
@@ -203,7 +259,7 @@ export class World {
   // initializer runs at construction, before resize()/genField() are called).
   // Previously genField() re-randomized it on every resize, making the flow
   // field "jump" when the window was resized.
-  fieldRandomScale: number = Math.random() * 0.001;
+  fieldRandomScale: number = rand() * 0.001;
   u_matrix: m4.Mat4 = m4.identity();
   boidGl!: IBoidGl;
   gridGl!: IGridGl;
@@ -234,6 +290,9 @@ export class World {
   private boundContextRestored: (() => void) | null = null;
   private boundResize: (() => void) | null = null;
   private boundBeforeUnload: (() => void) | null = null;
+  // Agent-operability: the wall-clock timestamp captured at construction,
+  // used by `draw()` to honour `?exitAfter=MS`. Zero when exitAfter is null.
+  private exitAfterStartMs: number = 0;
 
   mouse: IMouse = {
     p: new vec2(),
@@ -260,7 +319,11 @@ export class World {
   endTime: number = 0;
 
 
-  constructor() {
+  constructor(private readonly options: IWorldOptions = WorldDefaultOptions) {
+    // Agent-operability: anchor for `?exitAfter=MS`. Captured at construction
+    // (the RAF loop is started synchronously from `index.ts` immediately
+    // after, so the skew is sub-millisecond).
+    this.exitAfterStartMs = performance.now();
     const canvas = document.getElementById('canvas');
     if (!(canvas instanceof HTMLCanvasElement)) {
       throw new Error('Canvas element #canvas not found or is not an HTMLCanvasElement');
@@ -291,7 +354,7 @@ export class World {
     this.layerByName('zombie');
     this.layerByName('food');
 
-    this.gameClock = new GameClock();
+    this.gameClock = new GameClock({ ...GameClockDefaultOptions, fixedStep: this.options.fixedStep });
 
     this.helpToggleEl.addEventListener('click', () => {
       this.helpEl.classList.toggle('hidden');
@@ -411,6 +474,29 @@ export class World {
       }
       this.statsEl.innerText = `Humans: ${this.humans.size} Zombies: ${this.zombies.size} Flow Draw Mode: ${this.flowGrid.drawFlowType} Flow Paint Mode: ${this.paintMode} FPS ${this.FPS.toFixed(0)} Humans lived for ${this.endTime.toFixed(0)} seconds`;
     }, 1000);
+
+    // Agent-operability: expose live state on `window.__zombies` when
+    // `?dumpState=1` is set. Each field is a getter so the snapshot reflects
+    // the latest frame without per-frame assignment here.
+    if (this.options.dumpState) {
+      this.setupDumpState();
+    }
+  }
+
+  /**
+   * Install the live `window.__zombies` snapshot used by screenshot/agent
+   * drivers. Getters read through to the current frame, so an external
+   * script can poll `window.__zombies.boidCount` etc. without touching the DOM.
+   */
+  private setupDumpState(): void {
+    const worldRef: World = this;
+    window.__zombies = {
+      get boidCount(): number { return worldRef.boids.length; },
+      get fps(): number { return worldRef.FPS; },
+      get seed(): number { return getSeed(); },
+      get frame(): number { return worldRef.CurrentFrame; },
+      get fixedStep(): boolean { return worldRef.gameClock.fixedStep; }
+    };
   }
 
   /**
@@ -673,8 +759,13 @@ export class World {
   }
 
   resize() {
-    this.width = this.canvas.width = Math.floor(window.innerWidth);
-    this.height = this.canvas.height = Math.floor(window.innerHeight);
+    // Agent-operability: `?width=W&height=H` forces fixed canvas dimensions
+    // so screenshots are a stable size; the resize listener reuses the same
+    // values rather than re-reading the window.
+    const fixedW: number | null = this.options.fixedWidth;
+    const fixedH: number | null = this.options.fixedHeight;
+    this.width = this.canvas.width = fixedW !== null ? fixedW : Math.floor(window.innerWidth);
+    this.height = this.canvas.height = fixedH !== null ? fixedH : Math.floor(window.innerHeight);
     this.dimensions[0] = this.width;
     this.dimensions[1] = this.height;
     this.widthD2 = Math.floor(this.width / 2);
@@ -771,8 +862,8 @@ export class World {
         world: this,
         grid: this.boidGrid,
         p: new vec2(
-          clamp(Math.random() * this.width, this.boidCellSize * 2, this.width - this.boidCellSize * 2),
-          clamp(Math.random() * this.height, this.boidCellSize * 2, this.height - this.boidCellSize * 2)
+          clamp(rand() * this.width, this.boidCellSize * 2, this.width - this.boidCellSize * 2),
+          clamp(rand() * this.height, this.boidCellSize * 2, this.height - this.boidCellSize * 2)
         ),
         v: new vec2().random(10, this.humanMaxSpeed),
         r: this.boidSize,
@@ -810,7 +901,7 @@ export class World {
 
   randomizeBoids() {
     this.boids.forEach(b => {
-      b.p.set_xy(Math.random() * this.width, Math.random() * this.height);
+      b.p.set_xy(rand() * this.width, rand() * this.height);
       b.v.random(this.humanMaxSpeed / 2, this.humanMaxSpeed);
     });
     this.boidGrid.reposition();
@@ -956,6 +1047,23 @@ export class World {
     this.drawRings();
     this.drawBoids();
     this.mouse.clicked.fill(false);
+    // Agent-operability: `?exitAfter=MS` — once MS wall-clock ms have elapsed
+    // since construction, do NOT re-arm the RAF. The framebuffer holds the
+    // last fully-rendered frame, which is the deterministic screenshot point.
+    if (this.options.exitAfter !== null) {
+      const elapsed: number = performance.now() - this.exitAfterStartMs;
+      if (elapsed >= this.options.exitAfter) {
+        this.rafId = null;
+        return;
+      }
+    }
+    // Agent-operability: `?exitFrames=N` — stop after N logical frames. This is
+    // the deterministic-capture mode (independent of wall clock and display
+    // refresh), used for screenshot equivalence testing.
+    if (this.options.exitFrames !== null && gameTime.currentFrame >= this.options.exitFrames) {
+      this.rafId = null;
+      return;
+    }
     // QA-013: track the RAF id so dispose() can cancel it.
     this.rafId = requestAnimationFrame(() => {
       this.draw();

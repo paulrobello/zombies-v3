@@ -22,8 +22,7 @@ export class AlignBehavior<T extends Boid> extends BoidBehavior<T> {
   margin: number;
 
   constructor(boid: T, scale: number = 1, options: IAlignBehaviorOptions = AlignBehaviorOptionsDefault) {
-    super(boid, scale, options);
-    this.name = 'AlignBehavior';
+    super(boid, 'AlignBehavior', scale, options);
     this.margin = options.margin;
   }
 

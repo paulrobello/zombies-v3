@@ -22,9 +22,8 @@ export class ConvertHumanBehavior<T extends Boid> extends BoidBehavior<T> {
   minAgeBeforeConvert: number;
 
   constructor(boid: T, scale: number, options: IConvertHumanBehaviorOptions) {
-    super(boid, scale, options);
+    super(boid, 'ConvertHumanBehavior', scale, options);
 
-    this.name = 'ConvertHumanBehavior';
     this.layerId = boid.World.layerByName('human');
     this.margin = options.margin;
     this.minAgeBeforeConvert = options.minAgeBeforeConvert;

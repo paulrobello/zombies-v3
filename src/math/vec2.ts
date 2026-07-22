@@ -20,6 +20,7 @@
  *   throws in strict mode (ESM is always strict).
  */
 import { epsilon } from './constants';
+import { rand } from './random';
 
 
 export interface Ivec2 {
@@ -151,7 +152,7 @@ export class vec2 implements Ivec2 {
     if (!dest) {
       dest = this;
     }
-    const r = Math.random() * Math.PI * 2;
+    const r = rand() * Math.PI * 2;
     const range = max - min;
     dest.x = Math.cos(r) * range + min;
     dest.y = Math.sin(r) * range + min;

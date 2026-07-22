@@ -1,6 +1,12 @@
 #include "./common.glsl";
 #include "./common.vs";
 
+// QA-027: per-file tuning knobs. Cell-center offsets (gridCellSize * 0.5)
+// are self-evident geometry; only the painted-cell shrink and brightness
+// gain are visual tuning knobs.
+#define GRID_CELL_SHRINK 0.95
+#define PAINT_CELL_BRIGHTNESS_GAIN 1.5
+
 uniform float gridCellSize;
 uniform float gridWidth;
 uniform float gridHeight;
@@ -27,7 +33,7 @@ void main() {
     float(gl_InstanceID % int(gridWidth)) * gridCellSize + (gridCellSize * 0.5),
     trunc(float(gl_InstanceID) / gridWidth) * gridCellSize + (gridCellSize * 0.5)
     );
-    vec2 p = vert_pos * gridCellSize * 0.95 + ot;
+    vec2 p = vert_pos * gridCellSize * GRID_CELL_SHRINK + ot;
     gl_Position = u_matrix * vec4(p, 0.0, 1);
     v_texcoord = vert_pos.xy + vec2(0.5);
     v_color = color;
@@ -52,7 +58,7 @@ void main() {
                             break;}
             } // switch
             if (vel_len.w > EPSILON) {
-                v_color = v_color * vec4(1.5, 1.5, 1.5, 1.0);
+                v_color = v_color * vec4(PAINT_CELL_BRIGHTNESS_GAIN, PAINT_CELL_BRIGHTNESS_GAIN, PAINT_CELL_BRIGHTNESS_GAIN, 1.0);
             }
         } // if len
     } // if paintMode

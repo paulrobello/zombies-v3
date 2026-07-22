@@ -92,6 +92,13 @@ baseline.
   committed by accident.
 - **GitHub Actions pinned to commit SHAs**, bumped via Dependabot
   (no floating-major supply-chain risk).
+- **Load-bearing `resolutions` block.** The `picomatch` (and historical
+    `ajv`) entries in `package.json`'s `resolutions` are intentional
+    security/compat pins — they are what drove `yarn audit` to zero
+    (commit `fe8a68d`). `package.json` is strict JSON and cannot hold a
+    comment, so the rule lives here and in `CONTRIBUTING.md`: **do not
+    delete or widen these pins on a `yarn upgrade` without re-running
+    `yarn audit` and confirming it still reports 0 vulnerabilities.**
 
 ### Removed
 
