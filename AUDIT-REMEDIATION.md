@@ -4,12 +4,30 @@
 > **Audit Date**: 2026-07-21
 > **Remediation Date**: 2026-07-21
 > **Severity Filter Applied**: `all`
-> **Branch**: `fix/audit-remediation` (8 commits, base `f93242f`)
+> **Branch**: `fix/audit-remediation` (8 commits, base `f93242f`) + `fix/audit-remaining` (goal-completion pass)
 > **Gate**: `make checkall` (typecheck + lint + test + build) green; `yarn audit` = **0 vulnerabilities / 605 packages**
 
 ---
 
-## Execution Summary
+## ✅ Goal-Completion Addendum (2026-07-21)
+
+A follow-up `/goal implement all remaining audit items then merge to main` closed every item that was previously deferred. **All 85 audit findings are now resolved.** Approach: build verification infrastructure first, then use it to safely execute the risky `World.ts` split with pixel-level equivalence checking.
+
+**The deferred architecture cluster — DONE (verified pixel-equivalent):**
+- **ARC-002** — `World.ts` split from 1110 → 570 lines into a thin orchestrator + four injected collaborators: `Renderer`, `Input`, `Spawner`, `FlowFieldGenerator`.
+- **ARC-011** — GL buffer writes moved out of `Boid`/`Ring` into `Renderer.write{Boid,Ring}Buffers`; entities now expose pure state and never touch WebGL. `IDrawable` removed.
+- **ARC-008** — circular `World ↔ grids ↔ boids` imports broken via an `IWorld` interface in the leaf `interfaces.ts` (no entity/grid imports the concrete `World`).
+- **ARC-006 / QA-017** — layer bitmask decoupled from storage: each layer now has a dense `[0,layerCount)` slot alongside its query bitmask; `FlowGrid.cell.items` sized to `layerCount` (the `256` magic removed — 64× less memory/cell, 9th+ layers no longer overflow). `HashGrid` bitmask masking unchanged.
+
+**Low-priority backlog — DONE:** seeded PRNG (`mulberry32`, `?seed=`); agent-operability hooks (`?fixedStep`, `?exitAfter`, `?exitFrames`, `?width`/`?height`, `?dumpState` → `window.__zombies`); `BoidBehavior.name` readonly; `IAttractionPointBehaviorOptions` shared `vec2` frozen; exhaustive QA-027 TUNING extraction; `Ring.draw` comment; `package.json` resolutions doc note. `?width`/`?height` now actually pins the canvas (fixed a `twgl.resizeCanvasToDisplaySize` override).
+
+**The verification method that made the risky refactor safe:** a seeded PRNG + fixed timestep (`?fixedStep`) + frame-count stop (`?exitFrames`) + seeded `makeNoise2D` produces a deterministic simulation. A screenshot captured with `?seed=42&fixedStep=1&exitFrames=120` before vs after each refactor must be pixel-identical. **Result: each of R2a/R2b/R3 differed from baseline by exactly 1 pixel in the simulation canvas** (the only meaningful diff was the HUD "FPS" digit, sampled by a real-time interval). This also caught a latent sim-breaking regression — the `boid.fs` heading-stripe comment pushed `#version 300 es` off line 1 (DOC-007 regression, never caught before because the sim had never been run in a browser).
+
+**DOC-006 (LICENSE)** was resolved on user confirmation in the first pass (`Copyright (c) Paul Robello`). No items remain deferred or manual.
+
+---
+
+## Execution Summary (first pass)
 
 The remediation was executed in dependency order with file-ownership-aware sequencing (Phase 3 was **not** run as a blind 4-way parallel fan-out — the audit's File Conflict Map rates `World.ts`, `Boid.ts`, `HashGrid.ts` as ⚠️⚠️ Highest across nearly every domain, so parallelism would have clobbered them). Each phase was verified by the orchestrator with the real gate (`make checkall`) before the next began — sub-agent self-reported greens were not trusted.
 

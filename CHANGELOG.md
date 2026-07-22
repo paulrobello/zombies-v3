@@ -27,6 +27,37 @@ First milestone after the project audit. The simulation is correct, the
 toolchain is modernised, and the project meets its mandatory build/lint/test
 baseline.
 
+### Goal-completion pass (architecture refactor + verification infra)
+
+A follow-up `/goal` pass closed the items deferred as too risky to auto-fix
+without a verification net. All behavior-preserving, verified by deterministic
+screenshot equivalence (`?seed=42&fixedStep=1&exitFrames=120` → 1-pixel diff).
+
+- **ARC-002 / ARC-011 — `World.ts` split.** The 1110-line God object is now a
+  570-line thin orchestrator over `Renderer`, `Input`, `Spawner`, and
+  `FlowFieldGenerator` (injected collaborators). GL buffer writes moved out of
+  `Boid`/`Ring` into `Renderer`; entities expose pure state and no longer touch
+  WebGL.
+- **ARC-008 — circular imports broken.** An `IWorld` interface in the leaf
+  `interfaces.ts`; entities/grids depend on the abstraction, not the concrete
+  `World`.
+- **ARC-006 / QA-017 — layer bitmask decoupled from storage.** Each layer has a
+  dense `[0,layerCount)` slot alongside its query bitmask; `FlowGrid.cell.items`
+  is sized to the layer count (the `256` magic removed; 9th+ layers no longer
+  overflow).
+- **Determinism / agent-operability hooks.** Seeded PRNG (`mulberry32`,
+  `?seed=`), `?fixedStep` (fixed 1/60 s timestep), `?exitFrames` (frame-count
+  stop), `?width`/`?height` (fixed canvas), `?dumpState` (`window.__zombies`).
+  Enables reproducible screenshots and headless verification.
+- **Low-priority backlog.** `BoidBehavior.name` readonly; frozen shared
+  `IAttractionPointBehaviorOptions` default; exhaustive magic-number → `TUNING`
+  extraction in behaviours/shaders; `Ring.draw` slot-write comment; load-bearing
+  `resolutions` doc note.
+- **Fix:** `boid.fs` heading-stripe comment was prepended above `#include`,
+  pushing `#version 300 es` off line 1 and silently breaking fragment-shader
+  compilation (the sim crashed on frame 1). Caught by the new screenshot
+  equivalence check — latent since it had never been run in a browser.
+
 ### Added
 
 - **Build tooling baseline.** ESLint (flat config) + Prettier + Vitest + a
