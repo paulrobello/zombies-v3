@@ -31,7 +31,8 @@ export class SeparateBehavior<T extends Boid> extends BoidBehavior<T> {
     const nearest = grid.getDataRadius(p.x, p.y, r, true, b, false);
     if (!nearest.length) return false;
 
-    const tempD = new vec2();
+    // QA-012: reuse the per-Boid scratch vec2 instead of allocating per tick.
+    const tempD = b.scratch.dTemp;
     for (const na of nearest) {
       const n = na.data;
       const d2 = na.dist2;

@@ -5,6 +5,15 @@ import { IDataRadiusResults } from '../grids/HashGrid';
 import { vec2, epsilon, clamp } from '../math';
 import { BoidBehavior, IBehaviorOptions } from './BoidBehavior';
 
+// QA-027: per-file tuning knob. Exhaustive extraction of every numeric
+// literal is backlog; only the non-obvious speed-fraction threshold is
+// surfaced here.
+const TUNING = {
+  // When within breakingDistance and moving above this fraction of maxSpeed,
+  // the boid applies a decelerating impulse. 0.5 = "half speed or faster".
+  breakingSpeedFraction: 0.5
+};
+
 export interface ISteerLayerBehaviorOptions extends IBehaviorOptions {
   radius: number;
   layerName: string;
@@ -45,7 +54,8 @@ export class SteerLayerBehavior<T extends Boid> extends BoidBehavior<T> {
     this.lastResults = nearest;
     if (!nearest.length) return false;
 
-    const t = new vec2();
+    // QA-012: reuse the per-Boid scratch vec2 instead of allocating per tick.
+    const t = b.scratch.t;
     for (const na of nearest) {
       const d2 = na.dist2;
       const dist = clamp(Math.sqrt(d2), epsilon, r);
@@ -53,7 +63,7 @@ export class SteerLayerBehavior<T extends Boid> extends BoidBehavior<T> {
       const d = na.dv.scale(1 / l, t);
       l = l * gameTime.deltaTime * this.scale;
       // l *= ((r + 1) - dist) / r;
-      if (dist < this.breakingDistance && b.speed > b.maxSpeed / 2) {
+      if (dist < this.breakingDistance && b.speed > b.maxSpeed * TUNING.breakingSpeedFraction) {
         v.scale(1 - gameTime.deltaTime * this.breakingPower);
       }
       v.x += d.x * l;

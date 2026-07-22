@@ -25,7 +25,10 @@ void main() {
     v_color = color;
     float l = length(pos_vel.zw);
     v_speed = l;
-    v_angle = pos_vel.zw / l;
+    // QA-020: stationary boids have l == 0, so divide-by-zero would propagate
+    // NaN into v_angle (and from there into boid.fs's heading-stripe test).
+    // Guard: emit a zero heading when there is no velocity.
+    v_angle = (l > EPSILON) ? pos_vel.zw / l : vec2(0.0);
     v_radius = rad_static.x * 2.0;
     v_static = rad_static.y;
 }

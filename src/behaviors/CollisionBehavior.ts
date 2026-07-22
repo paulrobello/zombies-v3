@@ -3,6 +3,22 @@ import { IGameTime } from '../GameClock';
 import { clamp, epsilon, vec2 } from '../math';
 import { BoidBehavior, IBehaviorOptions } from './BoidBehavior';
 
+// QA-027: per-file tuning knobs for collision response. Exhaustive
+// extraction of every numeric literal is backlog; only the non-obvious
+// force/radius multipliers are surfaced here.
+const TUNING = {
+  // Neighbour search radius = b.r * N. Predictive uses a wider shell so the
+  // avoidance impulse fires before the overlap actually happens.
+  predictiveRadiusFactor: 4,
+  nonPredictiveRadiusFactor: 2,
+  // Cap on the distance used to normalise the collision-direction vector.
+  maxDistanceClamp: 1000,
+  // Reactive-collision response force (penetration depth correction impulse).
+  collisionResponseForce: 5,
+  // Tangential impulse multiplier — boids turn right to slide past each other.
+  rotationImpulseScale: 2
+};
+
 export interface ICollisionBehaviorOptions  extends IBehaviorOptions{
   margin: number;
   iterations: number;
@@ -36,15 +52,18 @@ export class CollisionBehavior<T extends Boid> extends BoidBehavior<T> {
     const p: vec2 = b.p;
     const v: vec2 = b.v;
     const grid = b.options.grid;
-    // grab all neighbors within 4 times our radius
-    let md = b.r * (this.predictive ? 4 : 2); // max distance
+    // grab all neighbors within N times our radius
+    let md = b.r * (this.predictive ? TUNING.predictiveRadiusFactor : TUNING.nonPredictiveRadiusFactor); // max distance
     const nearest = grid.getDataRadius(p.x, p.y, md, true, b, false, this.layerMask);
     if (!nearest.length) return false;
 
-    const t = new vec2(); // temp var
-    const dTemp = new vec2(); // temp var
-    const fp1 = new vec2(); // current boid future position
-    const fp2 = new vec2(); // neighbor boid future position
+    // QA-012: reuse the per-Boid scratch pool instead of allocating four
+    // vec2 temporaries every tick. Each named slot is used as a `dest`
+    // for at most one call per inner-loop iteration.
+    const t = b.scratch.t;
+    const dTemp = b.scratch.dTemp;
+    const fp1 = b.scratch.fp1;
+    const fp2 = b.scratch.fp2;
     if (this.predictive) {
       p.add(v.scale(gameTime.deltaTime, t), fp1);
     }
@@ -66,7 +85,6 @@ export class CollisionBehavior<T extends Boid> extends BoidBehavior<T> {
           l = clamp(d.length(), epsilon, md);
 
           // normalize direction vector and scale force up as boids get closer
-          // d.scale(1 / l * ((md - clamp(l - (b.r + n.r), 0, md) / md)) * gameTime.deltaTime * (1 + b.speed) * this.scale);
           d.scale(1 / l * ((md - clamp(l - (b.r + n.r), 0, md) / md)) * gameTime.deltaTime * this.scale);
           // apply breaking force
           v.add(d);
@@ -75,7 +93,7 @@ export class CollisionBehavior<T extends Boid> extends BoidBehavior<T> {
           // rotate right 90 deg
           d.rotateRight();
           // turn to the right
-          v.add(d.scale(2));
+          v.add(d.scale(TUNING.rotationImpulseScale));
           // neighbor turns to the left
           n.v.add(d.scale(-1));
         }
@@ -87,8 +105,8 @@ export class CollisionBehavior<T extends Boid> extends BoidBehavior<T> {
           let l2 = d.squaredLength();
           if (l2 < r * r) {
             anyHit = true;
-            l = clamp(Math.sqrt(l2), epsilon, 1000);
-            d.scale(1 / l * gameTime.deltaTime * 5);
+            l = clamp(Math.sqrt(l2), epsilon, TUNING.maxDistanceClamp);
+            d.scale(1 / l * gameTime.deltaTime * TUNING.collisionResponseForce);
             // compute half penetration depth
             const pd = (r - l) / 2;
             // back us up

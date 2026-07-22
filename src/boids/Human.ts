@@ -1,22 +1,42 @@
 import chroma from 'chroma-js';
-import { CollisionBehavior } from '../behaviours/CollisionBehavior';
-import { FlowBehavior } from '../behaviours/FlowBehavior';
-import { SteerLayerBehavior } from '../behaviours/SteerLayerBehavior';
+import { CollisionBehavior } from '../behaviors/CollisionBehavior';
+import { FlowBehavior } from '../behaviors/FlowBehavior';
+import { SteerLayerBehavior } from '../behaviors/SteerLayerBehavior';
 import { IGameTime } from '../GameClock';
-import { vec2 } from '../math';
+import { vec2, vec4 } from '../math';
 import { Boid, IBoidOptions } from './Boid';
 import { Food } from './Food';
 import { Zombie } from './Zombie';
 
+// ARC-004: hunger gradient is precomputed once as a fixed vec4 LUT indexed by
+// Math.floor(hunger), instead of re-running a chroma scale + .gl() (which
+// allocates a fresh rgba array) every frame per living human. Domain mirrors
+// the original chroma scale: cyan below threshold, yellow at threshold, red
+// at hunger=100.
+const HUNGER_THRESHOLD_DEFAULT = 10;
+const HUNGER_MAX = 100;
+
 export class Human extends Boid {
+  private static readonly HUNGER_GRADIENT_LUT: readonly vec4[] = Human.buildHungerLUT();
+
+  private static buildHungerLUT(): vec4[] {
+    const scale = chroma
+      .scale(['#0FF', '#0FF', '#FF0', '#A00'])
+      .domain([0, HUNGER_THRESHOLD_DEFAULT - 1, HUNGER_THRESHOLD_DEFAULT, HUNGER_MAX]);
+    const lut: vec4[] = [];
+    for (let i = 0; i <= HUNGER_MAX; i++) {
+      const [r, g, b, a] = scale(i).gl();
+      lut.push(new vec4([r, g, b, a]));
+    }
+    return lut;
+  }
+
   hunger: number = 0;
   foodLayer: number;
   findFood: SteerLayerBehavior<Human>;
   foodFlow: FlowBehavior<Human>;
-  hungerThreshold: number = 10;
+  hungerThreshold: number = HUNGER_THRESHOLD_DEFAULT;
   hungerSpeed: number = 1;
-  hungerGradient = chroma.scale(['#0FF', '#0FF', '#FF0', '#A00'])
-    .domain([0, this.hungerThreshold - 1, this.hungerThreshold, 100]);
 
   constructor(options: IBoidOptions) {
     super(options);
@@ -86,24 +106,37 @@ export class Human extends Boid {
 
       const nearest = this.grid.getDataRadius(this.p.x, this.p.y, this.grid.cellSize * 2, true, this, true, this.foodLayer);
       if (nearest.length) {
-        const food: Food = nearest[0].data as unknown as Food;
-        const r = food.r + this.r;
-        if (food.r >= Food.MinSize && nearest[0].dist2 <= r * r) {
-          // food.r -= gameTime.deltaTime * 0.1;
-          // this.hunger = Math.max(0, this.hunger - gameTime.deltaTime * 10);
-          food.r = Math.max(0, food.r - this.hunger * 0.01);
-          this.hunger = 0;
+        // ARC-004: the food layer is typed HashGrid<Boid>, so the lookup is
+        // Boid, not Food. Guard with instanceof before touching Food members;
+        // a non-Food in the food layer would otherwise silently run Food
+        // methods on the wrong class.
+        const food = nearest[0].data;
+        if (food instanceof Food) {
+          const r = food.r + this.r;
+          if (food.r >= Food.MinSize && nearest[0].dist2 <= r * r) {
+            food.r = Math.max(0, food.r - this.hunger * 0.01);
+            this.hunger = 0;
+          }
         }
       }
     } else {
       this.findFood.enabled = false;
       this.foodFlow.enabled = false;
     }
-    if (this.hunger > 100) {
+    if (this.hunger > HUNGER_MAX) {
       this.die();
       return false;
     }
-    this.color.rgba = this.hungerGradient(this.hunger).gl();
+    // ARC-004: LUT lookup replaces per-frame chroma.scale()(.gl()) allocation.
+    // Component-wise copy avoids even the rgba-array allocation of `c.rgba`.
+    const hungerIdx = this.hunger <= 0
+      ? 0
+      : this.hunger >= HUNGER_MAX ? HUNGER_MAX : Math.floor(this.hunger);
+    const c = Human.HUNGER_GRADIENT_LUT[hungerIdx];
+    this.color.r = c.r;
+    this.color.g = c.g;
+    this.color.b = c.b;
+    this.color.a = c.a;
     return true;
   }
 
@@ -121,7 +154,13 @@ export class Human extends Boid {
       maxSpeed: this.World.zombieMaxSpeed
     };
     const boid = new Zombie(o);
-    this.World.boids[boid.id] = boid;
+    // QA-026: use the array's canonical add API rather than the legacy
+    // dense-id assumption (`boids[boid.id] = boid` worked only because ids
+    // are assigned densely from 0). The Zombie keeps the dying Human's id,
+    // which is what the GL buffer slot index is — draw() iterates all
+    // entries and the dead Human's draw() zeroes its own slot, so the
+    // appended Zombie's write to that slot wins.
+    this.World.boids.push(boid);
     for (const r of this.World.rings) {
       if (r.duration) continue;
       r.duration = 2;

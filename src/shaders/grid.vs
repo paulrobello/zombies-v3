@@ -56,8 +56,15 @@ void main() {
             }
         } // if len
     } // if paintMode
-    v_speed = length(vel_len.z);
-    v_angle = normalize(vel_len.xy);
+    // QA-020: two fixes here.
+    // (1) `length(vel_len.z)` was length-of-a-scalar (== abs(z), and z is the
+    //     non-negative flow strength cv.l already) — drop the spurious call.
+    // (2) `normalize(vel_len.xy)` divides by zero when the cell has no flow,
+    //     producing NaN that propagates into v_angle. Branch on its length.
+    v_speed = vel_len.z;
+    vec2 flowDir = vel_len.xy;
+    float flowLen = length(flowDir);
+    v_angle = (flowLen > EPSILON) ? flowDir / flowLen : vec2(0.0);
     v_solid = vel_len.w;
     v_gridMode = gridMode;
     v_line_color = lineColor;

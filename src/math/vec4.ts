@@ -158,8 +158,48 @@ export class vec4 {
 
   private values = new Float32Array(4);
 
-  static readonly zero = new vec4([0, 0, 0, 1]);
-  static readonly one = new vec4([1, 1, 1, 1]);
+  // QA-003: shared static "constants". vec4 backs its fields with a
+  // Float32Array, and the JS spec forbids Object.freeze on typed-array views
+  // ("Cannot freeze array buffer views with elements"). We provide freeze
+  // protection via two layers:
+  //   1. Object.freeze(v) locks the wrapper instance (prevents `values`
+  //      reassignment, property additions, prototype swap).
+  //   2. The single-component setters (x/y/z/w and r/g/b/a aliases) are
+  //      shadowed on the frozen instance so the most common stray-mutation
+  //      patterns (`vec4.zero.x = 5`) throw TypeError. Multi-component
+  //      setters (xy, xyzw, rgba, …) remain live; covering them requires
+  //      migrating off the Float32Array backing store, which is backlog.
+  static readonly zero: vec4 = vec4.frozen([0, 0, 0, 1]);
+  static readonly one: vec4 = vec4.frozen([1, 1, 1, 1]);
+
+  private static frozen(values: [number, number, number, number]): vec4 {
+    const v = new vec4(values);
+    const captured: [number, number, number, number] = [values[0], values[1], values[2], values[3]];
+    const throwOnSet = (): never => {
+      throw new TypeError('Cannot mutate a frozen vec4 static');
+    };
+    // Shadow each single-component accessor (x/y/z/w + rgba aliases) with a
+    // pair that reads the captured snapshot and rejects writes.
+    const componentAccessors: Array<[string, () => number]> = [
+      ['x', () => captured[0]],
+      ['y', () => captured[1]],
+      ['z', () => captured[2]],
+      ['w', () => captured[3]],
+      ['r', () => captured[0]],
+      ['g', () => captured[1]],
+      ['b', () => captured[2]],
+      ['a', () => captured[3]],
+    ];
+    for (const [key, getter] of componentAccessors) {
+      Object.defineProperty(v, key, {
+        get: getter,
+        set: throwOnSet,
+        configurable: false,
+        enumerable: true,
+      });
+    }
+    return Object.freeze(v) as vec4;
+  }
 
   at(index: number): number {
     return this.values[index];

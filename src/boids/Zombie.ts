@@ -1,7 +1,7 @@
-import { CollisionBehavior } from '../behaviours/CollisionBehavior';
-import { ConvertHumanBehavior } from '../behaviours/ConvertHumanBehavior';
-import { FlowBehavior } from '../behaviours/FlowBehavior';
-import { SteerLayerBehavior } from '../behaviours/SteerLayerBehavior';
+import { CollisionBehavior } from '../behaviors/CollisionBehavior';
+import { ConvertHumanBehavior } from '../behaviors/ConvertHumanBehavior';
+import { FlowBehavior } from '../behaviors/FlowBehavior';
+import { SteerLayerBehavior } from '../behaviors/SteerLayerBehavior';
 import { IGameTime } from '../GameClock';
 import { Boid, IBoidOptions } from './Boid';
 

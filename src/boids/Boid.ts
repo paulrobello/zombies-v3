@@ -1,6 +1,6 @@
-import { AvoidBoundaryBehavior } from '../behaviours/AvoidBoundaryBehavior';
-import { BoidBehavior } from '../behaviours/BoidBehavior';
-import { ForwardBehavior } from '../behaviours/ForwardBehavior';
+import { AvoidBoundaryBehavior } from '../behaviors/AvoidBoundaryBehavior';
+import { BoidBehavior } from '../behaviors/BoidBehavior';
+import { ForwardBehavior } from '../behaviors/ForwardBehavior';
 import { BoidGrid } from '../grids/BoidGrid';
 import { ICellIndexable } from '../grids/Cell';
 import { IGameTime } from '../GameClock';
@@ -50,6 +50,24 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
   public layer: number = 0;
   public color: vec4 = new vec4([0, 1, 0, 1]);
 
+  // QA-012: per-Boid scratch vec2 pool, allocated once. Reused by tick() and
+  // by this boid's behaviors (CollisionBehavior / SteerLayerBehavior / etc.)
+  // via `this.boid.scratch.X` so the hot loop stops allocating short-lived
+  // vec2 temporaries every frame. Aliasing rule: each named slot is only
+  // passed as `dest` to a single call at a time — never two writes in
+  // sequence to the same slot from the same expression.
+  public readonly scratch: {
+    t: vec2;     // generic temporary (force/velocity scratch)
+    fp1: vec2;   // future-position: this boid
+    fp2: vec2;   // future-position: neighbour
+    dTemp: vec2; // direction scratch
+  } = {
+    t: new vec2(),
+    fp1: new vec2(),
+    fp2: new vec2(),
+    dTemp: new vec2()
+  };
+
   options: IBoidOptions;
 
   get World(): World {
@@ -70,7 +88,9 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     this.v = options.v || new vec2();
     this.a = options.a || new vec2();
     this.d = new vec2();
-    this.maxSpeed = options.maxSpeed || 10;
+    // QA-016: `||` would default a legitimate `maxSpeed: 0` (Food) to 10.
+    // `??` only applies the default when the option is null/undefined.
+    this.maxSpeed = options.maxSpeed ?? 10;
     if (this.v.squaredLength()) {
       this.v.normalize(this.d);
     }
@@ -124,7 +144,7 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     const v: Ivec2 = this.v;
     const r: number = this.r;
     const world = this.options.world;
-    const t: vec2 = new vec2();
+    const t: vec2 = this.scratch.t;
 
     if (!this.static) {
       const maxSpeed = this.maxSpeed;
@@ -157,8 +177,13 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
     }
     const flowGrid = this.options.world.flowGrid;
     const cell = flowGrid.getCell(p.x, p.y, true);
+    // QA-011: a boid clamped to the world edge can legitimately be off-grid
+    // (getCell returns undefined outside the flow field). Throwing would crash
+    // a valid edge case; instead, skip the flow-field update for this tick —
+    // the rest of tick() has already run (position clamp, grid re-insert),
+    // and the only remaining work is the flow contribution we skip here.
     if (!cell) {
-      throw new Error(`flowGrid.getCell returned no cell for (${p.x}, ${p.y})`);
+      return true;
     }
     let cv: IFlowValue | undefined = cell.items[this.layer];
     if (!cv) {
@@ -178,6 +203,9 @@ export class Boid implements IPositional, IDirectional, ICellIndexable, IProgres
       if (cv.l < epsilon) {
         cv.p.set_xy(this.d.x, this.d.y);
       } else {
+        // Aliasing-safe: this.d.scale(_, t) writes to t, then cv.p.add(t)
+        // reads t and mutates cv.p in place. t != cv.p (t is this.scratch.t),
+        // so the scale result survives until add() reads it.
         cv.p.add(this.d.scale((1.5 - cv.l) * gameTime.deltaTime, t)).normalize();
       }
       cv.l = clamp(cv.l + this.speed * gameTime.deltaTime * 0.01, 0, 1);

@@ -57,9 +57,12 @@ export class vec2 implements Ivec2 {
     if (x instanceof vec2) {
       this.x = x.x;
       this.y = x.y;
-    } else if (x) {
+    } else if (x !== undefined) {
+      // Use `!== undefined` rather than truthy so a legitimate `x === 0`
+      // (e.g. `new vec2(0, 1)` for vec2.up) is honoured instead of silently
+      // collapsed to the default (0, 0).
       this.x = x;
-      if (y) {
+      if (y !== undefined) {
         this.y = y;
       } else {
         this.y = x;
@@ -81,12 +84,17 @@ export class vec2 implements Ivec2 {
   }
 
 
-  static readonly zero = new vec2(0, 0);
-  static readonly one = new vec2(1, 1);
-  static readonly up = new vec2(0, 1);
-  static readonly down = new vec2(0, -1);
-  static readonly left = new vec2(-1, 0);
-  static readonly right = new vec2(1, 0);
+  // QA-003: Object.freeze the shared static "constants" so any stray mutation
+  // (`vec2.zero.x = 5` or `vec2.zero.add(v)` without a `dest`) throws in
+  // strict mode (ESM is always strict) instead of silently corrupting every
+  // consumer. The cast preserves the declared `vec2` type so call sites and
+  // subclass methods that read these still type-check.
+  static readonly zero: vec2 = Object.freeze(new vec2(0, 0)) as vec2;
+  static readonly one: vec2 = Object.freeze(new vec2(1, 1)) as vec2;
+  static readonly up: vec2 = Object.freeze(new vec2(0, 1)) as vec2;
+  static readonly down: vec2 = Object.freeze(new vec2(0, -1)) as vec2;
+  static readonly left: vec2 = Object.freeze(new vec2(-1, 0)) as vec2;
+  static readonly right: vec2 = Object.freeze(new vec2(1, 0)) as vec2;
 
   static readonly rand = (min: number, max: number) => (new vec2()).random(min, max);
 
